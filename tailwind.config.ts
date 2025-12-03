@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ["Oswald", "sans-serif"],
+        heading: ["Montserrat", "sans-serif"],
         body: ["Inter", "sans-serif"],
       },
       colors: {
@@ -23,6 +23,7 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        "street-orange": "#FF6B00",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -95,8 +96,8 @@ export default {
         shimmer: "shimmer 2s linear infinite",
       },
       boxShadow: {
-        glow: "0 0 20px hsl(var(--primary) / 0.3)",
-        "glow-lg": "0 0 40px hsl(var(--primary) / 0.4)",
+        glow: "0 0 20px hsl(var(--primary) / 0.4)",
+        "glow-lg": "0 0 40px hsl(var(--primary) / 0.5)",
       },
     },
   },

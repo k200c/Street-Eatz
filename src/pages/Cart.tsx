@@ -1,9 +1,9 @@
-import { CustomerLayout } from '@/components/layout/CustomerLayout';
 import { useCartStore } from '@/stores/cartStore';
 import { Button } from '@/components/ui/button';
-import { Trash2, Minus, Plus, ShoppingBag } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Navbar } from '@/components/layout/Navbar';
 
 import heroBurger from '@/assets/hero-burger.jpg';
 import loadedFries from '@/assets/loaded-fries.jpg';
@@ -35,41 +35,52 @@ export default function Cart() {
 
   if (items.length === 0) {
     return (
-      <CustomerLayout>
-        <div className="p-4 flex flex-col items-center justify-center min-h-[60vh]">
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="pt-20 px-4 flex flex-col items-center justify-center min-h-[60vh]">
           <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mb-4">
             <ShoppingBag className="w-12 h-12 text-muted-foreground" />
           </div>
-          <h2 className="font-heading text-2xl text-foreground mb-2">Your cart is empty</h2>
+          <h2 className="font-heading text-2xl text-foreground mb-2">YOUR CART IS EMPTY</h2>
           <p className="text-muted-foreground mb-6">Add some delicious items to get started</p>
-          <Button variant="glow" onClick={() => navigate('/menu')}>
-            Browse Menu
+          <Button className="btn-glow" onClick={() => navigate('/')}>
+            BROWSE MENU
           </Button>
         </div>
-      </CustomerLayout>
+      </div>
     );
   }
 
   return (
-    <CustomerLayout>
-      <div className="p-4 space-y-4">
-        <header className="flex items-center justify-between">
-          <h1 className="font-heading text-3xl text-foreground">Your Cart</h1>
+    <div className="min-h-screen">
+      <Navbar />
+      <div className="pt-20 px-4 max-w-lg mx-auto pb-32">
+        {/* Header */}
+        <header className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="font-heading text-2xl text-foreground">YOUR ORDER</h1>
+          </div>
           <button
             onClick={clearCart}
-            className="text-destructive text-sm font-medium hover:underline"
+            className="text-destructive text-sm font-medium hover:underline uppercase tracking-wider"
           >
-            Clear All
+            Clear
           </button>
         </header>
 
         {/* Cart Items */}
-        <div className="space-y-3">
+        <div className="space-y-3 mb-6">
           {items.map((item, index) => {
             const imageUrl = item.product.image_url || categoryImages[item.product.category] || heroBurger;
             
             return (
-              <div key={index} className="glass-card p-3 flex gap-3">
+              <div key={index} className="street-card p-4 flex gap-4">
                 <img
                   src={imageUrl}
                   alt={item.product.name}
@@ -80,12 +91,12 @@ export default function Cart() {
                     {item.product.name}
                   </h3>
                   {item.selectedModifiers.length > 0 && (
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className="text-xs text-muted-foreground truncate mt-1">
                       {item.selectedModifiers.map((m) => m.name).join(', ')}
                     </p>
                   )}
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-primary font-bold">
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="price-badge">
                       €{item.totalPrice.toFixed(2)}
                     </span>
                     <div className="flex items-center gap-2">
@@ -97,7 +108,7 @@ export default function Cart() {
                             updateQuantity(index, item.quantity - 1);
                           }
                         }}
-                        className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"
+                        className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors"
                       >
                         {item.quantity === 1 ? (
                           <Trash2 className="w-4 h-4 text-destructive" />
@@ -108,7 +119,7 @@ export default function Cart() {
                       <span className="w-6 text-center font-semibold">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(index, item.quantity + 1)}
-                        className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
+                        className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
@@ -121,33 +132,33 @@ export default function Cart() {
         </div>
 
         {/* Summary */}
-        <div className="glass-card p-4 space-y-3">
+        <div className="street-card p-4 space-y-3">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal</span>
             <span>€{total.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
             <span>Service Fee</span>
-            <span>€0.00</span>
+            <span className="text-success">FREE</span>
           </div>
-          <div className="border-t border-border pt-3 flex justify-between">
-            <span className="font-heading text-lg text-foreground">Total</span>
+          <div className="border-t border-white/10 pt-3 flex justify-between">
+            <span className="font-heading text-lg text-foreground">TOTAL</span>
             <span className="font-heading text-xl text-primary">€{total.toFixed(2)}</span>
           </div>
         </div>
 
         {/* Checkout Button */}
-        <div className="fixed bottom-20 left-4 right-4 max-w-lg mx-auto">
-          <Button
-            variant="glow"
-            size="xl"
-            className="w-full"
-            onClick={handleCheckout}
-          >
-            Checkout • €{total.toFixed(2)}
-          </Button>
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent">
+          <div className="max-w-lg mx-auto">
+            <Button
+              className="w-full h-14 btn-glow text-lg font-semibold tracking-wider"
+              onClick={handleCheckout}
+            >
+              CHECKOUT - €{total.toFixed(2)}
+            </Button>
+          </div>
         </div>
       </div>
-    </CustomerLayout>
+    </div>
   );
 }
