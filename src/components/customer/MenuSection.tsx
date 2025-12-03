@@ -14,7 +14,7 @@ export function MenuSection() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const { data: products, isLoading } = useProducts(selectedCategory);
+  const { data: products, isLoading, isError, refetch } = useProducts(selectedCategory);
   const { data: modifierGroups } = useProductModifiers(selectedProduct?.id);
 
   // Group products by category
@@ -73,15 +73,25 @@ export function MenuSection() {
           {[...Array(4)].map((_, i) => (
             <div key={i} className="street-card p-4">
               <div className="flex gap-4">
-                <Skeleton className="w-24 h-24 rounded-lg flex-shrink-0" />
+                <Skeleton className="w-24 h-24 rounded-lg flex-shrink-0 bg-secondary/50" />
                 <div className="flex-1 space-y-2">
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-8 w-20" />
+                  <Skeleton className="h-5 w-3/4 bg-secondary/50" />
+                  <Skeleton className="h-4 w-full bg-secondary/50" />
+                  <Skeleton className="h-8 w-20 bg-secondary/50" />
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      ) : isError ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-4">Failed to load menu items</p>
+          <button
+            onClick={() => refetch()}
+            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       ) : selectedCategory === 'All' && productsByCategory ? (
         // Show grouped by category
