@@ -3,8 +3,11 @@ import { motion, useScroll, useTransform, useInView } from 'framer-motion';
 import { useProducts } from '@/hooks/useProducts';
 import { useProductModifiers } from '@/hooks/useProductModifiers';
 import { useProductIngredients } from '@/hooks/useProductIngredients';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { ProductCardHorizontal } from './ProductCardHorizontal';
 import { ProductSheet } from './ProductSheet';
+import { StoreClosedOverlay } from './StoreClosedOverlay';
+import { WaitTimeBanner } from './WaitTimeBanner';
 import { Product, ProductCategory } from '@/types/database';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -132,6 +135,10 @@ export function MenuSection() {
   const { data: products, isLoading, isError, refetch } = useProducts(selectedCategory);
   const { data: modifierGroups } = useProductModifiers(selectedProduct?.id);
   const { data: ingredients } = useProductIngredients(selectedProduct?.id);
+  const { data: appSettings } = useAppSettings();
+
+  const isStoreOpen = appSettings?.is_store_open ?? true;
+  const waitTime = appSettings?.current_wait_time;
 
   // Group products by category
   const productsByCategory = products?.reduce((acc, product) => {
@@ -155,17 +162,24 @@ export function MenuSection() {
   };
 
   return (
-    <section ref={sectionRef} id="menu" className="px-4 py-12 max-w-4xl mx-auto scroll-mt-20 relative">
-      {/* Animated Section Header */}
-      <motion.div 
-        ref={headerRef}
-        className="text-center mb-8"
-        style={{ 
-          scale: headerScale, 
-          opacity: headerOpacity,
-          y: headerY
-        }}
-      >
+    <>
+      {/* Store Closed Overlay */}
+      {!isStoreOpen && <StoreClosedOverlay />}
+      
+      {/* Wait Time Banner */}
+      {isStoreOpen && waitTime && <WaitTimeBanner waitTime={waitTime} />}
+      
+      <section ref={sectionRef} id="menu" className="px-4 py-12 max-w-4xl mx-auto scroll-mt-20 relative">
+        {/* Animated Section Header */}
+        <motion.div 
+          ref={headerRef}
+          className="text-center mb-8"
+          style={{ 
+            scale: headerScale, 
+            opacity: headerOpacity,
+            y: headerY
+          }}
+        >
         <motion.h2 
           className="font-heading text-3xl sm:text-4xl font-bold text-foreground mb-2"
           initial={{ opacity: 0, y: 30 }}
@@ -293,5 +307,6 @@ export function MenuSection() {
         onClose={() => setSelectedProduct(null)}
       />
     </section>
+    </>
   );
 }

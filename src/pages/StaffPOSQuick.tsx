@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Product, ProductCategory } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Trash2, Minus, Plus, ShoppingCart, Edit2, LogOut } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingCart, Edit2, LogOut, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProductSheet } from '@/components/customer/ProductSheet';
 import { StaffCheckoutModal } from '@/components/checkout/StaffCheckoutModal';
@@ -94,14 +94,25 @@ export default function StaffPOSQuick() {
                 ))}
               </div>
             </ScrollArea>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleSignOut}
-              className="flex-shrink-0"
-            >
-              <LogOut className="w-5 h-5" />
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/staff/dashboard')}
+                className="flex-shrink-0"
+                title="Command Center"
+              >
+                <Settings className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSignOut}
+                className="flex-shrink-0"
+              >
+                <LogOut className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </div>
 
