@@ -2,25 +2,51 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Street Eats | Gourmet Food Truck</title>
-    <meta name="description" content="Street Eats - Premium gourmet burgers, flatbreads, and loaded fries from Waterford's favorite food truck. Order online for pickup!" />
-    <meta name="author" content="Street Eats" />
-    <meta name="theme-color" content="#121212" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Street Eatz | Gourmet Street Food</title>
+    <meta name="description" content="Street Eatz - Premium gourmet burgers, flatbreads, and loaded fries from Waterford's favorite food truck. Order online for pickup!" />
+    <meta name="author" content="Street Eatz" />
     
-    <!-- PWA -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Theme & Status Bar -->
+    <meta name="theme-color" content="#0A0A0A" />
+    <meta name="msapplication-TileColor" content="#0A0A0A" />
+    <meta name="msapplication-navbutton-color" content="#0A0A0A" />
+    
+    <!-- PWA / iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-    <meta property="og:title" content="Street Eats | Gourmet Food Truck" />
+    <meta name="apple-mobile-web-app-title" content="Street Eatz" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" href="/favicon.ico" />
+    
+    <!-- Splash Screen for iOS -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Street Eatz | Gourmet Street Food" />
     <meta property="og:description" content="Premium gourmet burgers, flatbreads, and loaded fries from Waterford's favorite food truck." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-
+    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:site_name" content="Street Eatz" />
+    
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@StreetEatsWaterford" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:site" content="@StreetEatzWaterford" />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
+    
+    <!-- Prevent phone number detection -->
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- Disable tap highlight on mobile -->
+    <style>
+      * { -webkit-tap-highlight-color: transparent; }
+      html { touch-action: manipulation; }
+    </style>
   </head>
 
   <body>
