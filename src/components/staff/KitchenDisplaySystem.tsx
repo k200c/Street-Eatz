@@ -48,8 +48,8 @@ const columns: ColumnConfig[] = [
 // Webhook URL for status notifications
 const STATUS_WEBHOOK_URL = 'https://kyle2000.app.n8n.cloud/webhook-test/street-eatz-status';
 
-// Send webhook notification when order is marked ready
-async function sendReadyNotification(order: KitchenOrder): Promise<void> {
+// Send webhook notification for ALL status changes
+async function sendStatusNotification(order: KitchenOrder, newStatus: OrderStatus): Promise<void> {
   try {
     await fetch(STATUS_WEBHOOK_URL, {
       method: 'POST',
@@ -58,7 +58,7 @@ async function sendReadyNotification(order: KitchenOrder): Promise<void> {
       },
       body: JSON.stringify({
         type: 'status_update',
-        status: 'ready',
+        status: newStatus,
         order_id: order.id,
         customer: {
           name: order.customer_name,
@@ -66,9 +66,9 @@ async function sendReadyNotification(order: KitchenOrder): Promise<void> {
         }
       }),
     });
-    console.log('Ready notification sent for order:', order.id);
+    console.log(`Status notification (${newStatus}) sent for order:`, order.id);
   } catch (error) {
-    console.error('Failed to send ready notification:', error);
+    console.error('Failed to send status notification:', error);
     // Don't throw - webhook failure shouldn't block order status update
   }
 }
@@ -348,13 +348,11 @@ export function KitchenDisplaySystem() {
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {
-      // If marking as ready, trigger webhook notification
-      if (newStatus === 'ready') {
-        const order = findOrderById(orderId);
-        if (order) {
-          // Fire webhook in background (don't await)
-          sendReadyNotification(order);
-        }
+      // Trigger webhook notification for ALL status changes
+      const order = findOrderById(orderId);
+      if (order) {
+        // Fire webhook in background (don't await)
+        sendStatusNotification(order, newStatus);
       }
 
       await updateOrderStatus.mutateAsync({ 
