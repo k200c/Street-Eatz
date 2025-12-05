@@ -54,6 +54,10 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   };
 
   const handlePayOnCollection = async () => {
+    // IMPORTANT: Save cart data BEFORE submitOrder clears the cart
+    const cartSnapshot = [...items];
+    const totalSnapshot = total;
+
     // Show "Sending to Kitchen" spinner
     setStep('sending');
 
@@ -66,11 +70,17 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
 
     if (result) {
       // Send to n8n webhook for cash/collection payments
-      await sendToKitchen(result, {
-        name: customerName.trim(),
-        phone: customerPhone.trim(),
-        email: customerEmail.trim(),
-      });
+      // Pass the saved cart data since cart is now cleared
+      await sendToKitchen(
+        result,
+        {
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
+          email: customerEmail.trim(),
+        },
+        cartSnapshot,
+        totalSnapshot
+      );
 
       setOrderNumber(result.orderNumber);
       setStep('pending');

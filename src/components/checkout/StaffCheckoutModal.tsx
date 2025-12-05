@@ -40,6 +40,10 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
   };
 
   const handleCashPayment = async () => {
+    // IMPORTANT: Save cart data BEFORE submitOrder clears the cart
+    const cartSnapshot = [...items];
+    const totalSnapshot = total;
+
     // Show "Sending to Kitchen" state
     setIsSendingToKitchen(true);
 
@@ -50,11 +54,13 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
 
     if (result) {
       // Send to n8n webhook for cash payments
-      await sendToKitchen(result, {
-        name: '',
-        phone: '',
-        email: '',
-      });
+      // Pass the saved cart data since cart is now cleared
+      await sendToKitchen(
+        result,
+        { name: '', phone: '', email: '' },
+        cartSnapshot,
+        totalSnapshot
+      );
 
       setAmountTendered('');
       setIsSendingToKitchen(false);

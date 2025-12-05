@@ -36,6 +36,7 @@ interface WebhookPayload {
   items: Array<{
     name: string;
     quantity: number;
+    price: number;
     modifiers: string[];
   }>;
   store_meta: {
@@ -116,14 +117,17 @@ export function useCheckout() {
   };
 
   // Send order to n8n webhook (ONLY for cash/collection payments)
+  // IMPORTANT: Pass cartItems and orderTotal since cart is cleared before this is called
   const sendToKitchen = async (
     orderResult: { orderId: string; orderNumber: number; createdAt: string },
-    customerData: { name: string; phone: string; email: string }
+    customerData: { name: string; phone: string; email: string },
+    cartItems: typeof items,
+    orderTotal: number
   ): Promise<boolean> => {
     // Step 1: Validate data before sending
-    if (items.length === 0) {
-      console.error('N8N Error: Cart is empty, cannot send to kitchen');
-      toast.error('Cart is empty');
+    if (!cartItems || cartItems.length === 0) {
+      console.error('N8N Error: No items provided, cannot send to kitchen');
+      toast.error('No items to send');
       return false;
     }
 
@@ -139,8 +143,8 @@ export function useCheckout() {
 
       const waitTime = settings?.current_wait_time || '20 mins';
 
-      // Ensure total is a Number, not a string
-      const totalAmount = Number(getTotal()) || 0;
+      // Use the passed total (cart is already cleared at this point)
+      const totalAmount = Number(orderTotal) || 0;
 
       // Build the payload with strict typing
       const payload: WebhookPayload = {
@@ -157,7 +161,7 @@ export function useCheckout() {
           subtotal: totalAmount,
           total: totalAmount,
         },
-        items: items.map(item => {
+        items: cartItems.map(item => {
           // Ensure modifiers is strictly an array of strings, default to []
           const modifiers: string[] = [];
           
@@ -174,11 +178,15 @@ export function useCheckout() {
               if (mod?.name) modifiers.push(mod.name);
             });
           }
+
+          // Calculate item price (base + modifiers)
+          const itemPrice = item.totalPrice / item.quantity;
           
           return {
             name: item.product?.name || 'Unknown Item',
             quantity: item.quantity || 1,
-            modifiers: modifiers, // Always an array, never undefined/null
+            price: itemPrice,
+            modifiers: modifiers,
           };
         }),
         store_meta: {
