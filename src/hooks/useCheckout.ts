@@ -63,30 +63,12 @@ export function useCheckout() {
         ? data.amountTendered - total 
         : null;
 
-      // Create the order
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          total,
-          payment_method: data.paymentMethod,
-          cash_tendered: data.paymentMethod === 'cash' ? data.amountTendered : null,
-          change_due: changeDue,
-          customer_name: data.customerName || null,
-          customer_phone: data.customerPhone || null,
-          status: 'pending',
-        })
-        .select('id, created_at')
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items with product name snapshots
+      // Build order items for the Edge Function
       const orderItems = items.map((item) => ({
-        order_id: order.id,
         product_id: item.product.id,
         product_name: item.product.name,
         quantity: item.quantity,
-        unit_price: item.product.price,
+        unit_price: item.totalPrice / item.quantity, // Use calculated price with modifiers
         selected_modifiers: {
           modifiers: item.selectedModifiers.map(m => ({
             name: m.name,
@@ -98,21 +80,31 @@ export function useCheckout() {
         },
       }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+      // Use the secure Edge Function for order creation
+      const { data: result, error } = await supabase.functions.invoke('create-order', {
+        body: {
+          items: orderItems,
+          total,
+          payment_method: data.paymentMethod,
+          customer_name: data.customerName || null,
+          customer_phone: data.customerPhone || null,
+          cash_tendered: data.paymentMethod === 'cash' ? data.amountTendered : null,
+          change_due: changeDue,
+        },
+      });
 
-      if (itemsError) throw itemsError;
+      if (error) throw error;
+      if (result.error) throw new Error(result.error);
 
       // Generate order number from timestamp (last 3 digits of epoch seconds)
-      const orderNumber = Math.floor(new Date(order.created_at).getTime() / 1000) % 1000;
+      const orderNumber = Math.floor(new Date(result.created_at).getTime() / 1000) % 1000;
 
       clearCart();
       
       return {
-        orderId: order.id,
+        orderId: result.order_id,
         orderNumber,
-        createdAt: order.created_at,
+        createdAt: result.created_at,
       };
     } catch (error) {
       console.error('Checkout error:', error);
