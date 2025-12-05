@@ -41,7 +41,21 @@ const bundles = [
 
 export default function StaffPOS() {
   const navigate = useNavigate();
+  const { user, isStaff, loading } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('Burgers');
+
+  // Redirect non-staff users
+  useEffect(() => {
+    if (!loading && (!user || !isStaff)) {
+      toast.error('Access denied. Staff only.');
+      navigate('/auth', { replace: true });
+    }
+  }, [user, isStaff, loading, navigate]);
+
+  // Show nothing while checking auth
+  if (loading || !user || !isStaff) {
+    return null;
+  }
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showPayment, setShowPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'split' | null>(null);
