@@ -41,13 +41,12 @@ export function useKitchenOrders() {
     queryFn: async () => {
       console.log('[KDS] Fetching active orders...');
       
-      // SAFETY FIRST: Fetch ALL non-completed/cancelled orders regardless of date
-      // This catches any status variants like 'received', 'created', etc.
+      // SAFETY FIRST: Fetch ALL non-completed orders regardless of date
+      // Note: 'cancelled' status doesn't exist in the enum, so only exclude 'completed'
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('*')
-        .not('status', 'eq', 'completed')
-        .not('status', 'eq', 'cancelled')
+        .neq('status', 'completed')
         .order('created_at', { ascending: true });
 
       if (ordersError) {
