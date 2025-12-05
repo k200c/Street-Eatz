@@ -72,7 +72,7 @@ export function useKitchenOrders() {
         .update({ status })
         .eq('id', orderId)
         .select('id, status')
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Order status update error:', error);
