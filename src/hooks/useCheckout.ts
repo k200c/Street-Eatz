@@ -194,26 +194,61 @@ export function useCheckout() {
         },
       };
 
-      // Debug log: show exactly what's being sent
-      console.log("Sending Payload to kitchen:", JSON.stringify(payload, null, 2));
-
-      // Use Edge Function to proxy the webhook (keeps URL secure)
-      const { error } = await supabase.functions.invoke("send-to-kitchen", {
-        body: payload,
-      });
-
-      if (error) {
-        throw new Error(`Kitchen notification failed: ${error.message}`);
+      // HARDCODED PRODUCTION WEBHOOK URL FOR DEBUGGING
+      const webhookUrl = "https://kyle2000.app.n8n.cloud/webhook/street-eatz-order";
+      
+      // LOUD DEBUGGING - visible on mobile console
+      console.log("🚀 Attempting to submit order to:", webhookUrl);
+      console.log("📦 Payload:", JSON.stringify(payload, null, 2));
+      
+      // Verify payload structure before sending
+      if (!Array.isArray(payload.items)) {
+        console.error("❌ PAYLOAD ERROR: items is not an array!", typeof payload.items);
+        toast.error("Order Failed: Invalid items format");
+        return false;
       }
+      if (typeof payload.totals !== 'object') {
+        console.error("❌ PAYLOAD ERROR: totals is not an object!", typeof payload.totals);
+        toast.error("Order Failed: Invalid totals format");
+        return false;
+      }
+      
+      console.log("✅ Payload validation passed. Sending to n8n...");
 
-      console.log("Order sent to kitchen successfully");
-      return true;
+      try {
+        const response = await fetch(webhookUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        console.log("📡 Response status:", response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("❌ Webhook response error:", response.status, errorText);
+          throw new Error(`Webhook failed: ${response.status} - ${errorText}`);
+        }
+
+        const responseData = await response.text();
+        console.log("✅ Order sent to kitchen successfully! Response:", responseData);
+        return true;
+      } catch (fetchError) {
+        const errorMessage = fetchError instanceof Error ? fetchError.message : "Unknown fetch error";
+        console.error("❌ Fetch error:", errorMessage);
+        toast.error(`Order Failed: ${errorMessage}`);
+        // Still return true so user proceeds - order is saved in DB
+        toast.success("Order Saved (Kitchen notification failed)");
+        return true;
+      }
     } catch (error) {
-      // Step 3: Log error but DON'T block the user
-      console.error("N8N Error:", error);
-      // Show success message anyway - don't lose the order
-      toast.success("Order Saved (Printer Alert sent to Kitchen)");
-      return true; // Return true so user proceeds to success page
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ N8N Error:", errorMessage);
+      toast.error(`Kitchen Alert Failed: ${errorMessage}`);
+      // Still proceed - don't lose the order
+      return true;
     } finally {
       setIsSendingToKitchen(false);
     }
