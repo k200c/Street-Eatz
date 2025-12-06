@@ -21,7 +21,7 @@ function AboutSection() {
           </div>
           <div className="street-card p-4">
             <p className="font-heading text-primary mb-1">SAT - SUN</p>
-            <p className="text-foreground">1pm - 9pm</p>
+            <p className="text-foreground">1pm - 7pm</p>
           </div>
         </div>
       </div>
