@@ -61,7 +61,7 @@ export function SocialMediaManager() {
       if (error) throw error;
       return data as SocialMediaPost[];
     },
-    enabled: false, // QUARANTINE: Disabled to prevent 504 timeout
+    enabled: true,
     staleTime: 1000 * 60,
     retry: 2,
     refetchOnWindowFocus: false,
