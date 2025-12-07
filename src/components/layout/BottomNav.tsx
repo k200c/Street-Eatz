@@ -1,4 +1,4 @@
-import { Home, UtensilsCrossed, ShoppingCart, Info } from 'lucide-react';
+import { Home, UtensilsCrossed, ShoppingCart, User } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useCartStore } from '@/stores/cartStore';
 import { cn } from '@/lib/utils';
@@ -7,7 +7,7 @@ const navItems = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/menu', icon: UtensilsCrossed, label: 'Menu' },
   { to: '/cart', icon: ShoppingCart, label: 'Cart' },
-  { to: '/details', icon: Info, label: 'Details' },
+  { to: '/profile', icon: User, label: 'Profile' },
 ];
 
 export function BottomNav() {
