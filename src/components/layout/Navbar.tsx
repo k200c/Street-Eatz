@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingBag, Menu, X, User } from 'lucide-react';
+import { ShoppingBag, Menu, X, User, LogOut, Settings, History, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cartStore';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 
 const navLinks = [
   { label: 'MENU', href: '#menu' },
@@ -14,6 +23,7 @@ export function Navbar() {
   const itemCount = useCartStore((state) => state.getItemCount());
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, profile, signOut, isStaff } = useAuth();
 
   const scrollToSection = (sectionId: string) => {
     // If not on home page, navigate first
@@ -29,6 +39,15 @@ export function Navbar() {
     }
     setIsOpen(false);
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success('Signed out successfully');
+    navigate('/');
+  };
+
+  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Account';
+  const initials = displayName.charAt(0).toUpperCase();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/5">
@@ -66,16 +85,58 @@ export function Navbar() {
 
           {/* Right Side */}
           <div className="flex items-center gap-3">
-            {/* Staff Login */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/auth')}
-              className="hidden sm:flex text-muted-foreground hover:text-foreground"
-            >
-              <User className="w-4 h-4 mr-1" />
-              STAFF
-            </Button>
+            {/* User Profile / Auth - Desktop */}
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hidden sm:flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
+                      <span className="text-xs font-semibold text-primary-foreground">{initials}</span>
+                    </div>
+                    <span className="max-w-[100px] truncate">{displayName}</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    <History className="w-4 h-4 mr-2" />
+                    Order History
+                  </DropdownMenuItem>
+                  {isStaff && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => navigate('/staff/pos')}>
+                        <Settings className="w-4 h-4 mr-2" />
+                        Staff Dashboard
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/auth')}
+                className="hidden sm:flex text-muted-foreground hover:text-foreground"
+              >
+                <User className="w-4 h-4 mr-1" />
+                LOGIN
+              </Button>
+            )}
 
             {/* Cart Icon */}
             <Button
@@ -135,12 +196,40 @@ export function Navbar() {
                   </button>
                 )
               ))}
-              <button
-                onClick={() => { navigate('/auth'); setIsOpen(false); }}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors tracking-wider text-left"
-              >
-                STAFF LOGIN
-              </button>
+              
+              {user ? (
+                <>
+                  <button
+                    onClick={() => { navigate('/profile'); setIsOpen(false); }}
+                    className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors tracking-wider text-left flex items-center gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    PROFILE
+                  </button>
+                  {isStaff && (
+                    <button
+                      onClick={() => { navigate('/staff/pos'); setIsOpen(false); }}
+                      className="text-sm font-medium text-primary hover:text-primary/80 transition-colors tracking-wider text-left"
+                    >
+                      STAFF DASHBOARD
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { handleSignOut(); setIsOpen(false); }}
+                    className="text-sm font-medium text-destructive hover:text-destructive/80 transition-colors tracking-wider text-left"
+                  >
+                    SIGN OUT
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { navigate('/auth'); setIsOpen(false); }}
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors tracking-wider text-left"
+                >
+                  LOGIN / SIGN UP
+                </button>
+              )}
+              
               <Button onClick={() => scrollToSection('menu')} className="w-full btn-glow mt-2">
                 ORDER NOW
               </Button>
