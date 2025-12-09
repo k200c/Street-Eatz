@@ -1,4 +1,4 @@
-import { useState, DragEvent } from 'react';
+import React, { useState, DragEvent, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChefHat, Clock, Volume2, VolumeX, GripVertical, Play, CheckCircle, PackageCheck, RefreshCw, Bug } from 'lucide-react';
 import { useKitchenOrders, KitchenOrder } from '@/hooks/useKitchenOrders';
@@ -54,217 +54,222 @@ interface OrderCardProps {
   currentStatus: OrderStatus;
 }
 
-function OrderCard({ order, onDragStart, onStatusChange, currentStatus }: OrderCardProps) {
-  const [isUpdating, setIsUpdating] = useState(false);
-  
-  const timeAgo = order.created_at 
-    ? formatDistanceToNow(new Date(order.created_at), { addSuffix: true })
-    : 'Unknown';
-
-  // Extract modifier info from order items
-  const parseModifiers = (modifiers: unknown): string[] => {
-    if (!modifiers) return [];
-    if (Array.isArray(modifiers)) {
-      return modifiers.map((m: unknown) => {
-        if (typeof m === 'string') return m;
-        if (m && typeof m === 'object' && 'name' in m) return (m as { name: string }).name;
-        return '';
-      }).filter(Boolean);
-    }
-    return [];
-  };
-
-  // Check if modifier indicates removal or allergy
-  const isHighlightedModifier = (mod: string): boolean => {
-    const lowered = mod.toLowerCase();
-    return lowered.startsWith('no ') || 
-           lowered.includes('allergy') || 
-           lowered.includes('allergies') ||
-           lowered.includes('gluten') ||
-           lowered.includes('dairy');
-  };
-
-  const handleAction = async () => {
-    setIsUpdating(true);
-    let newStatus: OrderStatus;
+const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
+  ({ order, onDragStart, onStatusChange, currentStatus }, ref) => {
+    const [isUpdating, setIsUpdating] = useState(false);
     
-    switch (currentStatus) {
-      case 'pending':
-        newStatus = 'cooking';
-        break;
-      case 'cooking':
-        newStatus = 'ready';
-        break;
-      case 'ready':
-        newStatus = 'completed';
-        break;
-      default:
-        return;
-    }
-    
-    // Only "Mark Ready" triggers webhook (cooking -> ready)
-    const skipWebhook = currentStatus !== 'cooking';
-    await onStatusChange(order.id, newStatus, skipWebhook);
-    setIsUpdating(false);
-  };
+    const timeAgo = order.created_at 
+      ? formatDistanceToNow(new Date(order.created_at), { addSuffix: true })
+      : 'Unknown';
 
-  // Quick complete: directly mark as completed without webhook
-  const handleQuickComplete = async () => {
-    setIsUpdating(true);
-    await onStatusChange(order.id, 'completed', true); // Skip webhook
-    setIsUpdating(false);
-  };
+    // Extract modifier info from order items
+    const parseModifiers = (modifiers: unknown): string[] => {
+      if (!modifiers) return [];
+      if (Array.isArray(modifiers)) {
+        return modifiers.map((m: unknown) => {
+          if (typeof m === 'string') return m;
+          if (m && typeof m === 'object' && 'name' in m) return (m as { name: string }).name;
+          return '';
+        }).filter(Boolean);
+      }
+      return [];
+    };
 
-  const getActionButtons = () => {
-    switch (currentStatus) {
-      case 'pending':
-        return (
-          <div className="flex gap-2">
+    // Check if modifier indicates removal or allergy
+    const isHighlightedModifier = (mod: string): boolean => {
+      const lowered = mod.toLowerCase();
+      return lowered.startsWith('no ') || 
+             lowered.includes('allergy') || 
+             lowered.includes('allergies') ||
+             lowered.includes('gluten') ||
+             lowered.includes('dairy');
+    };
+
+    const handleAction = async () => {
+      setIsUpdating(true);
+      let newStatus: OrderStatus;
+      
+      switch (currentStatus) {
+        case 'pending':
+          newStatus = 'cooking';
+          break;
+        case 'cooking':
+          newStatus = 'ready';
+          break;
+        case 'ready':
+          newStatus = 'completed';
+          break;
+        default:
+          return;
+      }
+      
+      // Only "Mark Ready" triggers webhook (cooking -> ready)
+      const skipWebhook = currentStatus !== 'cooking';
+      await onStatusChange(order.id, newStatus, skipWebhook);
+      setIsUpdating(false);
+    };
+
+    // Quick complete: directly mark as completed without webhook
+    const handleQuickComplete = async () => {
+      setIsUpdating(true);
+      await onStatusChange(order.id, 'completed', true); // Skip webhook
+      setIsUpdating(false);
+    };
+
+    const getActionButtons = () => {
+      switch (currentStatus) {
+        case 'pending':
+          return (
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
+                onClick={handleAction}
+                disabled={isUpdating}
+              >
+                <Play className="w-4 h-4 mr-1" />
+                Start Cooking
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="px-2 border-muted-foreground/30 hover:bg-muted"
+                onClick={handleQuickComplete}
+                disabled={isUpdating}
+                title="Archive - Skip to Completed (No SMS)"
+              >
+                <CheckCircle className="w-4 h-4" />
+              </Button>
+            </div>
+          );
+        case 'cooking':
+          return (
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold"
+                onClick={handleAction}
+                disabled={isUpdating}
+              >
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Mark Ready
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="px-2 border-muted-foreground/30 hover:bg-muted"
+                onClick={handleQuickComplete}
+                disabled={isUpdating}
+                title="Archive - Skip to Completed (No SMS)"
+              >
+                <PackageCheck className="w-4 h-4" />
+              </Button>
+            </div>
+          );
+        case 'ready':
+          return (
             <Button 
               size="sm" 
-              className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold"
               onClick={handleAction}
               disabled={isUpdating}
             >
-              <Play className="w-4 h-4 mr-1" />
-              Start Cooking
+              <PackageCheck className="w-4 h-4 mr-1" />
+              Complete / Pickup
             </Button>
-            <Button 
-              size="sm" 
-              variant="outline"
-              className="px-2 border-muted-foreground/30 hover:bg-muted"
-              onClick={handleQuickComplete}
-              disabled={isUpdating}
-              title="Archive - Skip to Completed (No SMS)"
-            >
-              <CheckCircle className="w-4 h-4" />
-            </Button>
-          </div>
-        );
-      case 'cooking':
-        return (
-          <div className="flex gap-2">
-            <Button 
-              size="sm" 
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold"
-              onClick={handleAction}
-              disabled={isUpdating}
-            >
-              <CheckCircle className="w-4 h-4 mr-1" />
-              Mark Ready
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline"
-              className="px-2 border-muted-foreground/30 hover:bg-muted"
-              onClick={handleQuickComplete}
-              disabled={isUpdating}
-              title="Archive - Skip to Completed (No SMS)"
-            >
-              <PackageCheck className="w-4 h-4" />
-            </Button>
-          </div>
-        );
-      case 'ready':
-        return (
-          <Button 
-            size="sm" 
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold"
-            onClick={handleAction}
-            disabled={isUpdating}
-          >
-            <PackageCheck className="w-4 h-4 mr-1" />
-            Complete / Pickup
-          </Button>
-        );
-      default:
-        return null;
-    }
-  };
+          );
+        default:
+          return null;
+      }
+    };
 
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      draggable
-      onDragStart={(e) => onDragStart(e as unknown as DragEvent, order)}
-      className="cursor-grab active:cursor-grabbing"
-    >
-      <Card className="bg-card border-2 border-border hover:border-primary/50 transition-colors">
-        <CardContent className="p-3">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <GripVertical className="w-4 h-4 text-muted-foreground" />
-              <span className="font-bold text-lg">
-                #{order.id.slice(-6).toUpperCase()}
-              </span>
+    return (
+      <motion.div
+        ref={ref}
+        layout
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        draggable
+        onDragStart={(e) => onDragStart(e as unknown as DragEvent, order)}
+        className="cursor-grab active:cursor-grabbing"
+      >
+        <Card className="bg-card border-2 border-border hover:border-primary/50 transition-colors">
+          <CardContent className="p-3">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <GripVertical className="w-4 h-4 text-muted-foreground" />
+                <span className="font-bold text-lg">
+                  #{order.id.slice(-6).toUpperCase()}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                <Clock className="w-3 h-3" />
+                {timeAgo}
+              </div>
             </div>
-            <div className="flex items-center gap-1 text-muted-foreground text-sm">
-              <Clock className="w-3 h-3" />
-              {timeAgo}
-            </div>
-          </div>
 
-          {/* Customer Name */}
-          {order.customer_name && (
-            <p className="text-sm font-medium text-primary mb-2">
-              {order.customer_name}
-            </p>
-          )}
+            {/* Customer Name */}
+            {order.customer_name && (
+              <p className="text-sm font-medium text-primary mb-2">
+                {order.customer_name}
+              </p>
+            )}
 
-          {/* Order Items */}
-          <div className="space-y-2">
-            {order.order_items.map((item, idx) => {
-              const modifiers = parseModifiers(item.selected_modifiers);
-              return (
-                <div key={item.id || idx} className="border-l-2 border-primary/30 pl-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm bg-primary/20 px-1.5 rounded">
-                      {item.quantity}x
-                    </span>
-                    <span className="font-medium">
-                      {item.product_name || 'Unknown Item'}
-                    </span>
-                  </div>
-                  {modifiers.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {modifiers.map((mod, modIdx) => (
-                        <span
-                          key={modIdx}
-                          className={`text-xs px-1.5 py-0.5 rounded ${
-                            isHighlightedModifier(mod)
-                              ? 'bg-red-500/30 text-red-300 font-bold'
-                              : 'bg-secondary text-muted-foreground'
-                          }`}
-                        >
-                          {mod}
-                        </span>
-                      ))}
+            {/* Order Items */}
+            <div className="space-y-2">
+              {order.order_items.map((item, idx) => {
+                const modifiers = parseModifiers(item.selected_modifiers);
+                return (
+                  <div key={item.id || idx} className="border-l-2 border-primary/30 pl-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm bg-primary/20 px-1.5 rounded">
+                        {item.quantity}x
+                      </span>
+                      <span className="font-medium">
+                        {item.product_name || 'Unknown Item'}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {modifiers.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {modifiers.map((mod, modIdx) => (
+                          <span
+                            key={modIdx}
+                            className={`text-xs px-1.5 py-0.5 rounded ${
+                              isHighlightedModifier(mod)
+                                ? 'bg-red-500/30 text-red-300 font-bold'
+                                : 'bg-secondary text-muted-foreground'
+                            }`}
+                          >
+                            {mod}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-          {/* Total */}
-          <div className="mt-3 pt-2 border-t border-border flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Total</span>
-            <span className="font-bold text-primary">€{Number(order.total).toFixed(2)}</span>
-          </div>
+            {/* Total */}
+            <div className="mt-3 pt-2 border-t border-border flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Total</span>
+              <span className="font-bold text-primary">€{Number(order.total).toFixed(2)}</span>
+            </div>
 
-          {/* Action Buttons */}
-          <div className="mt-3">
-            {getActionButtons()}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
+            {/* Action Buttons */}
+            <div className="mt-3">
+              {getActionButtons()}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+);
+
+OrderCard.displayName = "OrderCard";
 
 interface KanbanColumnProps {
   config: ColumnConfig;
