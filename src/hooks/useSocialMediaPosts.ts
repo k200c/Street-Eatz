@@ -180,6 +180,9 @@ export function useSocialMediaPosts() {
         media_urls: newPost.media_urls || []
       };
 
+      // EXPLICIT DEBUG LOG - Print exact payload before sending
+      const payloadString = JSON.stringify(payload);
+      console.log("📦 Payload:", payloadString);
       console.log("%c 📦 PAYLOAD TO N8N:", "background: #333; color: #00ff00", JSON.stringify(payload, null, 2));
 
       // 3. TRIGGER WEBHOOK WITH EXPLICIT FETCH
@@ -187,9 +190,10 @@ export function useSocialMediaPosts() {
         const response = await fetch(N8N_GENERATE_WEBHOOK, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Accept": "application/json"
           },
-          body: JSON.stringify(payload)
+          body: payloadString
         });
 
         if (!response.ok) {
