@@ -165,23 +165,31 @@ export function useSocialMediaPosts() {
         console.log("✅ Reference image uploaded:", referenceUrl);
       }
 
-      // 1. INSERT INTO DATABASE FIRST
+      // 1. INSERT INTO DATABASE FIRST - Match DB columns exactly
       console.log("💾 Inserting post into database...");
+      
+      const dbPayload = {
+        content_idea: contentIdea.trim(), // Legacy field, now nullable but we fill it
+        idea: contentIdea.trim(),         // New field for the content idea
+        brief: brief?.trim() || null,
+        post_type: postType,
+        ai_preference: aiPreference,      // "generate_ai" or "upload_media"
+        visual_prompt: aiPreference === 'generate_ai' ? (visualPrompt || null) : null,
+        media_urls: mediaUrls,
+        status: 'generating',
+      };
+      
+      console.log("📦 DB Payload:", JSON.stringify(dbPayload, null, 2));
+      
       const { data: newPost, error: dbError } = await supabase
         .from('social_media_posts')
-        .insert({
-          content_idea: contentIdea.trim(),
-          brief: brief?.trim() || null,
-          post_type: postType,
-          media_urls: mediaUrls,
-          status: 'generating',
-        })
+        .insert(dbPayload)
         .select()
         .single();
 
       if (dbError) {
         console.error("❌ DB Error:", dbError);
-        toast.error("Failed to save draft to database.");
+        toast.error(`Failed to save draft: ${dbError.message}`);
         throw dbError;
       }
 
