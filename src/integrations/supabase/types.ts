@@ -426,7 +426,7 @@ export type Database = {
         Row: {
           ai_preference: string | null
           brief: string | null
-          content_idea: string
+          content_idea: string | null
           created_at: string
           generated_caption: string | null
           id: string
@@ -440,7 +440,7 @@ export type Database = {
         Insert: {
           ai_preference?: string | null
           brief?: string | null
-          content_idea: string
+          content_idea?: string | null
           created_at?: string
           generated_caption?: string | null
           id?: string
@@ -454,7 +454,7 @@ export type Database = {
         Update: {
           ai_preference?: string | null
           brief?: string | null
-          content_idea?: string
+          content_idea?: string | null
           created_at?: string
           generated_caption?: string | null
           id?: string
