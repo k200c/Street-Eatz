@@ -3,7 +3,7 @@ import { motion, useScroll, useTransform, useInView } from 'framer-motion';
 import { useProducts } from '@/hooks/useProducts';
 import { useProductModifiers } from '@/hooks/useProductModifiers';
 import { useProductIngredients } from '@/hooks/useProductIngredients';
-import { useAppSettings } from '@/hooks/useAppSettings';
+import { useStoreStatus } from '@/hooks/useStoreStatus';
 import { ProductCardHorizontal } from './ProductCardHorizontal';
 import { ProductSheet } from './ProductSheet';
 
@@ -135,10 +135,9 @@ export function MenuSection() {
   const { data: products, isLoading, isError, refetch } = useProducts(selectedCategory);
   const { data: modifierGroups } = useProductModifiers(selectedProduct?.id);
   const { data: ingredients } = useProductIngredients(selectedProduct?.id);
-  const { data: appSettings } = useAppSettings();
+  const { isStoreOpen, currentWaitTime } = useStoreStatus();
 
-  const isStoreOpen = appSettings?.is_store_open ?? true;
-  const waitTime = appSettings?.current_wait_time;
+  const waitTime = currentWaitTime;
 
   // Group products by category
   const productsByCategory = products?.reduce((acc, product) => {

@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Store, Clock, Package, ArrowLeft, Users, ChefHat, Share2 } from 'lucide-react';
+import { Store, Clock, Package, ArrowLeft, Users, ChefHat, Share2, Bug } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
+import { useStoreStatus } from '@/hooks/useStoreStatus';
 import { useProducts } from '@/hooks/useProducts';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ export default function StaffDashboard() {
   const navigate = useNavigate();
   const { isStaff, loading } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useAppSettings();
+  const { devModeEnabled, toggleDevMode, dbStoreOpen } = useStoreStatus();
   const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
   const updateSettings = useUpdateAppSettings();
 
@@ -76,7 +78,13 @@ export default function StaffDashboard() {
 
   if (!isStaff) return null;
 
-  const isStoreOpen = settings?.is_store_open ?? true;
+  // Use effective store status (considers dev mode bypass)
+  const isStoreOpen = devModeEnabled ? true : (settings?.is_store_open ?? true);
+
+  const handleDevModeToggle = () => {
+    const newValue = toggleDevMode();
+    toast.success(newValue ? '🔧 Dev Mode ENABLED - Store always open' : '🔧 Dev Mode DISABLED');
+  };
 
   // Quick Stock Manager Component
   const QuickStockManager = () => (
@@ -251,6 +259,42 @@ export default function StaffDashboard() {
                       </SelectContent>
                     </Select>
                   </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Dev Mode Card - Testing Bypass */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+            >
+              <Card className={`border ${devModeEnabled ? 'border-yellow-500/50 bg-yellow-500/5' : 'border-border bg-card'}`}>
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Bug className={`w-5 h-5 ${devModeEnabled ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                    Developer Mode
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Bypass store hours for testing</p>
+                      <p className={`text-sm font-medium ${devModeEnabled ? 'text-yellow-500' : 'text-muted-foreground'}`}>
+                        {devModeEnabled ? '⚠️ Store forced OPEN (24/7 testing)' : 'Normal hours apply'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={devModeEnabled}
+                      onCheckedChange={handleDevModeToggle}
+                      className={devModeEnabled ? 'data-[state=checked]:bg-yellow-500' : ''}
+                    />
+                  </div>
+                  {devModeEnabled && (
+                    <p className="mt-3 text-xs text-yellow-500/80 bg-yellow-500/10 px-3 py-2 rounded">
+                      Dev mode active. Cart and checkout enabled regardless of actual store hours.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>

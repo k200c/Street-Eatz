@@ -1,10 +1,9 @@
 import { MapPin, Clock } from 'lucide-react';
-import { useAppSettings } from '@/hooks/useAppSettings';
+import { useStoreStatus } from '@/hooks/useStoreStatus';
 import { cn } from '@/lib/utils';
 
 export function FooterInfoBar() {
-  const { data: appSettings } = useAppSettings();
-  const isStoreOpen = appSettings?.is_store_open ?? true;
+  const { isStoreOpen, devModeEnabled } = useStoreStatus();
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-sm border-t border-white/10">
@@ -38,7 +37,7 @@ export function FooterInfoBar() {
                 isStoreOpen ? "text-success" : "text-destructive"
               )}
             >
-              {isStoreOpen ? "LIVE NOW" : "CLOSED"}
+              {devModeEnabled ? "DEV MODE" : (isStoreOpen ? "LIVE NOW" : "CLOSED")}
             </span>
           </div>
         </div>
