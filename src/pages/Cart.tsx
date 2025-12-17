@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
 import { CustomerCheckoutModal } from '@/components/checkout/CustomerCheckoutModal';
 import { OrderSuccessModal } from '@/components/checkout/OrderSuccessModal';
-import { useAppSettings } from '@/hooks/useAppSettings';
+import { useStoreStatus } from '@/hooks/useStoreStatus';
 import { toast } from 'sonner';
 
 import heroBurger from '@/assets/hero-burger.jpg';
@@ -30,8 +30,7 @@ export default function Cart() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState<number>(0);
 
-  const { data: appSettings } = useAppSettings();
-  const isStoreOpen = appSettings?.is_store_open ?? true;
+  const { isStoreOpen, devModeEnabled } = useStoreStatus();
 
   const handleCheckoutClick = () => {
     if (!isStoreOpen) {
