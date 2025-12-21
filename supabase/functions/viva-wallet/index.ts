@@ -17,6 +17,29 @@ interface VivaOrderResponse {
   orderCode: number;
 }
 
+// Get OAuth2 access token from Viva Wallet
+async function getVivaAccessToken(clientId: string, clientSecret: string): Promise<string> {
+  const credentials = btoa(`${clientId}:${clientSecret}`);
+  
+  const response = await fetch('https://accounts.vivapayments.com/connect/token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OAuth token error:', response.status, errorText);
+    throw new Error(`Failed to get Viva access token: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -24,8 +47,8 @@ serve(async (req) => {
   }
 
   try {
-    const VIVA_API_KEY = Deno.env.get('VIVA_WALLET_API_KEY');
-    const MERCHANT_ID = Deno.env.get('VIVA_WALLET_MERCHANT_ID');
+    const VIVA_CLIENT_ID = Deno.env.get('VIVA_WALLET_MERCHANT_ID'); // Client ID
+    const VIVA_CLIENT_SECRET = Deno.env.get('VIVA_WALLET_API_KEY'); // Client Secret
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -57,7 +80,7 @@ serve(async (req) => {
         }
 
         // Check if Viva Wallet is configured
-        if (!VIVA_API_KEY || !MERCHANT_ID) {
+        if (!VIVA_CLIENT_ID || !VIVA_CLIENT_SECRET) {
           console.warn('Viva Wallet credentials not configured - using demo mode');
           
           // Update order with pending payment status
@@ -86,12 +109,17 @@ serve(async (req) => {
           );
         }
 
-        // Production: Create Viva Wallet checkout session
+        // Production: Get OAuth access token first
         try {
+          console.log('Getting Viva Wallet access token...');
+          const accessToken = await getVivaAccessToken(VIVA_CLIENT_ID, VIVA_CLIENT_SECRET);
+          console.log('Access token obtained successfully');
+
+          // Create payment order
           const vivaResponse = await fetch('https://api.vivapayments.com/checkout/v2/orders', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${VIVA_API_KEY}`,
+              'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -102,7 +130,7 @@ serve(async (req) => {
                 phone: customerPhone || undefined,
               },
               merchantTrns: orderId,
-              sourceCode: MERCHANT_ID,
+              sourceCode: 'Default', // Use default payment source
               disableExactAmount: false,
               disableCash: true,
               disableWallet: false,
@@ -112,7 +140,7 @@ serve(async (req) => {
           if (!vivaResponse.ok) {
             const errorText = await vivaResponse.text();
             console.error('Viva Wallet API error:', vivaResponse.status, errorText);
-            throw new Error(`Viva Wallet API error: ${vivaResponse.status}`);
+            throw new Error(`Viva Wallet API error: ${vivaResponse.status} - ${errorText}`);
           }
 
           const vivaOrder: VivaOrderResponse = await vivaResponse.json();
