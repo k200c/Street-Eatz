@@ -7,10 +7,12 @@ const corsHeaders = {
 };
 
 interface PaymentRequest {
-  orderId: string;
-  amount: number;
-  customerEmail?: string;
-  customerPhone?: string;
+  type: 'online';           // Required: identifies this as an online card payment
+  orderId: string;          // Required: UUID from orders table
+  amount: number;           // Required: Amount in CENTS (e.g., 1650 for €16.50)
+  customerEmail: string;    // Required: Customer's email
+  customerPhone: string;    // Required: Customer's phone with country code
+  customerName: string;     // Required: Customer's full name
 }
 
 interface VivaOrderResponse {
@@ -73,11 +75,187 @@ serve(async (req) => {
     const { action, ...data } = await req.json();
     console.log(`Viva Wallet action: ${action}`, data);
 
+    // Handle direct online payment requests (new format with type: "online")
+    if (data.type === 'online') {
+      const { orderId, amount, customerEmail, customerPhone, customerName } = data as PaymentRequest;
+      
+      console.log(`Online payment request - Order: ${orderId}, Amount: ${amount} cents, Customer: ${customerName}`);
+
+      // Validate required fields
+      if (!orderId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing orderId' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!amount || amount <= 0) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid amount - must be positive cents value' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!customerEmail) {
+        return new Response(
+          JSON.stringify({ error: 'Missing customerEmail' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!customerPhone) {
+        return new Response(
+          JSON.stringify({ error: 'Missing customerPhone' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!customerName) {
+        return new Response(
+          JSON.stringify({ error: 'Missing customerName' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if Viva Wallet is configured
+      if (!VIVA_CLIENT_ID || !VIVA_CLIENT_SECRET) {
+        console.warn('Viva Wallet credentials not configured - using demo mode');
+        
+        // Update order with pending payment status
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({ 
+            payment_status: 'pending',
+            viva_order_code: `DEMO-${Date.now()}`
+          })
+          .eq('id', orderId);
+
+        if (updateError) {
+          console.error('Error updating order:', updateError);
+        }
+
+        // Return demo payment URL for testing
+        const demoUrl = `https://demo.vivapayments.com/web/checkout?demo=true&order=${orderId}&amount=${amount}`;
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            paymentUrl: demoUrl, 
+            orderId,
+            orderCode: `DEMO-${Date.now()}`,
+            amount,
+            demo: true 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Send payment request to n8n webhook with EXACT structure required
+      try {
+        console.log('Sending payment request to n8n webhook...');
+        
+        const webhookPayload = {
+          type: 'online',
+          orderId,
+          amount, // Already in cents from frontend
+          customerName,
+          customerPhone,
+          customerEmail,
+        };
+        
+        console.log('Webhook payload:', JSON.stringify(webhookPayload));
+        
+        const webhookResponse = await fetch('https://kyle2000.app.n8n.cloud/webhook-test/street-eatz-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(webhookPayload),
+        });
+
+        if (!webhookResponse.ok) {
+          const errorText = await webhookResponse.text();
+          console.error('n8n webhook error:', webhookResponse.status, errorText);
+          throw new Error(`Payment webhook error: ${webhookResponse.status}`);
+        }
+
+        const webhookText = await webhookResponse.text();
+        console.log('Raw n8n response:', webhookText);
+        
+        const parsed = safeJsonParse(webhookText);
+
+        if (!parsed || typeof parsed !== 'object') {
+          console.error('n8n webhook returned non-JSON or empty body:', webhookText);
+          throw new Error('Payment webhook returned an invalid response');
+        }
+
+        const webhookData = parsed as Record<string, unknown>;
+        console.log('n8n webhook response parsed:', webhookData);
+
+        const paymentUrl =
+          typeof webhookData.paymentUrl === 'string'
+            ? webhookData.paymentUrl
+            : typeof webhookData.url === 'string'
+              ? webhookData.url
+              : null;
+
+        if (!paymentUrl) {
+          console.error('n8n webhook response missing paymentUrl/url:', webhookData);
+          throw new Error('Payment webhook did not return paymentUrl');
+        }
+
+        const orderCodeRaw = webhookData.orderCode;
+        const orderCode =
+          typeof orderCodeRaw === 'string' || typeof orderCodeRaw === 'number'
+            ? String(orderCodeRaw)
+            : `N8N-${Date.now()}`;
+
+        // Update order with payment info from n8n
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({
+            payment_status: 'processing',
+            viva_order_code: orderCode,
+          })
+          .eq('id', orderId);
+
+        if (updateError) {
+          console.error('Error updating order:', updateError);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            paymentUrl,
+            orderId,
+            orderCode,
+            amount,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+
+      } catch (webhookError) {
+        console.error('n8n webhook call failed:', webhookError);
+        
+        // Update order status to failed
+        await supabase
+          .from('orders')
+          .update({ payment_status: 'failed' })
+          .eq('id', orderId);
+
+        return new Response(
+          JSON.stringify({ 
+            error: 'Payment service unavailable',
+            details: webhookError instanceof Error ? webhookError.message : 'Unknown error'
+          }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Legacy action-based routing (for backwards compatibility)
     switch (action) {
       case 'create-checkout': {
-        const { orderId, amount, customerEmail, customerPhone } = data as PaymentRequest;
+        const { orderId, amount, customerEmail, customerPhone } = data;
+        const customerName = data.customerName || 'Customer';
 
-        console.log(`Creating checkout for order ${orderId}, amount: €${amount}`);
+        console.log(`Legacy checkout for order ${orderId}, amount: €${amount}`);
 
         // Validate inputs
         if (!orderId || !amount) {

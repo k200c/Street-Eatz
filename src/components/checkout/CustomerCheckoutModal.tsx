@@ -51,10 +51,73 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
 
   const canProceed = customerName.trim() && customerPhone.trim();
   const isButtonDisabled = isSubmitting || isProcessingPayment;
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Helper function to format phone with country code
+  const formatPhoneWithCountryCode = (phone: string): string => {
+    if (!phone) return '';
+    
+    // Remove all spaces, dashes, and parentheses
+    const cleaned = phone.replace(/[\s\-()]/g, '');
+    
+    // If starts with 0, replace with +353 (Irish format)
+    if (cleaned.startsWith('0')) {
+      return '+353' + cleaned.substring(1);
+    }
+    
+    // If already has country code
+    if (cleaned.startsWith('+')) {
+      return cleaned;
+    }
+    
+    // If starts with 353 without +
+    if (cleaned.startsWith('353')) {
+      return '+' + cleaned;
+    }
+    
+    // Default: add +353
+    return '+353' + cleaned;
+  };
+
+  // Validate email format
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const handlePayCard = async () => {
     // Prevent duplicate submissions
     if (isProcessingPayment) return;
+    
+    // Clear previous errors
+    setPaymentError(null);
+
+    // Validation before attempting payment
+    const trimmedName = customerName.trim();
+    const trimmedPhone = customerPhone.trim();
+    const trimmedEmail = customerEmail.trim();
+
+    if (!trimmedName) {
+      setPaymentError('Please enter your name');
+      return;
+    }
+    if (!trimmedPhone) {
+      setPaymentError('Please enter your phone number');
+      return;
+    }
+    if (!trimmedEmail) {
+      setPaymentError('Email is required for card payments');
+      return;
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      setPaymentError('Please enter a valid email address');
+      return;
+    }
+    if (total <= 0) {
+      setPaymentError('Invalid order total');
+      return;
+    }
+
     setIsProcessingPayment(true);
 
     try {
@@ -64,41 +127,59 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       // Step 2: Create the order first
       const orderResult = await submitOrder({
         paymentMethod: 'card',
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        customerEmail: customerEmail.trim(),
+        customerName: trimmedName,
+        customerPhone: trimmedPhone,
+        customerEmail: trimmedEmail,
       });
 
       if (!orderResult) {
         throw new Error('Failed to create order');
       }
 
-      // Step 3: Call Viva Wallet edge function to get payment URL
+      // Step 3: Prepare payload with EXACT structure required by edge function
+      const formattedPhone = formatPhoneWithCountryCode(trimmedPhone);
+      const amountInCents = Math.round(total * 100); // Convert to cents, avoid floating point issues
+
+      const paymentPayload = {
+        type: 'online' as const,              // CRITICAL: Must include this
+        orderId: orderResult.orderId,         // UUID from orders table
+        amount: amountInCents,                // Amount in CENTS
+        customerEmail: trimmedEmail,
+        customerPhone: formattedPhone,
+        customerName: trimmedName,
+      };
+
+      console.log('Sending payment payload:', paymentPayload);
+
+      // Step 4: Call Viva Wallet edge function to get payment URL
       const { data, error } = await supabase.functions.invoke('viva-wallet', {
-        body: {
-          action: 'create-checkout',
-          orderId: orderResult.orderId,
-          amount: total,
-          customerEmail: customerEmail.trim() || undefined,
-          customerPhone: customerPhone.trim(),
-        },
+        body: paymentPayload,
       });
 
       if (error) {
+        console.error('Edge function error:', error);
         throw new Error(error.message || 'Payment service error');
       }
 
       if (!data?.paymentUrl) {
+        console.error('Response missing paymentUrl:', data);
         throw new Error('No payment URL received');
       }
 
-      // Step 4: Redirect to Viva Wallet payment page
+      // Step 5: Store the order code for tracking (if returned)
+      if (data.orderCode) {
+        console.log('Order code received:', data.orderCode);
+      }
+
+      // Step 6: Redirect to Viva Wallet payment page
       console.log('Redirecting to Viva Wallet:', data.paymentUrl);
       window.location.href = data.paymentUrl;
 
     } catch (error) {
       console.error('Payment initiation error:', error);
-      toast.error('Payment Error: Please try again or use cash.');
+      const errorMessage = error instanceof Error ? error.message : 'Payment failed';
+      setPaymentError(errorMessage);
+      toast.error('Payment Error: ' + errorMessage);
       setStep('payment');
       setIsProcessingPayment(false);
     }
@@ -256,6 +337,13 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
               </DialogHeader>
 
               <div className="mt-6 space-y-4">
+                {/* Payment Error Display */}
+                {paymentError && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-destructive text-sm">{paymentError}</p>
+                  </div>
+                )}
+
                 {/* Order Summary */}
                 <div className="p-4 bg-secondary rounded-lg space-y-2">
                   <div className="flex justify-between text-sm">
@@ -266,11 +354,24 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                     <span className="text-muted-foreground">Phone</span>
                     <span>{customerPhone}</span>
                   </div>
+                  {customerEmail && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Email</span>
+                      <span className="truncate max-w-[180px]">{customerEmail}</span>
+                    </div>
+                  )}
                   <div className="border-t border-border pt-2 mt-2 flex justify-between">
                     <span className="font-heading">Total</span>
                     <span className="font-heading text-xl text-primary">€{total.toFixed(2)}</span>
                   </div>
                 </div>
+
+                {/* Email required notice for card payments */}
+                {!customerEmail.trim() && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    💳 Email is required for card payments
+                  </p>
+                )}
 
                 {/* Pay Card - Viva Wallet */}
                 <Button
