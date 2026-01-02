@@ -405,6 +405,63 @@ export function useSocialMediaPosts() {
     },
   });
 
+  // Post Now mutation - immediately publish to socials via n8n
+  const postNowMutation = useMutation({
+    mutationFn: async (postId: string) => {
+      console.log("🚀 POST NOW - Triggering instant publish for:", postId);
+      
+      // Get the post data first
+      const { data: post, error: fetchError } = await supabase
+        .from('social_media_posts')
+        .select('*')
+        .eq('id', postId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      if (!post) throw new Error('Post not found');
+      
+      // Trigger the n8n webhook for instant posting
+      const response = await fetch('https://kyle2000.app.n8n.cloud/webhook/post-now-instant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          post_id: postId,
+          content_idea: post.content_idea,
+          generated_caption: post.generated_caption,
+          media_urls: post.media_urls,
+          post_type: post.post_type,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('N8N Post Now error:', errorText);
+        throw new Error(`Failed to publish: ${response.status}`);
+      }
+      
+      // Update status to published
+      const { error: updateError } = await supabase
+        .from('social_media_posts')
+        .update({ status: 'published' })
+        .eq('id', postId);
+      
+      if (updateError) throw updateError;
+      
+      return post;
+    },
+    onSuccess: () => {
+      toast.success('🎉 Published to socials!');
+      queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
+      queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
+    },
+    onError: (error) => {
+      console.error('Post now error:', error);
+      toast.error('Failed to publish post');
+    },
+  });
+
   // Delete post mutation
   const deletePostMutation = useMutation({
     mutationFn: async (postId: string) => {
@@ -439,8 +496,10 @@ export function useSocialMediaPosts() {
     approveDraft: approveDraftMutation.mutateAsync,
     updateCaption: updateCaptionMutation.mutate,
     deletePost: deletePostMutation.mutate,
+    postNow: postNowMutation.mutateAsync,
     isGenerating: generateDraftMutation.isPending,
     isScheduling: schedulePostMutation.isPending,
     isApproving: approveDraftMutation.isPending,
+    isPostingNow: postNowMutation.isPending,
   };
 }

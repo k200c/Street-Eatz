@@ -64,9 +64,11 @@ export function SocialMediaManager() {
     approveDraft,
     updateCaption,
     deletePost,
+    postNow,
     isGenerating,
     isScheduling,
     isApproving,
+    isPostingNow,
   } = useSocialMediaPosts();
 
   const resetForm = () => {
@@ -457,7 +459,9 @@ export function SocialMediaManager() {
                 onApprove={approveDraft}
                 onUpdateCaption={updateCaption}
                 onDelete={deletePost}
+                onPostNow={postNow}
                 isApproving={isApproving}
+                isPostingNow={isPostingNow}
               />
             </TabsContent>
 
@@ -483,10 +487,12 @@ interface DraftsTabProps {
   onApprove: (params: { postId: string; scheduledFor: string; caption?: string }) => Promise<void>;
   onUpdateCaption: (params: { postId: string; caption: string }) => void;
   onDelete: (postId: string) => void;
+  onPostNow: (postId: string) => Promise<unknown>;
   isApproving: boolean;
+  isPostingNow: boolean;
 }
 
-function DraftsTab({ drafts, isLoading, onApprove, onUpdateCaption, onDelete, isApproving }: DraftsTabProps) {
+function DraftsTab({ drafts, isLoading, onApprove, onUpdateCaption, onDelete, onPostNow, isApproving, isPostingNow }: DraftsTabProps) {
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -516,7 +522,9 @@ function DraftsTab({ drafts, isLoading, onApprove, onUpdateCaption, onDelete, is
           onApprove={onApprove}
           onUpdateCaption={onUpdateCaption}
           onDelete={onDelete}
+          onPostNow={onPostNow}
           isApproving={isApproving}
+          isPostingNow={isPostingNow}
         />
       ))}
     </div>
@@ -529,14 +537,17 @@ interface DraftCardProps {
   onApprove: (params: { postId: string; scheduledFor: string; caption?: string }) => Promise<void>;
   onUpdateCaption: (params: { postId: string; caption: string }) => void;
   onDelete: (postId: string) => void;
+  onPostNow: (postId: string) => Promise<unknown>;
   isApproving: boolean;
+  isPostingNow: boolean;
 }
 
-function DraftCard({ post, onApprove, onUpdateCaption, onDelete, isApproving }: DraftCardProps) {
+function DraftCard({ post, onApprove, onUpdateCaption, onDelete, onPostNow, isApproving, isPostingNow }: DraftCardProps) {
   const [caption, setCaption] = useState(post.generated_caption || '');
   const [approveDate, setApproveDate] = useState<Date | undefined>();
   const [approveTime, setApproveTime] = useState('12:00');
   const [showScheduler, setShowScheduler] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const isGenerating = post.status === 'generating';
 
@@ -553,6 +564,15 @@ function DraftCard({ post, onApprove, onUpdateCaption, onDelete, isApproving }: 
       caption: caption !== post.generated_caption ? caption : undefined,
     });
     setShowScheduler(false);
+  };
+
+  const handlePostNow = async () => {
+    setIsPublishing(true);
+    try {
+      await onPostNow(post.id);
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const handleCaptionBlur = () => {
@@ -624,80 +644,109 @@ function DraftCard({ post, onApprove, onUpdateCaption, onDelete, isApproving }: 
             />
           </div>
 
-          {/* Approve & Schedule */}
-          {!showScheduler ? (
-            <Button
-              onClick={() => setShowScheduler(true)}
-              className="w-full gap-2"
-              variant="secondary"
-            >
-              <Check className="w-4 h-4" />
-              Approve & Schedule
-            </Button>
-          ) : (
-            <div className="space-y-3 p-3 rounded-lg bg-background/50 border border-border">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !approveDate && "text-muted-foreground"
-                        )}
-                      >
-                        <Calendar className="mr-2 h-3 w-3" />
-                        {approveDate ? format(approveDate, "MMM d") : "Pick date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={approveDate}
-                        onSelect={setApproveDate}
-                        disabled={(date) => date < new Date()}
-                        initialFocus
-                        className={cn("p-3 pointer-events-auto")}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Time</Label>
-                  <Input
-                    type="time"
-                    value={approveTime}
-                    onChange={(e) => setApproveTime(e.target.value)}
-                    className="h-9"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleApprove}
-                  disabled={!approveDate || isApproving}
-                  className="flex-1 gap-2"
-                  size="sm"
-                >
-                  {isApproving ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Check className="w-4 h-4" />
-                  )}
-                  Confirm
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowScheduler(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
+          {/* Publishing Loading State */}
+          {isPublishing && (
+            <div className="flex items-center justify-center gap-3 p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+              <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+              <span className="text-sm font-medium text-orange-500">Publishing to Socials...</span>
             </div>
+          )}
+
+          {/* Action Buttons - Only show when not publishing */}
+          {!isPublishing && (
+            <>
+              {!showScheduler ? (
+                <div className="flex gap-2">
+                  {/* Post Now Button */}
+                  <Button
+                    onClick={handlePostNow}
+                    disabled={isPostingNow}
+                    className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    {isPostingNow ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
+                    Post Now
+                  </Button>
+
+                  {/* Schedule Button */}
+                  <Button
+                    onClick={() => setShowScheduler(true)}
+                    className="flex-1 gap-2"
+                    variant="secondary"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Schedule
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3 p-3 rounded-lg bg-background/50 border border-border">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !approveDate && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-3 w-3" />
+                            {approveDate ? format(approveDate, "MMM d") : "Pick date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComponent
+                            mode="single"
+                            selected={approveDate}
+                            onSelect={setApproveDate}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Time</Label>
+                      <Input
+                        type="time"
+                        value={approveTime}
+                        onChange={(e) => setApproveTime(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleApprove}
+                      disabled={!approveDate || isApproving}
+                      className="flex-1 gap-2"
+                      size="sm"
+                    >
+                      {isApproving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                      Confirm
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowScheduler(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
