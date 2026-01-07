@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Store, Clock, Package, ArrowLeft, Users, ChefHat, Share2, Bug, BarChart3, Megaphone } from 'lucide-react';
+import { Store, Clock, Package, ArrowLeft, Users, ChefHat, Share2, Bug, BarChart3, Megaphone, Pencil } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
@@ -18,8 +18,10 @@ import { CRMDashboard } from '@/components/staff/CRMDashboard';
 import { MarketingHub } from '@/components/staff/MarketingHub';
 import { AnalyticsDashboard } from '@/components/staff/AnalyticsDashboard';
 import { AddProductDialog } from '@/components/staff/AddProductDialog';
+import { EditProductDialog } from '@/components/staff/EditProductDialog';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { toast } from 'sonner';
+import { Product } from '@/types/database';
 
 const waitTimeOptions = ['15 mins', '20 mins', '30 mins', '45 mins', '1 hour'];
 
@@ -88,57 +90,87 @@ export default function StaffDashboard() {
     toast.success(newValue ? '🔧 Dev Mode ENABLED - Store always open' : '🔧 Dev Mode DISABLED');
   };
 
+  // State for edit dialog
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setShowEditDialog(true);
+  };
+
   // Quick Stock Manager Component
   const QuickStockManager = () => (
-    <Card className="bg-card border-border">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Package className="w-5 h-5 text-primary" />
-            Quick Stock Manager
-          </CardTitle>
-          <AddProductDialog onProductAdded={refetchProducts} />
-        </div>
-      </CardHeader>
-      <CardContent>
-        {productsLoading ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-12 bg-secondary/30 rounded animate-pulse" />
-            ))}
+    <>
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Package className="w-5 h-5 text-primary" />
+              Quick Stock Manager
+            </CardTitle>
+            <AddProductDialog onProductAdded={refetchProducts} />
           </div>
-        ) : (
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {products?.map((product) => (
-              <div
-                key={product.id}
-                className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                  product.is_available
-                    ? 'bg-secondary/20 border-border'
-                    : 'bg-red-500/10 border-red-500/30'
-                }`}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className={`font-medium truncate ${!product.is_available && 'text-muted-foreground line-through'}`}>
-                    {product.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{product.category}</p>
+        </CardHeader>
+        <CardContent>
+          {productsLoading ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 bg-secondary/30 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {products?.map((product) => (
+                <div
+                  key={product.id}
+                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    product.is_available
+                      ? 'bg-secondary/20 border-border'
+                      : 'bg-red-500/10 border-red-500/30'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-medium truncate ${!product.is_available && 'text-muted-foreground line-through'}`}>
+                      {product.name}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{product.category}</span>
+                      <span>•</span>
+                      <span className="text-primary font-medium">€{product.price.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleEditProduct(product)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <span className={`text-xs font-medium min-w-[60px] text-right ${product.is_available ? 'text-green-400' : 'text-red-400'}`}>
+                      {product.is_available ? 'In Stock' : 'Sold Out'}
+                    </span>
+                    <Switch
+                      checked={product.is_available ?? true}
+                      onCheckedChange={(checked) => handleProductAvailability(product.id, checked)}
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs font-medium ${product.is_available ? 'text-green-400' : 'text-red-400'}`}>
-                    {product.is_available ? 'In Stock' : 'Sold Out'}
-                  </span>
-                  <Switch
-                    checked={product.is_available ?? true}
-                    onCheckedChange={(checked) => handleProductAvailability(product.id, checked)}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <EditProductDialog
+        product={editingProduct}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onProductUpdated={refetchProducts}
+      />
+    </>
   );
 
   return (

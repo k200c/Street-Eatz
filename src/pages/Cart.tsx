@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCartStore } from '@/stores/cartStore';
 import { Button } from '@/components/ui/button';
-import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
 import { CustomerCheckoutModal } from '@/components/checkout/CustomerCheckoutModal';
 import { OrderSuccessModal } from '@/components/checkout/OrderSuccessModal';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
+import { useValidateCartItems } from '@/hooks/useProducts';
 import { toast } from 'sonner';
 
 import heroBurger from '@/assets/hero-burger.jpg';
@@ -32,6 +33,26 @@ export default function Cart() {
 
   const { isStoreOpen, devModeEnabled } = useStoreStatus();
 
+  // Get product IDs from cart items
+  const productIds = items.map(item => item.product.id);
+  const { data: productAvailability } = useValidateCartItems(productIds);
+
+  // Check for unavailable items
+  const unavailableItems = productAvailability?.filter(p => !p.is_available) || [];
+  const hasUnavailableItems = unavailableItems.length > 0;
+
+  // Show toast when items become unavailable
+  useEffect(() => {
+    if (unavailableItems.length > 0) {
+      unavailableItems.forEach(item => {
+        toast.error(`Sorry, ${item.name} just sold out!`, {
+          description: 'Please remove it from your cart to continue.',
+          duration: 5000,
+        });
+      });
+    }
+  }, [unavailableItems.map(i => i.id).join(',')]);
+
   const handleCheckoutClick = () => {
     if (!isStoreOpen) {
       toast.error("We are currently closed!", {
@@ -39,6 +60,14 @@ export default function Cart() {
       });
       return;
     }
+    
+    if (hasUnavailableItems) {
+      toast.error("Some items are no longer available", {
+        description: "Please remove sold out items before checking out.",
+      });
+      return;
+    }
+    
     setShowCheckout(true);
   };
 
@@ -99,9 +128,16 @@ export default function Cart() {
             const imageUrl = item.product.image_url || categoryImages[item.product.category] || heroBurger;
             const hasRemovedIngredients = item.removedIngredients && item.removedIngredients.length > 0;
             const hasExtras = item.selectedModifiers.length > 0;
+            const isUnavailable = unavailableItems.some(u => u.id === item.product.id);
             
             return (
-              <div key={index} className="street-card p-4 flex gap-4">
+              <div key={index} className={`street-card p-4 flex gap-4 ${isUnavailable ? 'border-destructive bg-destructive/10' : ''}`}>
+                {isUnavailable && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 text-destructive text-xs font-medium">
+                    <AlertTriangle className="w-3 h-3" />
+                    SOLD OUT
+                  </div>
+                )}
                 <img
                   src={imageUrl}
                   alt={item.product.name}
@@ -184,16 +220,24 @@ export default function Cart() {
         {/* Checkout Button - Thumb-Friendly */}
         <div className="fixed bottom-0 left-0 right-0 p-4 pb-6 bg-gradient-to-t from-black via-black/95 to-transparent">
           <div className="max-w-lg mx-auto">
+            {hasUnavailableItems && (
+              <div className="mb-3 p-3 bg-destructive/20 border border-destructive/30 rounded-lg flex items-center gap-2 text-destructive text-sm">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span>Remove sold out items to continue</span>
+              </div>
+            )}
             <Button
               className={`w-full h-16 md:h-14 text-lg md:text-base font-bold tracking-wider ${
-                isStoreOpen ? 'btn-glow' : 'bg-muted text-muted-foreground cursor-not-allowed'
+                isStoreOpen && !hasUnavailableItems ? 'btn-glow' : 'bg-muted text-muted-foreground cursor-not-allowed'
               }`}
               onClick={handleCheckoutClick}
-              disabled={!isStoreOpen}
+              disabled={!isStoreOpen || hasUnavailableItems}
             >
-              {isStoreOpen 
-                ? `CHECKOUT - €${total.toFixed(2)}`
-                : "STORE CLOSED (Opens Thu 12pm)"
+              {!isStoreOpen 
+                ? "STORE CLOSED (Opens Thu 12pm)"
+                : hasUnavailableItems
+                ? "REMOVE SOLD OUT ITEMS"
+                : `CHECKOUT - €${total.toFixed(2)}`
               }
             </Button>
           </div>

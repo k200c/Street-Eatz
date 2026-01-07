@@ -1,8 +1,34 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Product, ProductCategory } from '@/types/database';
+import { useEffect } from 'react';
 
 export function useProducts(category?: ProductCategory | 'All') {
+  const queryClient = useQueryClient();
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('products-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products',
+        },
+        () => {
+          // Invalidate all product queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   return useQuery({
     queryKey: ['products', category],
     queryFn: async () => {
@@ -23,7 +49,6 @@ export function useProducts(category?: ProductCategory | 'All') {
         throw error;
       }
       
-      console.log(`Fetched ${data?.length ?? 0} products for category: ${category ?? 'All'}`);
       return data as Product[];
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -45,5 +70,24 @@ export function useFeaturedProducts() {
       return data as Product[];
     },
     staleTime: 1000 * 60 * 5,
+  });
+}
+
+// Hook to validate cart items availability
+export function useValidateCartItems(productIds: string[]) {
+  return useQuery({
+    queryKey: ['products-availability', productIds],
+    queryFn: async () => {
+      if (productIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, is_available')
+        .in('id', productIds);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: productIds.length > 0,
   });
 }
