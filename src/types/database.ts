@@ -115,4 +115,5 @@ export interface CartItem {
   selectedModifiers: SelectedModifier[];
   removedIngredients: RemovedIngredient[];
   totalPrice: number;
+  dbId?: string; // Database ID for Supabase cart items
 }
