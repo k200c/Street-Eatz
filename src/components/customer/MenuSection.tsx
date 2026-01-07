@@ -80,7 +80,7 @@ function AnimatedCategorySection({
         categoryRef(el);
       }}
       className="scroll-mt-32 relative"
-      style={{ opacity }}
+      style={{ opacity, position: 'relative' as const }}
     >
       {/* Subtle parallax background glow */}
       <motion.div
