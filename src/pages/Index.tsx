@@ -31,7 +31,7 @@ function AboutSection() {
 
 export default function Index() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
       <Navbar />
       <HeroSection />
       <MenuSection />
