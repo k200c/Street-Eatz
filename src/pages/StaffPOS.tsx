@@ -42,7 +42,16 @@ const bundles = [
 export default function StaffPOS() {
   const navigate = useNavigate();
   const { user, isStaff, loading } = useAuth();
+  
+  // ALL hooks must be called before any conditional returns
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('Burgers');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'split' | null>(null);
+  const [cashTendered, setCashTendered] = useState('');
+  const [isOffline, setIsOffline] = useState(false);
+
+  const { data: products, isLoading } = useProducts(selectedCategory);
 
   // Redirect non-staff users
   useEffect(() => {
@@ -52,22 +61,20 @@ export default function StaffPOS() {
     }
   }, [user, isStaff, loading, navigate]);
 
-  // Show nothing while checking auth
-  if (loading || !user || !isStaff) {
-    return null;
-  }
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [showPayment, setShowPayment] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'split' | null>(null);
-  const [cashTendered, setCashTendered] = useState('');
-  const [isOffline, setIsOffline] = useState(false);
-
-  const { data: products, isLoading } = useProducts(selectedCategory);
-
+  // Derived values
   const total = cart.reduce((sum, item) => sum + item.totalPrice, 0);
   const changeDue = paymentMethod === 'cash' && cashTendered 
     ? parseFloat(cashTendered) - total 
     : 0;
+
+  // Show loading while checking auth
+  if (loading || !user || !isStaff) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
