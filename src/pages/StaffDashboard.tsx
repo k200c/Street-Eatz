@@ -120,43 +120,55 @@ export default function StaffDashboard() {
               ))}
             </div>
           ) : (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
               {products?.map((product) => (
                 <div
                   key={product.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                  className={`p-3 rounded-lg border transition-colors ${
                     product.is_available
                       ? 'bg-secondary/20 border-border'
                       : 'bg-red-500/10 border-red-500/30'
                   }`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-medium truncate ${!product.is_available && 'text-muted-foreground line-through'}`}>
-                      {product.name}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{product.category}</span>
-                      <span>•</span>
-                      <span className="text-primary font-medium">€{product.price.toFixed(2)}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium truncate ${!product.is_available && 'text-muted-foreground line-through'}`}>
+                        {product.name}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{product.category}</span>
+                        <span>•</span>
+                        <span className="text-primary font-medium">€{product.price.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleEditProduct(product)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <span className={`text-xs font-medium min-w-[60px] text-right ${product.is_available ? 'text-green-400' : 'text-red-400'}`}>
+                        {product.is_available ? 'In Stock' : 'Sold Out'}
+                      </span>
+                      <Switch
+                        checked={product.is_available ?? true}
+                        onCheckedChange={(checked) => handleProductAvailability(product.id, checked)}
+                      />
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleEditProduct(product)}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <span className={`text-xs font-medium min-w-[60px] text-right ${product.is_available ? 'text-green-400' : 'text-red-400'}`}>
-                      {product.is_available ? 'In Stock' : 'Sold Out'}
-                    </span>
-                    <Switch
-                      checked={product.is_available ?? true}
-                      onCheckedChange={(checked) => handleProductAvailability(product.id, checked)}
-                    />
-                  </div>
+                  {/* Description preview */}
+                  {product.description ? (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {product.description}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-yellow-500/80 mt-1 italic">
+                      ⚠️ No description - click edit to add one
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
