@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Clock, CreditCard } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { KitchenOrder } from '@/hooks/useKitchenOrders';
+import { PaymentStatusBadge } from './PaymentStatusBadge';
 
 interface PickupOrderCardProps {
   order: KitchenOrder;
@@ -33,6 +34,8 @@ export function PickupOrderCard({ order, onTakePayment }: PickupOrderCardProps) 
     return [];
   };
 
+  const isUnpaid = order.payment_status !== 'paid';
+
   return (
     <motion.div
       layout
@@ -47,11 +50,27 @@ export function PickupOrderCard({ order, onTakePayment }: PickupOrderCardProps) 
             <span className="font-heading text-3xl text-orange-500">
               #{displayNumber}
             </span>
-            <div className="flex items-center gap-1 text-muted-foreground text-sm">
-              <Clock className="w-3 h-3" />
-              {timeAgo}
+            <div className="flex items-center gap-2">
+              <PaymentStatusBadge 
+                paymentStatus={order.payment_status}
+                size="md"
+              />
+              <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                <Clock className="w-3 h-3" />
+                {timeAgo}
+              </div>
             </div>
           </div>
+
+          {/* UNPAID Alert */}
+          {isUnpaid && (
+            <div className="mb-3">
+              <PaymentStatusBadge 
+                paymentStatus={order.payment_status}
+                showAlert={true}
+              />
+            </div>
+          )}
 
           {/* Customer Name */}
           {order.customer_name && (

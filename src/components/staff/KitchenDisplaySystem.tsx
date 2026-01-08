@@ -1,15 +1,19 @@
 import React, { useState, DragEvent, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChefHat, Clock, Volume2, VolumeX, GripVertical, Play, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag } from 'lucide-react';
+import { ChefHat, Clock, Volume2, VolumeX, GripVertical, Play, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag, Filter } from 'lucide-react';
 import { useKitchenOrders, KitchenOrder } from '@/hooks/useKitchenOrders';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { PickupOrderCard } from './PickupOrderCard';
 import { StaffPaymentModal } from './StaffPaymentModal';
+import { PaymentStatusBadge } from './PaymentStatusBadge';
+import { QuickPayModal } from './QuickPayModal';
 
 type OrderStatus = 'pending' | 'cooking' | 'ready' | 'completed' | 'pending_payment';
 
@@ -55,10 +59,11 @@ interface OrderCardProps {
   onDragStart: (e: DragEvent, order: KitchenOrder) => void;
   onStatusChange: (orderId: string, newStatus: OrderStatus, skipWebhook?: boolean) => void;
   currentStatus: OrderStatus;
+  onQuickPay?: (order: KitchenOrder) => void;
 }
 
 const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
-  ({ order, onDragStart, onStatusChange, currentStatus }, ref) => {
+  ({ order, onDragStart, onStatusChange, currentStatus, onQuickPay }, ref) => {
     const [isUpdating, setIsUpdating] = useState(false);
     
     const timeAgo = order.created_at 
@@ -69,6 +74,8 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
     const displayNumber = order.display_id 
       ? String(order.display_id).padStart(4, '0')
       : order.id.slice(-4).toUpperCase();
+
+    const isUnpaid = order.payment_status !== 'paid';
 
     // Parse modifiers from the structured payload
     interface ParsedModifiers {
@@ -262,15 +269,31 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
                   #{displayNumber}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                <Clock className="w-3 h-3" />
-                {timeAgo}
+              <div className="flex items-center gap-2">
+                <PaymentStatusBadge 
+                  paymentStatus={order.payment_status}
+                  size="sm"
+                  onClick={isUnpaid && onQuickPay ? () => onQuickPay(order) : undefined}
+                />
+                <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                  <Clock className="w-3 h-3" />
+                  {timeAgo}
+                </div>
               </div>
             </div>
 
+            {/* UNPAID Alert for Kitchen */}
+            {isUnpaid && (
+              <PaymentStatusBadge 
+                paymentStatus={order.payment_status}
+                showAlert={true}
+                onClick={onQuickPay ? () => onQuickPay(order) : undefined}
+              />
+            )}
+
             {/* Customer Name */}
             {order.customer_name && (
-              <p className="text-sm font-medium text-primary mb-2">
+              <p className="text-sm font-medium text-primary mb-2 mt-2">
                 {order.customer_name}
               </p>
             )}
@@ -361,9 +384,10 @@ interface KanbanColumnProps {
   onDrop: (e: DragEvent, status: OrderStatus) => void;
   onDragOver: (e: DragEvent) => void;
   onStatusChange: (orderId: string, newStatus: OrderStatus, skipWebhook?: boolean) => void;
+  onQuickPay: (order: KitchenOrder) => void;
 }
 
-function KanbanColumn({ config, orders, onDrop, onDragOver, onStatusChange }: KanbanColumnProps) {
+function KanbanColumn({ config, orders, onDrop, onDragOver, onStatusChange, onQuickPay }: KanbanColumnProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = (e: DragEvent) => {
@@ -409,6 +433,7 @@ function KanbanColumn({ config, orders, onDrop, onDragOver, onStatusChange }: Ka
               order={order}
               currentStatus={config.status}
               onStatusChange={onStatusChange}
+              onQuickPay={onQuickPay}
               onDragStart={(e, o) => {
                 e.dataTransfer.setData('orderId', o.id);
                 e.dataTransfer.setData('currentStatus', o.status || 'pending');
@@ -442,11 +467,27 @@ export function KitchenDisplaySystem() {
   const [activeTab, setActiveTab] = useState<'kitchen' | 'pickup'>('kitchen');
   const [selectedPickupOrder, setSelectedPickupOrder] = useState<KitchenOrder | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [quickPayOrder, setQuickPayOrder] = useState<KitchenOrder | null>(null);
+  const [quickPayModalOpen, setQuickPayModalOpen] = useState(false);
+  const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
 
   // Find full order data by ID
   const findOrderById = (orderId: string): KitchenOrder | undefined => {
     return [...ordersByStatus.pending, ...ordersByStatus.cooking, ...ordersByStatus.ready, ...ordersByStatus.pending_payment]
       .find(order => order.id === orderId);
+  };
+
+  // Filter orders based on unpaid toggle
+  const filterOrders = (orders: KitchenOrder[]) => {
+    if (!showUnpaidOnly) return orders;
+    return orders.filter(order => order.payment_status !== 'paid');
+  };
+
+  const filteredOrdersByStatus = {
+    pending: filterOrders(ordersByStatus.pending),
+    cooking: filterOrders(ordersByStatus.cooking),
+    ready: filterOrders(ordersByStatus.ready),
+    pending_payment: ordersByStatus.pending_payment
   };
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus, skipWebhook = false) => {
@@ -538,8 +579,18 @@ export function KitchenDisplaySystem() {
     setPaymentModalOpen(true);
   };
 
+  const handleQuickPay = (order: KitchenOrder) => {
+    setQuickPayOrder(order);
+    setQuickPayModalOpen(true);
+  };
+
   const handlePaymentSuccess = () => {
     setSelectedPickupOrder(null);
+    forceRefresh();
+  };
+
+  const handleQuickPaySuccess = () => {
+    setQuickPayOrder(null);
     forceRefresh();
   };
 
@@ -547,6 +598,12 @@ export function KitchenDisplaySystem() {
     ordersByStatus.pending.length + 
     ordersByStatus.cooking.length + 
     ordersByStatus.ready.length;
+
+  const unpaidCount = [
+    ...ordersByStatus.pending,
+    ...ordersByStatus.cooking,
+    ...ordersByStatus.ready
+  ].filter(o => o.payment_status !== 'paid').length;
 
   const pickupCount = ordersByStatus.pending_payment.length;
 
@@ -587,29 +644,51 @@ export function KitchenDisplaySystem() {
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'kitchen' | 'pickup')}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="kitchen" className="gap-2">
-              <ChefHat className="w-4 h-4" />
-              Kitchen
-              {totalOrders > 0 && (
-                <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded-full text-xs">
-                  {totalOrders}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="pickup" className="gap-2">
-              <ShoppingBag className="w-4 h-4" />
-              Pending Pickup
-              {pickupCount > 0 && (
-                <span className="bg-orange-500/20 text-orange-500 px-1.5 py-0.5 rounded-full text-xs font-bold">
-                  {pickupCount}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+            <TabsList>
+              <TabsTrigger value="kitchen" className="gap-2">
+                <ChefHat className="w-4 h-4" />
+                Kitchen
+                {totalOrders > 0 && (
+                  <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded-full text-xs">
+                    {totalOrders}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="pickup" className="gap-2">
+                <ShoppingBag className="w-4 h-4" />
+                Pending Pickup
+                {pickupCount > 0 && (
+                  <span className="bg-orange-500/20 text-orange-500 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                    {pickupCount}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Unpaid Filter Toggle */}
+            {activeTab === 'kitchen' && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <Label htmlFor="unpaid-filter" className="text-sm cursor-pointer flex items-center gap-2">
+                  Show Unpaid Only
+                  {unpaidCount > 0 && (
+                    <span className="bg-red-500/20 text-red-500 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                      {unpaidCount}
+                    </span>
+                  )}
+                </Label>
+                <Switch
+                  id="unpaid-filter"
+                  checked={showUnpaidOnly}
+                  onCheckedChange={setShowUnpaidOnly}
+                />
+              </div>
+            )}
+          </div>
 
           {/* Kitchen Tab - Kanban Board */}
-          <TabsContent value="kitchen">
+          <TabsContent value="kitchen" className="mt-0">
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[...Array(3)].map((_, i) => (
@@ -622,10 +701,11 @@ export function KitchenDisplaySystem() {
                   <KanbanColumn
                     key={column.status}
                     config={column}
-                    orders={ordersByStatus[column.status]}
+                    orders={filteredOrdersByStatus[column.status]}
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onStatusChange={handleStatusChange}
+                    onQuickPay={handleQuickPay}
                   />
                 ))}
               </div>
@@ -710,7 +790,7 @@ export function KitchenDisplaySystem() {
         </div>
       </CardFooter>
 
-      {/* Payment Modal */}
+      {/* Payment Modal for Pickup Tab */}
       {selectedPickupOrder && (
         <StaffPaymentModal
           open={paymentModalOpen}
@@ -719,6 +799,18 @@ export function KitchenDisplaySystem() {
           displayId={selectedPickupOrder.display_id || 0}
           total={Number(selectedPickupOrder.total)}
           onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {/* Quick Pay Modal for Order Cards */}
+      {quickPayOrder && (
+        <QuickPayModal
+          open={quickPayModalOpen}
+          onOpenChange={setQuickPayModalOpen}
+          orderId={quickPayOrder.id}
+          displayId={quickPayOrder.display_id || 0}
+          total={Number(quickPayOrder.total)}
+          onSuccess={handleQuickPaySuccess}
         />
       )}
     </Card>
