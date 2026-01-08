@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Product } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Save } from 'lucide-react';
+import { ProductIngredientManager } from './ProductIngredientManager';
 
 interface EditProductDialogProps {
   product: Product | null;
@@ -80,7 +82,7 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card border-border max-w-md">
+      <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-foreground">Edit Menu Item</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -88,67 +90,77 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Product Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Classic Smash Burger"
-              className="bg-background/50"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="price">Price (€)</Label>
-            <Input
-              id="price"
-              type="number"
-              step="0.01"
-              min="0"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="9.50"
-              className="bg-background/50"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the item..."
-              className="bg-background/50 min-h-[80px]"
-            />
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
-            <div>
-              <Label>In Stock</Label>
-              <p className="text-xs text-muted-foreground">Toggle availability</p>
+        <ScrollArea className="flex-1 pr-4 -mr-4">
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Product Name *</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Classic Smash Burger"
+                className="bg-background/50"
+              />
             </div>
-            <Switch
-              checked={isAvailable}
-              onCheckedChange={setIsAvailable}
-            />
-          </div>
 
-          <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
-            <div>
-              <Label>Featured</Label>
-              <p className="text-xs text-muted-foreground">Show "HOT" badge</p>
+            <div className="space-y-2">
+              <Label htmlFor="price">Price (€) *</Label>
+              <Input
+                id="price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="9.50"
+                className="bg-background/50"
+              />
             </div>
-            <Switch
-              checked={isFeatured}
-              onCheckedChange={setIsFeatured}
-            />
-          </div>
-        </div>
 
-        <div className="flex gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe the item (e.g., Two smashed beef patties with American cheese, pickles, and house sauce)"
+                className="bg-background/50 min-h-[100px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                This description is visible to customers on the menu
+              </p>
+            </div>
+
+            {/* Ingredient Manager */}
+            {product && (
+              <ProductIngredientManager productId={product.id} />
+            )}
+
+            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+              <div>
+                <Label>In Stock</Label>
+                <p className="text-xs text-muted-foreground">Toggle availability</p>
+              </div>
+              <Switch
+                checked={isAvailable}
+                onCheckedChange={setIsAvailable}
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+              <div>
+                <Label>Featured</Label>
+                <p className="text-xs text-muted-foreground">Show "HOT" badge</p>
+              </div>
+              <Switch
+                checked={isFeatured}
+                onCheckedChange={setIsFeatured}
+              />
+            </div>
+          </div>
+        </ScrollArea>
+
+        <div className="flex gap-3 pt-4 border-t border-border">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

@@ -448,6 +448,7 @@ export type Database = {
           id: string
           ingredient_id: string | null
           is_default: boolean
+          is_removable: boolean
           product_id: string | null
         }
         Insert: {
@@ -455,6 +456,7 @@ export type Database = {
           id?: string
           ingredient_id?: string | null
           is_default?: boolean
+          is_removable?: boolean
           product_id?: string | null
         }
         Update: {
@@ -462,6 +464,7 @@ export type Database = {
           id?: string
           ingredient_id?: string | null
           is_default?: boolean
+          is_removable?: boolean
           product_id?: string | null
         }
         Relationships: [
