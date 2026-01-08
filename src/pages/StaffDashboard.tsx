@@ -33,9 +33,13 @@ export default function StaffDashboard() {
   const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
   const updateSettings = useUpdateAppSettings();
 
+  // State for edit dialog (must be declared before any conditional returns)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+
   useEffect(() => {
     if (!loading && !isStaff) {
-      navigate('/auth');
+      navigate('/auth', { replace: true });
     }
   }, [loading, isStaff, navigate]);
 
@@ -89,10 +93,6 @@ export default function StaffDashboard() {
     const newValue = toggleDevMode();
     toast.success(newValue ? '🔧 Dev Mode ENABLED - Store always open' : '🔧 Dev Mode DISABLED');
   };
-
-  // State for edit dialog
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
