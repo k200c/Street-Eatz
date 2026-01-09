@@ -54,7 +54,20 @@ export default defineConfig(({ mode }) => ({
         // Clean up old caches on update
         cleanupOutdatedCaches: true,
         // Cache strategies for different asset types
-        runtimeCaching: [
+      runtimeCaching: [
+          {
+            // CRITICAL: Force network-first for app bundle to prevent stale code
+            urlPattern: /\/assets\/.*\.(js|css)$/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "app-bundle",
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60, // 1 hour
+              },
+              networkTimeoutSeconds: 3,
+            },
+          },
           {
             // Cache API requests for menu/products
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/products.*/i,

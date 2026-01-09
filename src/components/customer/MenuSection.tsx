@@ -32,12 +32,12 @@ function AnimatedProductCard({
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30, y: 20 }}
+      initial={{ opacity: 1, x: 0, y: 0 }}
       animate={{ opacity: 1, x: 0, y: 0 }}
+      className="opacity-100"
       transition={{ 
-        duration: 0.5, 
-        delay: index * 0.1,
-        ease: [0.25, 0.46, 0.45, 0.94]
+        duration: 0.3, 
+        ease: "easeOut"
       }}
     >
       <ProductCardHorizontal
