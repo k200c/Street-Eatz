@@ -1,9 +1,38 @@
+import { useState, useCallback } from 'react';
 import { MapPin, Clock } from 'lucide-react';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
 import { cn } from '@/lib/utils';
 
 export function FooterInfoBar() {
   const { isStoreOpen, devModeEnabled } = useStoreStatus();
+  const [tapCount, setTapCount] = useState(0);
+
+  // Hidden dev feature: triple-tap status dot to clear caches and force refresh
+  const handleStatusTap = useCallback(() => {
+    setTapCount(prev => {
+      const newCount = prev + 1;
+      if (newCount >= 3) {
+        // Clear all caches
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name));
+          });
+        }
+        // Unregister service workers
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            registrations.forEach(reg => reg.unregister());
+          });
+        }
+        // Force reload
+        setTimeout(() => window.location.reload(), 100);
+        return 0;
+      }
+      // Reset after 2 seconds of inactivity
+      setTimeout(() => setTapCount(0), 2000);
+      return newCount;
+    });
+  }, []);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-sm border-t border-white/10">
@@ -24,7 +53,10 @@ export function FooterInfoBar() {
           </div>
 
           {/* Live Status - Dynamic based on store open/closed */}
-          <div className="flex items-center gap-2">
+          <div 
+            className="flex items-center gap-2 cursor-pointer select-none"
+            onClick={handleStatusTap}
+          >
             <div 
               className={cn(
                 "w-2 h-2 rounded-full animate-pulse",
