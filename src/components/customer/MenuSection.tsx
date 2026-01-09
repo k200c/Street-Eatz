@@ -33,7 +33,7 @@ function AnimatedProductCard({
     <motion.div
       ref={ref}
       initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30, y: 20 }}
-      animate={isInView ? { opacity: 1, x: 0, y: 0 } : {}}
+      animate={{ opacity: 1, x: 0, y: 0 }}
       transition={{ 
         duration: 0.5, 
         delay: index * 0.1,
@@ -80,7 +80,7 @@ function AnimatedCategorySection({
         categoryRef(el);
       }}
       className="scroll-mt-32 relative"
-      style={{ opacity, position: 'relative' as const }}
+      style={{ position: 'relative' as const }}
     >
       {/* Subtle parallax background glow */}
       <motion.div
@@ -94,7 +94,7 @@ function AnimatedCategorySection({
       <motion.h3
         className="font-heading text-xl font-bold text-primary mb-4 uppercase tracking-wider relative"
         initial={{ opacity: 0, x: -20 }}
-        animate={isInView ? { opacity: 1, x: 0 } : {}}
+        animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5 }}
       >
         {category}
