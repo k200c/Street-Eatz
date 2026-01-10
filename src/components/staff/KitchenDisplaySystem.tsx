@@ -798,6 +798,9 @@ export function KitchenDisplaySystem() {
           orderId={selectedPickupOrder.id}
           displayId={selectedPickupOrder.display_id || 0}
           total={Number(selectedPickupOrder.total)}
+          items={selectedPickupOrder.order_items}
+          customerName={selectedPickupOrder.customer_name}
+          customerPhone={selectedPickupOrder.customer_phone}
           onSuccess={handlePaymentSuccess}
         />
       )}
