@@ -22,44 +22,17 @@ export function HeroSection() {
         }}
       />
       
-      {/* Smoke/Steam Effect Overlay */}
+      {/* Subtle noise texture */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-[0.08]"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
         }}
       />
-      
-      {/* Rising Steam Animation */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {[...Array(5)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-32 h-64 opacity-[0.03]"
-            style={{
-              left: `${15 + i * 18}%`,
-              bottom: '-20%',
-              background: 'linear-gradient(to top, transparent, hsl(var(--primary) / 0.3), transparent)',
-              filter: 'blur(20px)',
-            }}
-            animate={{
-              y: [0, -400, -800],
-              opacity: [0, 0.05, 0],
-              scaleX: [1, 1.5, 2],
-            }}
-            transition={{
-              duration: 8 + i * 2,
-              repeat: Infinity,
-              delay: i * 1.5,
-              ease: 'linear',
-            }}
-          />
-        ))}
-      </div>
 
       {/* Content Container */}
-      <div className="relative z-10 flex flex-col items-center" style={{ opacity: 1 }}>
-        {/* Logo with Levitation Animation */}
+      <div className="relative z-10 flex flex-col items-center">
+        {/* Logo with entrance animation only */}
         <motion.div
           className="mb-6 relative"
           initial={{ scale: 0, opacity: 0 }}
@@ -71,36 +44,20 @@ export function HeroSection() {
             duration: 1.2,
           }}
         >
-          {/* Pulsing Glow Background */}
-          <motion.div
-            className="absolute inset-0 -inset-x-8 -inset-y-8"
-            animate={{
-              opacity: [0.4, 0.7, 0.4],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
+          {/* Pulsing Glow Background - CSS animation */}
+          <div
+            className="absolute inset-0 -inset-x-8 -inset-y-8 animate-pulse"
             style={{
-              background: 'radial-gradient(ellipse at center, rgba(255, 107, 0, 0.3) 0%, transparent 70%)',
+              background: 'radial-gradient(ellipse at center, rgba(255, 107, 0, 0.4) 0%, transparent 70%)',
               filter: 'blur(30px)',
             }}
           />
           
-          {/* Levitating Logo */}
-          <motion.img
+          {/* Logo - static after entrance */}
+          <img
             src={streetEatzLogo}
             alt="Street Eatz Logo"
             className="w-48 sm:w-56 md:w-64 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(255,107,0,0.5)]"
-            animate={{
-              y: [-10, 10, -10],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
           />
         </motion.div>
 
@@ -177,18 +134,10 @@ export function HeroSection() {
         </motion.div>
       </div>
 
-      {/* Scroll Indicator */}
-      <motion.div
-        className="absolute bottom-24 left-1/2 -translate-x-1/2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1, y: [0, 8, 0] }}
-        transition={{
-          opacity: { delay: 1.8, duration: 0.5 },
-          y: { delay: 1.8, duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
-        }}
-      >
+      {/* Scroll Indicator - CSS animation */}
+      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 animate-bounce opacity-70">
         <ChevronDown className="w-8 h-8 text-muted-foreground" />
-      </motion.div>
+      </div>
     </section>
   );
 }

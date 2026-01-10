@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { motion, useScroll, useTransform, useInView } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { useProducts } from '@/hooks/useProducts';
 import { useProductModifiers } from '@/hooks/useProductModifiers';
 import { useProductIngredients } from '@/hooks/useProductIngredients';
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 const categories: (ProductCategory | 'All')[] = ['All', 'Burgers', 'Flatbreads', 'Fries', 'Drinks', 'Specials'];
 
-// Animated Product Card wrapper with parallax
+// Simple Product Card wrapper
 function AnimatedProductCard({ 
   product, 
   hasModifiers, 
@@ -26,30 +26,18 @@ function AnimatedProductCard({
   onClick: () => void; 
   index: number;
 }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-50px" });
-
   return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 1, x: 0, y: 0 }}
-      animate={{ opacity: 1, x: 0, y: 0 }}
-      className="opacity-100"
-      transition={{ 
-        duration: 0.3, 
-        ease: "easeOut"
-      }}
-    >
+    <div className="opacity-100">
       <ProductCardHorizontal
         product={product}
         hasModifiers={hasModifiers}
         onClick={onClick}
       />
-    </motion.div>
+    </div>
   );
 }
 
-// Animated Category Section with parallax
+// Simple Category Section
 function AnimatedCategorySection({ 
   category, 
   products, 
@@ -63,44 +51,16 @@ function AnimatedCategorySection({
   hasModifiers: (id: string) => boolean;
   onProductClick: (product: Product) => void;
 }) {
-  const sectionRef = useRef(null);
-  const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"]
-  });
-  
-  const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
-  const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [1, 1, 1, 0.9]);
-
   return (
-    <motion.div
-      ref={(el) => {
-        (sectionRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-        categoryRef(el);
-      }}
-      className="scroll-mt-32 relative"
-      style={{ position: 'relative' as const }}
+    <div
+      ref={categoryRef}
+      className="scroll-mt-32"
     >
-      {/* Subtle parallax background glow */}
-      <motion.div
-        className="absolute -inset-4 rounded-2xl pointer-events-none"
-        style={{ 
-          y: backgroundY,
-          background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.03) 0%, transparent 70%)',
-        }}
-      />
-      
-      <motion.h3
-        className="font-heading text-xl font-bold text-primary mb-4 uppercase tracking-wider relative"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5 }}
-      >
+      <h3 className="font-heading text-xl font-bold text-primary mb-4 uppercase tracking-wider">
         {category}
-      </motion.h3>
+      </h3>
       
-      <div className="space-y-4 relative">
+      <div className="space-y-4">
         {products.map((product, index) => (
           <AnimatedProductCard
             key={product.id}
@@ -111,7 +71,7 @@ function AnimatedCategorySection({
           />
         ))}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -185,33 +145,23 @@ export function MenuSection() {
         </motion.p>
       </motion.div>
 
-      {/* Sticky Category Bar with entrance animation */}
-      <motion.div 
-        className="sticky top-16 z-30 bg-black/90 backdrop-blur-md py-4 -mx-4 px-4 mb-8 border-y border-white/5"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-      >
+      {/* Sticky Category Bar */}
+      <div className="sticky top-16 z-30 bg-black/90 backdrop-blur-md py-4 -mx-4 px-4 mb-8 border-y border-white/5">
         <div className="flex gap-3 overflow-x-auto no-scrollbar">
-          {categories.map((category, index) => (
-            <motion.button
+          {categories.map((category) => (
+            <button
               key={category}
               onClick={() => handleCategoryClick(category)}
               className={cn(
-                'category-pill whitespace-nowrap flex-shrink-0',
+                'category-pill whitespace-nowrap flex-shrink-0 transition-transform hover:scale-105 active:scale-95',
                 selectedCategory === category && 'active'
               )}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: 0.4 + index * 0.05 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
             >
               {category}
-            </motion.button>
+            </button>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       {/* Products */}
       {isLoading ? (
