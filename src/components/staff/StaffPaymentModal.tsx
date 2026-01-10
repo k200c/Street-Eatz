@@ -3,12 +3,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Banknote, Check, Loader2, Smartphone, ChefHat } from "lucide-react";
+import { Banknote, Check, Loader2, CreditCard, ChefHat } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
-// n8n Webhook URLs
-const N8N_POS_WEBHOOK = "https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment";
+// n8n Webhook URL - unified endpoint for all staff payments
+const N8N_PAYMENT_WEBHOOK = "https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment";
+
+interface OrderItem {
+  id?: string;
+  product_name: string | null;
+  quantity: number | null;
+  unit_price: number;
+  selected_modifiers?: unknown;
+}
 
 interface StaffPaymentModalProps {
   open: boolean;
@@ -17,6 +26,10 @@ interface StaffPaymentModalProps {
   displayId: number;
   total: number;
   onSuccess: () => void;
+  // NEW props for unified payload
+  items?: OrderItem[];
+  customerName?: string | null;
+  customerPhone?: string | null;
 }
 
 export function StaffPaymentModal({
@@ -26,7 +39,11 @@ export function StaffPaymentModal({
   displayId,
   total,
   onSuccess,
+  items = [],
+  customerName,
+  customerPhone,
 }: StaffPaymentModalProps) {
+  const { user } = useAuth();
   const [amountTendered, setAmountTendered] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingType, setProcessingType] = useState<"cash" | "terminal" | null>(null);
@@ -35,27 +52,102 @@ export function StaffPaymentModal({
   const changeDue = tenderedValue - total;
   const canPayCash = tenderedValue >= total && total > 0;
 
+  // Parse modifiers from the structured payload
+  const parseModifiers = (modifiers: unknown): { 
+    regularModifiers: Array<{ name: string; price_adjustment?: number }>; 
+    removedIngredients: string[]; 
+    addedExtras: string[] 
+  } => {
+    const result = { regularModifiers: [] as Array<{ name: string; price_adjustment?: number }>, removedIngredients: [] as string[], addedExtras: [] as string[] };
+    if (!modifiers) return result;
+
+    if (typeof modifiers === 'object' && !Array.isArray(modifiers)) {
+      const mod = modifiers as Record<string, unknown>;
+      if (Array.isArray(mod.modifiers)) {
+        result.regularModifiers = mod.modifiers.map((m: unknown) => {
+          if (typeof m === 'string') return { name: m };
+          if (m && typeof m === 'object' && 'name' in m) return m as { name: string; price_adjustment?: number };
+          return { name: '' };
+        }).filter(m => m.name);
+      }
+      if (Array.isArray(mod.removed_ingredients)) {
+        result.removedIngredients = mod.removed_ingredients.filter((i): i is string => typeof i === 'string');
+      }
+      if (Array.isArray(mod.added_extras)) {
+        result.addedExtras = mod.added_extras.filter((i): i is string => typeof i === 'string');
+      }
+    }
+
+    if (Array.isArray(modifiers)) {
+      modifiers.forEach((m: unknown) => {
+        if (typeof m === 'string') {
+          if (m.toLowerCase().startsWith('no ')) result.removedIngredients.push(m.replace(/^no /i, ''));
+          else if (m.toLowerCase().startsWith('extra ')) result.addedExtras.push(m.replace(/^extra /i, ''));
+          else result.regularModifiers.push({ name: m });
+        } else if (m && typeof m === 'object' && 'name' in m) {
+          result.regularModifiers.push(m as { name: string; price_adjustment?: number });
+        }
+      });
+    }
+
+    return result;
+  };
+
+  // Build items payload with parsed modifiers
+  const buildItemsPayload = () => {
+    return items.map(item => {
+      const parsed = parseModifiers(item.selected_modifiers);
+      return {
+        name: item.product_name || 'Unknown Item',
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price,
+        modifiers: parsed.regularModifiers,
+        removed_ingredients: parsed.removedIngredients,
+        added_extras: parsed.addedExtras,
+      };
+    });
+  };
+
+  // Build unified payload for n8n
+  const buildUnifiedPayload = (paymentMethod: 'card' | 'cash', paymentType: 'terminal' | 'POSCash') => ({
+    order_id: orderId,
+    display_id: displayId,
+    total_amount: total,
+    payment_method: paymentMethod,
+    paymenttype: paymentType,
+    payment_status: paymentType === 'POSCash' ? 'paid' : 'pending',
+    customer_name: customerName || null,
+    customer_phone: customerPhone || null,
+    staff_id: user?.id || 'unknown',
+    items: buildItemsPayload(),
+    order_source: 'staff',
+    timestamp: new Date().toISOString(),
+    ...(paymentType === 'POSCash' && {
+      amount_tendered: tenderedValue,
+      change_due: changeDue,
+    }),
+  });
+
   const handleCashPayment = async () => {
     if (!canPayCash || isProcessing) return;
     setIsProcessing(true);
     setProcessingType("cash");
 
     try {
+      const webhookPayload = buildUnifiedPayload('cash', 'POSCash');
+      
       // Send to n8n webhook
-      await fetch(N8N_POS_WEBHOOK, {
+      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "POSCash",
-          orderId,
-          displayId,
-          total,
-          amountTendered: tenderedValue,
-          changeDue,
-        }),
+        body: JSON.stringify(webhookPayload),
       });
 
-      // Update order status to 'pending' (ready for kitchen)
+      if (!response.ok) {
+        throw new Error(`Webhook failed with status ${response.status}`);
+      }
+
+      // Update order status in database
       const { error } = await supabase
         .from("orders")
         .update({
@@ -75,7 +167,9 @@ export function StaffPaymentModal({
       onSuccess();
     } catch (error) {
       console.error("Cash payment error:", error);
-      toast.error("Payment failed. Please try again.");
+      toast.error("System Error: Payment not recorded", {
+        description: "Please check internet or try manual entry"
+      });
     } finally {
       setIsProcessing(false);
       setProcessingType(null);
@@ -88,44 +182,42 @@ export function StaffPaymentModal({
     setProcessingType("terminal");
 
     try {
+      const webhookPayload = buildUnifiedPayload('card', 'terminal');
+      
       // Send to n8n webhook for terminal
-      await fetch(N8N_POS_WEBHOOK, {
+      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "terminal",
-          orderId,
-          displayId,
-          total,
-          amountInCents: Math.round(total * 100),
-        }),
+        body: JSON.stringify(webhookPayload),
       });
 
-      toast.info("Waiting for Pax Terminal...");
+      if (!response.ok) {
+        throw new Error(`Terminal webhook failed with status ${response.status}`);
+      }
 
-      // The actual payment completion would come from the terminal callback
-      // For now, we'll simulate success after a short delay
-      // In production, this would be handled by a webhook from the terminal
+      toast.info("Tap Card on Terminal...");
 
-      // Update order status
+      // Update order status - payment_status stays pending until terminal confirms
       const { error } = await supabase
         .from("orders")
         .update({
           status: "pending",
           payment_method: "card",
-          payment_status: "paid",
+          payment_status: "pending",
         })
         .eq("id", orderId);
 
       if (error) throw error;
 
-      toast.success(`Order #${String(displayId).padStart(4, "0")} paid via terminal!`);
+      toast.success(`Order #${String(displayId).padStart(4, "0")} sent to terminal!`);
       resetForm();
       onOpenChange(false);
       onSuccess();
     } catch (error) {
       console.error("Terminal payment error:", error);
-      toast.error("Terminal payment failed. Please try again.");
+      toast.error("System Error: Payment not recorded", {
+        description: "Please check internet or try manual entry"
+      });
     } finally {
       setIsProcessing(false);
       setProcessingType(null);
@@ -157,11 +249,11 @@ export function StaffPaymentModal({
                   transition={{ duration: 1.5, repeat: Infinity }}
                   className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mx-auto"
                 >
-                  <Smartphone className="w-12 h-12 text-primary" />
+                  <CreditCard className="w-12 h-12 text-primary" />
                 </motion.div>
                 <div>
-                  <p className="font-heading text-2xl text-foreground">WAITING FOR PAX TERMINAL...</p>
-                  <p className="text-muted-foreground text-sm mt-2">Present card to the terminal</p>
+                  <p className="font-heading text-2xl text-foreground">TAP CARD ON TERMINAL</p>
+                  <p className="text-muted-foreground text-sm mt-2">Waiting for payment...</p>
                 </div>
                 <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
               </div>
@@ -212,7 +304,7 @@ export function StaffPaymentModal({
                     onClick={handleTerminalPayment}
                     disabled={isProcessing}
                   >
-                    <Smartphone className="w-12 h-12" />
+                    <CreditCard className="w-12 h-12" />
                     TERMINAL
                   </Button>
 
