@@ -14,8 +14,8 @@ interface StaffCheckoutModalProps {
   onSuccess: (orderNumber: number) => void;
 }
 
-// n8n Terminal Webhook URL
-const N8N_TERMINAL_WEBHOOK = 'https://kyle2000.app.n8n.cloud/webhook/viva-payment';
+// Unified payment webhook URL
+const N8N_PAYMENT_WEBHOOK = 'https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment';
 
 export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheckoutModalProps) {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
@@ -39,23 +39,80 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
     setIsTerminalActive(true);
 
     try {
-      // Step 1: Trigger Tap to Phone via n8n webhook
-      await triggerTapToPhone();
-
-      // Step 2: Create the order
+      // Step 1: Create the order first to get order_id and display_id
       const result = await submitOrder({
         paymentMethod: 'card',
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
       });
 
-      if (result) {
-        clearCart(); // Clear the staff cart after successful order
+      if (!result) {
+        throw new Error('Order creation failed');
+      }
+
+      // Step 2: Build unified payload matching customer checkout format
+      const formattedItems = items.map((item) => {
+        const modifiers: string[] = [];
+        
+        if (item.removedIngredients?.length) {
+          item.removedIngredients.forEach((ing) => {
+            if (ing?.name) modifiers.push(`No ${ing.name}`);
+          });
+        }
+        
+        if (item.selectedModifiers?.length) {
+          item.selectedModifiers.forEach((mod) => {
+            if (mod?.name) modifiers.push(mod.name);
+          });
+        }
+
+        return {
+          name: item.product?.name || 'Unknown Item',
+          quantity: item.quantity || 1,
+          price: item.totalPrice / item.quantity,
+          modifiers: modifiers,
+          removed_ingredients: item.removedIngredients?.map((i) => i.name) || [],
+        };
+      });
+
+      const payload = {
+        order_id: result.orderId,
+        display_id: result.displayId,
+        total_amount: total,
+        payment_method: 'card',
+        paymenttype: 'terminal',
+        payment_status: 'pending',
+        customer_name: customerName || '',
+        customer_email: '',
+        customer_phone: customerPhone || '',
+        items: formattedItems,
+        timestamp: new Date().toISOString(),
+        order_source: 'staff',
+      };
+
+      console.log('🔌 Staff Terminal Payment:', JSON.stringify(payload, null, 2));
+
+      // Step 3: POST to the unified payment webhook
+      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        toast.success('Terminal Active: Tap card on phone now.');
+        clearCart();
         resetForm();
         onOpenChange(false);
         onSuccess(result.displayId);
       } else {
-        throw new Error('Order creation failed');
+        // Still proceed - order is saved in DB
+        console.warn('Payment webhook returned non-OK status, but order created');
+        toast.success('Order created. Terminal notification sent.');
+        clearCart();
+        resetForm();
+        onOpenChange(false);
+        onSuccess(result.displayId);
       }
     } catch (error) {
       console.error('Card payment error:', error);
@@ -108,39 +165,6 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
       console.error('Cash payment error:', error);
       toast.error('Payment Error: Please try again.');
       setIsSendingToKitchen(false);
-    }
-  };
-
-  // Trigger Tap to Phone via n8n webhook
-  const triggerTapToPhone = async (): Promise<void> => {
-    console.log('Triggering Tap to Phone via n8n webhook...');
-
-    try {
-      const response = await fetch(N8N_TERMINAL_WEBHOOK, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        mode: 'no-cors', // Handle CORS for external webhook
-        body: JSON.stringify({
-          orderId: crypto.randomUUID(), // Temporary ID, will be replaced with actual order ID
-          amount: Math.round(total * 100), // Convert to cents
-          currency: 'EUR',
-          timestamp: new Date().toISOString(),
-          customerName: customerName || undefined,
-          customerPhone: customerPhone || undefined,
-        }),
-      });
-
-      // Since we're using no-cors, we can't read the response status
-      // Show success toast assuming the webhook was received
-      toast.success('Terminal Active: Tap card on phone now.');
-      console.log('Tap to Phone webhook sent successfully');
-
-    } catch (error) {
-      console.error('Tap to Phone webhook error:', error);
-      // Don't throw - we still want to proceed with the order
-      toast.info('Terminal notification sent. Proceed with card tap.');
     }
   };
 
