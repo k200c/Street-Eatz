@@ -82,7 +82,7 @@ const PaymentError = () => {
           className="w-full space-y-3"
         >
           <Button
-            onClick={() => navigate("/cart")}
+            onClick={() => navigate("/cart?checkout=true")}
             className="w-full"
             size="lg"
           >

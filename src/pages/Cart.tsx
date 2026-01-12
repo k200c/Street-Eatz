@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useCartStore } from '@/stores/cartStore';
 import { Button } from '@/components/ui/button';
 import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, AlertTriangle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
 import { CustomerCheckoutModal } from '@/components/checkout/CustomerCheckoutModal';
 import { OrderSuccessModal } from '@/components/checkout/OrderSuccessModal';
@@ -25,6 +25,7 @@ const categoryImages: Record<string, string> = {
 
 export default function Cart() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { items, removeItem, updateQuantity, clearCart, getTotal } = useCartStore();
   const total = getTotal();
   const [showCheckout, setShowCheckout] = useState(false);
@@ -32,6 +33,15 @@ export default function Cart() {
   const [orderNumber, setOrderNumber] = useState<number>(0);
 
   const { isStoreOpen, devModeEnabled } = useStoreStatus();
+
+  // Auto-open checkout if returning from payment error
+  useEffect(() => {
+    if (searchParams.get('checkout') === 'true' && items.length > 0) {
+      setShowCheckout(true);
+      // Clean up URL
+      window.history.replaceState({}, '', '/cart');
+    }
+  }, [searchParams, items.length]);
 
   // Get product IDs from cart items
   const productIds = items.map(item => item.product.id);

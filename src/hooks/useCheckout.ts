@@ -19,31 +19,8 @@ interface OrderResult {
   createdAt: string;
 }
 
-interface WebhookPayload {
-  order_id: string;
-  created_at: string;
-  status: string;
-  payment_method: string;
-  order_source: "staff" | "web";
-  customer: {
-    name: string;
-    phone: string;
-    email: string;
-  };
-  totals: {
-    subtotal: number;
-    total: number;
-  };
-  items: Array<{
-    name: string;
-    quantity: number;
-    price: number;
-    modifiers: string[];
-  }>;
-  store_meta: {
-    wait_time: string;
-  };
-}
+// n8n Webhook URL for kitchen notifications
+const N8N_KITCHEN_WEBHOOK = "https://kyle2000.app.n8n.cloud/webhook/street-eatz-order";
 
 export function useCheckout() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +28,7 @@ export function useCheckout() {
   const { items, getTotal, clearCart } = useCartStore();
 
   /**
-   * Submit order WITHOUT clearing the cart.
+   * Submit order via DIRECT Supabase insert (bypasses Edge Function)
    * For card payments: cart stays until PaymentSuccess confirms via ?s= param
    * For cash payments: caller must explicitly call clearCart after sendToKitchen succeeds
    */
@@ -66,9 +43,36 @@ export function useCheckout() {
 
     try {
       // Calculate change due for cash payments
-      const changeDue = data.paymentMethod === "cash" && data.amountTendered ? data.amountTendered - total : null;
+      const changeDue = data.paymentMethod === "cash" && data.amountTendered 
+        ? data.amountTendered - total 
+        : null;
 
-      // Build order items for the Edge Function
+      // Determine payment status based on method
+      const paymentStatus = data.paymentMethod === "card" ? "pending" : "unpaid";
+
+      // Step 1: Insert order directly (BYPASS Edge Function)
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          status: "pending",
+          payment_method: data.paymentMethod,
+          payment_status: paymentStatus,
+          total,
+          customer_name: data.customerName || null,
+          customer_phone: data.customerPhone || null,
+          special_notes: data.specialNotes || null,
+          cash_tendered: data.paymentMethod === "cash" ? data.amountTendered : null,
+          change_due: changeDue,
+        })
+        .select("id, display_id, created_at")
+        .single();
+
+      if (orderError) {
+        console.error("Order insert error:", orderError);
+        throw orderError;
+      }
+
+      // Step 2: Build and insert order items
       const orderItems = items.map((item) => {
         // Separate regular modifiers from "Extra X" items
         const regularModifiers = item.selectedModifiers.filter(
@@ -80,10 +84,11 @@ export function useCheckout() {
         const removedIngredients = item.removedIngredients.map((i) => i.name);
 
         return {
+          order_id: order.id,
           product_id: item.product.id,
           product_name: item.product.name,
           quantity: item.quantity,
-          unit_price: item.totalPrice / item.quantity, // Use calculated price with modifiers
+          unit_price: item.totalPrice / item.quantity,
           selected_modifiers: {
             modifiers: regularModifiers.map((m) => ({
               name: m.name,
@@ -95,26 +100,18 @@ export function useCheckout() {
         };
       });
 
-      // Use the secure Edge Function for order creation
-      const { data: result, error } = await supabase.functions.invoke("create-order", {
-        body: {
-          items: orderItems,
-          total,
-          payment_method: data.paymentMethod,
-          customer_name: data.customerName || null,
-          customer_phone: data.customerPhone || null,
-          cash_tendered: data.paymentMethod === "cash" ? data.amountTendered : null,
-          change_due: changeDue,
-          special_notes: data.specialNotes || null,
-        },
-      });
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .insert(orderItems);
 
-      if (error) throw error;
-      if (result.error) throw new Error(result.error);
+      if (itemsError) {
+        console.error("Order items insert error:", itemsError);
+        // Cleanup: delete the order if items failed
+        await supabase.from("orders").delete().eq("id", order.id);
+        throw itemsError;
+      }
 
-      // Use display_id from response, fallback to timestamp-based calculation
-      const displayId = result.display_id || Math.floor(new Date(result.created_at).getTime() / 1000) % 10000;
-      const orderNumber = result.display_id || Math.floor(new Date(result.created_at).getTime() / 1000) % 1000;
+      console.log("✅ Order created directly via Supabase:", order.id);
 
       // Only clear cart if explicitly requested (cash payments after kitchen confirmation)
       if (shouldClearCart) {
@@ -122,10 +119,10 @@ export function useCheckout() {
       }
 
       return {
-        orderId: result.order_id,
-        orderNumber,
-        displayId,
-        createdAt: result.created_at,
+        orderId: order.id,
+        orderNumber: order.display_id,
+        displayId: order.display_id,
+        createdAt: order.created_at,
       };
     } catch (error) {
       console.error("Checkout error:", error);
@@ -136,8 +133,10 @@ export function useCheckout() {
     }
   };
 
-  // Send order to n8n webhook (ONLY for cash/collection payments)
-  // IMPORTANT: Pass cartItems and orderTotal since cart is cleared before this is called
+  /**
+   * Send order to n8n webhook for collection payments
+   * Uses standardized payload with paymenttype: 'collection'
+   */
   const sendToKitchen = async (
     orderResult: { orderId: string; orderNumber: number; createdAt: string },
     customerData: { name: string; phone: string; email: string },
@@ -145,7 +144,6 @@ export function useCheckout() {
     orderTotal: number,
     orderSource: "staff" | "web" = "web",
   ): Promise<boolean> => {
-    // Step 1: Validate data before sending
     if (!cartItems || cartItems.length === 0) {
       console.error("N8N Error: No items provided, cannot send to kitchen");
       toast.error("No items to send");
@@ -163,125 +161,74 @@ export function useCheckout() {
         .maybeSingle();
 
       const waitTime = settings?.current_wait_time || "20 mins";
-
-      // Use the passed total (cart is already cleared at this point)
       const totalAmount = Number(orderTotal) || 0;
 
-      // Build the payload with strict typing
-      // IMPORTANT: order_id must be the actual UUID for database validation
-      const payload: WebhookPayload = {
+      // Build formatted items array
+      const formattedItems = cartItems.map((item) => {
+        const modifiers: string[] = [];
+
+        if (item.removedIngredients && Array.isArray(item.removedIngredients)) {
+          item.removedIngredients.forEach((ing) => {
+            if (ing?.name) modifiers.push(`No ${ing.name}`);
+          });
+        }
+
+        if (item.selectedModifiers && Array.isArray(item.selectedModifiers)) {
+          item.selectedModifiers.forEach((mod) => {
+            if (mod?.name) modifiers.push(mod.name);
+          });
+        }
+
+        return {
+          name: item.product?.name || "Unknown Item",
+          quantity: item.quantity || 1,
+          price: item.totalPrice / item.quantity,
+          modifiers: modifiers,
+        };
+      });
+
+      // Build STANDARDIZED payload for collection payments
+      const payload = {
         order_id: orderResult.orderId,
-        created_at: orderResult.createdAt,
-        status: "pending",
+        display_id: orderResult.orderNumber,
+        total_amount: totalAmount,
         payment_method: "cash",
+        paymenttype: "collection",         // Triggers 'Collection' branch in n8n
+        payment_status: "unpaid",          // Customer pays on pickup
+        customer_name: customerData.name || "",
+        customer_phone: customerData.phone || "",
+        customer_email: customerData.email || "",
+        items: formattedItems,
+        timestamp: new Date().toISOString(),
         order_source: orderSource,
-        customer: {
-          name: customerData.name || "",
-          phone: customerData.phone || "",
-          email: customerData.email || "",
-        },
-        totals: {
-          subtotal: totalAmount,
-          total: totalAmount,
-        },
-        items: cartItems.map((item) => {
-          // Build modifiers array with proper formatting for kitchen display
-          const modifiers: string[] = [];
-
-          // Add removed ingredients (prefixed with "No ")
-          if (item.removedIngredients && Array.isArray(item.removedIngredients)) {
-            item.removedIngredients.forEach((ing) => {
-              if (ing?.name) modifiers.push(`No ${ing.name}`);
-            });
-          }
-
-          // Add extra ingredients and regular modifiers
-          if (item.selectedModifiers && Array.isArray(item.selectedModifiers)) {
-            item.selectedModifiers.forEach((mod) => {
-              if (mod?.name) {
-                // Keep "Extra X" format for extras
-                modifiers.push(mod.name);
-              }
-            });
-          }
-
-          // Calculate item price (base + modifiers)
-          const itemPrice = item.totalPrice / item.quantity;
-
-          return {
-            name: item.product?.name || "Unknown Item",
-            quantity: item.quantity || 1,
-            price: itemPrice,
-            modifiers: modifiers,
-          };
-        }),
         store_meta: {
           wait_time: waitTime,
         },
       };
 
-      // HARDCODED PRODUCTION WEBHOOK URL FOR DEBUGGING
-      const webhookUrl = "https://kyle2000.app.n8n.cloud/webhook/street-eatz-order";
-      
-      // 🔥 VERSION MARKER - If you see this, the new code is running!
-      console.log("🔥🔥🔥 sendToKitchen v3.0 - DIRECT FETCH ONLY - " + new Date().toISOString());
-      console.log("🔥 NO EDGE FUNCTION - This build: 2024-DEC-06");
-      
-      // LOUD DEBUGGING - visible on mobile console
-      console.log("🚀 Attempting to submit order to:", webhookUrl);
-      console.log("📦 Payload:", JSON.stringify(payload, null, 2));
-      
-      // Verify payload structure before sending
-      if (!Array.isArray(payload.items)) {
-        console.error("❌ PAYLOAD ERROR: items is not an array!", typeof payload.items);
-        toast.error("Order Failed: Invalid items format");
-        return false;
-      }
-      if (typeof payload.totals !== 'object') {
-        console.error("❌ PAYLOAD ERROR: totals is not an object!", typeof payload.totals);
-        toast.error("Order Failed: Invalid totals format");
-        return false;
-      }
-      
-      console.log("✅ Payload validation passed. Sending to n8n...");
+      console.log("🚀 Sending collection order to kitchen:", JSON.stringify(payload, null, 2));
 
-      try {
-        const response = await fetch(webhookUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
+      const response = await fetch(N8N_KITCHEN_WEBHOOK, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-        console.log("📡 Response status:", response.status);
-        
-        if (response.status === 200) {
-          const responseData = await response.text();
-          console.log("✅ Order sent to kitchen successfully! Response:", responseData);
-          toast.success("Order sent to Kitchen! 👨‍🍳");
-          return true;
-        } else {
-          const errorText = await response.text();
-          console.error("❌ Webhook response error:", response.status, errorText);
-          toast.error(`Network Error: ${response.status}. Please show staff this screen.`);
-          // Still return true - order is saved in DB, don't lose it
-          return true;
-        }
-      } catch (fetchError) {
-        const errorMessage = fetchError instanceof Error ? fetchError.message : "Unknown fetch error";
-        console.error("❌ Fetch error:", errorMessage);
-        toast.error(`Network Error: Connection failed. Please show staff this screen.`);
-        console.log("📋 Full error details:", fetchError);
-        // Still return true so user proceeds - order is saved in DB
+      if (response.ok) {
+        console.log("✅ Order sent to kitchen successfully!");
+        toast.success("Order sent to Kitchen! 👨‍🍳");
         return true;
+      } else {
+        console.error("❌ Kitchen webhook failed:", response.status);
+        toast.error(`Network Error: ${response.status}. Please show staff this screen.`);
+        return true; // Still return true - order is saved in DB
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      console.error("❌ N8N Error:", errorMessage);
-      toast.error(`Kitchen Alert Failed: ${errorMessage}`);
-      // Still proceed - don't lose the order
-      return true;
+      console.error("❌ Kitchen error:", error);
+      toast.error("Network Error: Connection failed. Please show staff this screen.");
+      return true; // Still proceed - order is saved in DB
     } finally {
       setIsSendingToKitchen(false);
     }
@@ -290,11 +237,11 @@ export function useCheckout() {
   return {
     submitOrder,
     sendToKitchen,
-    clearCart, // Expose for explicit clearing after success
+    clearCart,
     isSubmitting,
     isSendingToKitchen,
     total: getTotal(),
     itemCount: items.length,
-    items, // Expose items for the webhook payload
+    items,
   };
 }

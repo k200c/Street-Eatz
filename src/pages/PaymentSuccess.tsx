@@ -9,6 +9,7 @@ import confetti from "canvas-confetti";
 
 interface OrderDetails {
   id: string;
+  display_id: number;
   status: string;
   total: number;
   customer_name: string | null;
@@ -24,9 +25,11 @@ const PaymentSuccess = () => {
   const [isVerifying, setIsVerifying] = useState(true);
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(5);
 
-  // Get the order code from URL (?s=ORDER_CODE)
+  // Get the order code and transaction ID from URL
   const orderCode = searchParams.get("s");
+  const transactionId = searchParams.get("t");
 
   useEffect(() => {
     const verifyAndClearCart = async () => {
@@ -38,10 +41,12 @@ const PaymentSuccess = () => {
       }
 
       try {
+        console.log("Verifying payment with order code:", orderCode, "transaction:", transactionId);
+
         // Fetch order by viva_order_code to verify payment
         const { data: orderData, error: fetchError } = await supabase
           .from("orders")
-          .select("id, status, total, customer_name, created_at, payment_status")
+          .select("id, display_id, status, total, customer_name, created_at, payment_status")
           .eq("viva_order_code", orderCode)
           .maybeSingle();
 
@@ -53,7 +58,6 @@ const PaymentSuccess = () => {
         }
 
         if (!orderData) {
-          // Order not found yet - might still be processing
           console.log("Order not found for code:", orderCode);
           setError("Order not found. It may still be processing.");
           setIsVerifying(false);
@@ -76,7 +80,25 @@ const PaymentSuccess = () => {
     };
 
     verifyAndClearCart();
-  }, [orderCode, clearCart]);
+  }, [orderCode, transactionId, clearCart]);
+
+  // Auto-redirect countdown after order is verified
+  useEffect(() => {
+    if (!order) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate("/profile");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [order, navigate]);
 
   // Subscribe to realtime updates for this order
   useEffect(() => {
@@ -130,6 +152,11 @@ const PaymentSuccess = () => {
     };
 
     frame();
+  };
+
+  // Format display ID as 4-digit order number
+  const formatOrderNumber = (displayId: number) => {
+    return `#${String(displayId).padStart(4, "0")}`;
   };
 
   // Loading state while verifying
@@ -239,22 +266,30 @@ const PaymentSuccess = () => {
           Your order is being prepared
         </motion.p>
 
-        {/* Order summary */}
+        {/* Order summary with display_id */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.45 }}
           className="w-full p-4 bg-secondary rounded-lg mb-4"
         >
+          {/* Prominent Order Number */}
+          <div className="text-center mb-3">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Order Number</p>
+            <p className="text-4xl font-heading text-primary mt-1">
+              {formatOrderNumber(order.display_id)}
+            </p>
+          </div>
+          
           {order.customer_name && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground text-center">
               Thank you, <span className="text-foreground font-medium">{order.customer_name}</span>
             </p>
           )}
-          <p className="text-2xl font-heading text-primary mt-1">
+          <p className="text-xl font-heading text-center mt-2">
             €{Number(order.total).toFixed(2)}
           </p>
-          <p className="text-xs text-muted-foreground mt-2 uppercase tracking-wider">
+          <p className="text-xs text-muted-foreground mt-2 uppercase tracking-wider text-center">
             Status: <span className="text-foreground">{order.status}</span>
           </p>
         </motion.div>
@@ -263,11 +298,21 @@ const PaymentSuccess = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="flex items-center gap-2 text-primary mb-8"
+          className="flex items-center gap-2 text-primary mb-4"
         >
           <Utensils className="w-5 h-5" />
           <span className="text-sm font-medium">Fresh & Hot, Coming Soon!</span>
         </motion.div>
+
+        {/* Auto-redirect countdown */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.55 }}
+          className="text-sm text-muted-foreground mb-6"
+        >
+          Redirecting to your orders in {countdown}s...
+        </motion.p>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
