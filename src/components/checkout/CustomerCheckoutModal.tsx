@@ -213,6 +213,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
         customer_phone: formattedPhone,
         items: formattedItems,
         timestamp: new Date().toISOString(),
+        order_source: 'web',                     // Required field
       };
 
       console.log('🚀 Direct n8n payment request:', JSON.stringify(payload, null, 2));

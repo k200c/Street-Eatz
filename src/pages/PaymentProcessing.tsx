@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { UtensilsCrossed } from "lucide-react";
+import { LoadingRecovery } from "@/components/LoadingRecovery";
 
 const MAX_ATTEMPTS = 20;
 const POLL_INTERVAL = 3000;
@@ -72,6 +73,11 @@ const PaymentProcessing = () => {
     };
   }, [orderCode, navigate]);
 
+  const handleRetry = () => {
+    // Navigate back to cart with checkout modal open
+    navigate("/cart?checkout=true");
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 gradient-bg">
       <motion.div
@@ -141,6 +147,13 @@ const PaymentProcessing = () => {
             Checking payment status...
           </p>
         </div>
+
+        {/* Recovery button after 10 seconds */}
+        <LoadingRecovery 
+          showAfter={10000}
+          onRetry={handleRetry}
+          message="Taking too long?"
+        />
       </motion.div>
     </div>
   );
