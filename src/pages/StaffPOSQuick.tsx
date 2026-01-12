@@ -6,10 +6,11 @@ import { useStaffCartStore } from '@/stores/staffCartStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Product, ProductCategory } from '@/types/database';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, Minus, Plus, ShoppingCart, Edit2, LogOut, Settings } from 'lucide-react';
 import { toast } from 'sonner';
-import { ProductSheet } from '@/components/customer/ProductSheet';
+import { StaffProductSheet } from '@/components/staff/StaffProductSheet';
 import { StaffCheckoutModal } from '@/components/checkout/StaffCheckoutModal';
 
 const categories: ProductCategory[] = ['Burgers', 'Flatbreads', 'Fries', 'Drinks', 'Specials'];
@@ -145,7 +146,8 @@ export default function StaffPOSQuick() {
                         e.stopPropagation();
                         handleCustomize(product);
                       }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded bg-secondary hover:bg-secondary/80"
+                      className="p-1.5 rounded bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors"
+                      title="Customize"
                     >
                       <Edit2 className="w-3 h-3" />
                     </button>
@@ -186,49 +188,73 @@ export default function StaffPOSQuick() {
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-2">
             <AnimatePresence>
-              {items.map((item, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="bg-secondary rounded-lg p-3"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-heading text-sm truncate">{item.product.name}</p>
-                      {item.selectedModifiers.length > 0 && (
-                        <p className="text-xs text-success truncate">
-                          +{item.selectedModifiers.map(m => m.name).join(', ')}
-                        </p>
-                      )}
-                      {item.removedIngredients.length > 0 && (
-                        <p className="text-xs text-destructive truncate">
-                          No {item.removedIngredients.map(i => i.name).join(', ')}
-                        </p>
-                      )}
+              {items.map((item, index) => {
+                const hasCustomizations = item.selectedModifiers.length > 0 || item.removedIngredients.length > 0;
+                
+                return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className={`bg-secondary rounded-lg p-3 ${
+                      hasCustomizations ? 'ring-1 ring-primary/30' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-heading text-sm truncate">{item.product.name}</p>
+                          {/* CUSTOM badge for modified items */}
+                          {hasCustomizations && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary text-primary shrink-0">
+                              CUSTOM
+                            </Badge>
+                          )}
+                        </div>
+                        {/* Additions in GREEN with price */}
+                        {item.selectedModifiers.length > 0 && (
+                          <div className="text-xs text-green-400 mt-0.5">
+                            {item.selectedModifiers.map((m, i) => (
+                              <span key={m.id || i}>
+                                +{m.name}
+                                {m.price_adjustment > 0 && (
+                                  <span className="opacity-75"> (+€{m.price_adjustment.toFixed(2)})</span>
+                                )}
+                                {i < item.selectedModifiers.length - 1 && ', '}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Removals in RED */}
+                        {item.removedIngredients.length > 0 && (
+                          <p className="text-xs text-red-400 mt-0.5 truncate">
+                            No {item.removedIngredients.map(i => i.name).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-primary font-bold text-sm ml-2">
+                        €{item.totalPrice.toFixed(2)}
+                      </span>
                     </div>
-                    <span className="text-primary font-bold text-sm ml-2">
-                      €{item.totalPrice.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => item.quantity === 1 ? removeItem(index) : updateQuantity(index, item.quantity - 1)}
-                      className="w-7 h-7 rounded-full bg-background flex items-center justify-center"
-                    >
-                      {item.quantity === 1 ? <Trash2 className="w-3 h-3 text-destructive" /> : <Minus className="w-3 h-3" />}
-                    </button>
-                    <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(index, item.quantity + 1)}
-                      className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => item.quantity === 1 ? removeItem(index) : updateQuantity(index, item.quantity - 1)}
+                        className="w-7 h-7 rounded-full bg-background flex items-center justify-center"
+                      >
+                        {item.quantity === 1 ? <Trash2 className="w-3 h-3 text-destructive" /> : <Minus className="w-3 h-3" />}
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(index, item.quantity + 1)}
+                        className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
 
             {items.length === 0 && (
@@ -263,8 +289,8 @@ export default function StaffPOSQuick() {
         </div>
       </div>
 
-      {/* Product Customization Sheet */}
-      <ProductSheet
+      {/* Staff Product Customization Sheet */}
+      <StaffProductSheet
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
       />
