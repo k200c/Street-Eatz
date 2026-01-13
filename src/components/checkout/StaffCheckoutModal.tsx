@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CreditCard, Banknote, Check, Loader2, Smartphone, ChefHat } from 'lucide-react';
 import { useStaffCheckout } from '@/hooks/useStaffCheckout';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface StaffCheckoutModalProps {
@@ -39,6 +40,13 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
     setIsTerminalActive(true);
 
     try {
+      // Check session is valid before proceeding
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        setIsTerminalActive(false);
+        return;
+      }
       // Step 1: Create the order first to get order_id and display_id
       const result = await submitOrder({
         paymentMethod: 'card',
@@ -133,6 +141,13 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
     if (isSubmitting) return;
 
     try {
+      // Check session is valid before proceeding
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        return;
+      }
+      
       // Save cart snapshot before clearing
       const cartSnapshot = [...items];
       
@@ -211,6 +226,7 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
             >
               <DialogHeader>
                 <DialogTitle className="font-heading text-2xl text-center">STAFF CHECKOUT</DialogTitle>
+                <DialogDescription className="sr-only">Process staff payment</DialogDescription>
               </DialogHeader>
 
               <div className="mt-4">
