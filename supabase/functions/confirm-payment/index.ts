@@ -6,9 +6,10 @@ const corsHeaders = {
 };
 
 interface PaymentConfirmPayload {
-  viva_order_code: string;
+  order_id?: string;          // UUID - used for initialization phase
+  viva_order_code: string;    // Always required
   viva_transaction_id?: string;
-  payment_status: "completed" | "failed" | "refunded";
+  payment_status: "pending" | "paid" | "completed" | "failed" | "refunded";
   status?: "confirmed" | "preparing" | "ready" | "completed" | "cancelled";
 }
 
@@ -49,16 +50,22 @@ Deno.serve(async (req) => {
 
     // Parse payload
     const payload: PaymentConfirmPayload = await req.json();
+    console.log("📥 Received payload:", JSON.stringify(payload, null, 2));
 
     // Validate required fields
     if (!payload.viva_order_code || !payload.payment_status) {
+      console.error("Missing required fields");
       return new Response(
         JSON.stringify({ error: "Missing required fields: viva_order_code, payment_status" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Processing payment confirmation for order code: ${payload.viva_order_code}`);
+    // Determine operation mode
+    const isInitialization = !!payload.order_id;
+    const identifier = payload.order_id || payload.viva_order_code;
+    console.log(`📌 Mode: ${isInitialization ? 'INITIALIZATION (by order_id)' : 'FINALIZATION (by viva_order_code)'}`);
+    console.log(`📌 Identifier: ${identifier}`);
 
     // Initialize Supabase with SERVICE ROLE KEY to bypass RLS
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -77,6 +84,11 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     };
 
+    // Always store viva_order_code (important for initialization phase)
+    if (payload.viva_order_code) {
+      updateData.viva_order_code = payload.viva_order_code;
+    }
+
     if (payload.viva_transaction_id) {
       updateData.viva_transaction_id = payload.viva_transaction_id;
     }
@@ -85,50 +97,76 @@ Deno.serve(async (req) => {
       updateData.status = payload.status;
     }
 
-    // If payment completed and no status override, set status to confirmed
-    if (payload.payment_status === "completed" && !payload.status) {
-      updateData.status = "confirmed";
+    // Normalize 'paid' to 'completed' for consistency
+    if (payload.payment_status === "paid") {
+      updateData.payment_status = "completed";
     }
 
-    // Update the order
-    const { data, error } = await supabaseAdmin
+    // If payment completed/paid and no status override, set status to confirmed (triggers KDS)
+    if ((payload.payment_status === "completed" || payload.payment_status === "paid") && !payload.status) {
+      updateData.status = "confirmed";
+      console.log("🍳 Auto-setting order status to 'confirmed' for kitchen display");
+    }
+
+    console.log("📝 Update data:", JSON.stringify(updateData, null, 2));
+
+    // Build query based on identifier type
+    let query = supabaseAdmin
       .from("orders")
-      .update(updateData)
-      .eq("viva_order_code", payload.viva_order_code)
-      .select()
-      .single();
+      .update(updateData);
+
+    if (isInitialization) {
+      // Initialization phase: filter by order_id (UUID)
+      query = query.eq("id", payload.order_id);
+    } else {
+      // Finalization phase: filter by viva_order_code
+      query = query.eq("viva_order_code", payload.viva_order_code);
+    }
+
+    // Execute update WITHOUT .single() to avoid PGRST116 error
+    const { data, error } = await query.select();
 
     if (error) {
-      console.error("Database update error:", error);
+      console.error("❌ Database update error:", error);
       return new Response(
         JSON.stringify({ error: "Failed to update order", details: error.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (!data) {
-      console.error("No order found with viva_order_code:", payload.viva_order_code);
+    // Check if any rows were updated
+    if (!data || data.length === 0) {
+      console.error(`❌ Order not found for identifier: ${identifier}`);
       return new Response(
-        JSON.stringify({ error: "Order not found" }),
+        JSON.stringify({ 
+          error: `Order not found for identifier: ${identifier}`,
+          search_field: isInitialization ? "id" : "viva_order_code",
+          search_value: identifier
+        }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Successfully updated order ${data.id} - payment: ${payload.payment_status}, status: ${updateData.status}`);
+    const order = data[0];
+    console.log(`✅ Successfully updated order ${order.id} (display: #${order.display_id})`);
+    console.log(`   └─ payment_status: ${updateData.payment_status}`);
+    console.log(`   └─ order status: ${updateData.status || order.status}`);
+    console.log(`   └─ viva_order_code: ${order.viva_order_code}`);
     
     return new Response(
       JSON.stringify({ 
         success: true, 
-        order_id: data.id,
-        display_id: data.display_id,
-        payment_status: payload.payment_status,
-        status: updateData.status
+        order_id: order.id,
+        display_id: order.display_id,
+        payment_status: updateData.payment_status,
+        status: updateData.status || order.status,
+        viva_order_code: order.viva_order_code
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error("Error in confirm-payment:", error);
+    console.error("❌ Error in confirm-payment:", error);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
