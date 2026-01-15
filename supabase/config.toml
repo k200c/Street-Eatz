@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.update-social-post]
 verify_jwt = false
+
+[functions.confirm-payment]
+verify_jwt = false
