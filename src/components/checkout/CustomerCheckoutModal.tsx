@@ -181,6 +181,22 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
         throw new Error('Failed to create order');
       }
 
+      // Step 2.5: Wait 500ms to ensure order is fully committed to Supabase
+      console.log('⏳ Waiting for order to commit...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Verify order exists in database before proceeding
+      const { data: orderCheck } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('id', orderResult.orderId)
+        .maybeSingle();
+
+      if (!orderCheck) {
+        console.warn('Order not immediately visible, waiting additional 500ms...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
       // Step 3: Build items array with removed_ingredients and modifiers for KDS
       const formattedItems = items.map((item) => {
         const modifiers: string[] = [];
@@ -211,7 +227,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       // Step 4: Build EXACT payload structure for n8n webhook
       const formattedPhone = formatPhoneWithCountryCode(trimmedPhone);
       const payload = {
-        order_id: orderResult.orderId,           // UUID
+        order_id: orderResult.orderId,           // UUID - n8n uses this to update Supabase
         display_id: orderResult.displayId,       // 4-digit number
         total_amount: total,                     // Number in euros (NOT cents)
         user_id: user?.id || null,               // Supabase auth.uid() for customer tracking
@@ -245,14 +261,44 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
 
       console.log('📡 n8n response status:', response.status);
 
+      // Enhanced error handling for n8n responses
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('n8n error response:', errorText);
-        throw new Error(`Payment service error: ${response.status}`);
+        console.error('n8n error response:', response.status, errorText);
+        
+        // Parse error if JSON
+        let errorMessage = 'Payment service unavailable';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch { 
+          // Not JSON, use default message
+        }
+        
+        // Show specific error for different status codes
+        if (response.status === 404) {
+          setPaymentError("We couldn't initialize your payment. Please try again or contact support.");
+        } else if (response.status >= 500) {
+          setPaymentError("Payment service is temporarily unavailable. Please try again in a moment.");
+        } else {
+          setPaymentError(errorMessage);
+        }
+        
+        toast.error("Payment Error: " + errorMessage);
+        setStep('payment');
+        setIsProcessingPayment(false);
+        return; // Don't throw, just return to payment step
       }
 
-      // Parse response - support both paymentUrl and url keys
+      // Parse response - validate structure
       const data = await response.json();
+      console.log('📡 n8n response data:', data);
+
+      // Validate response has success flag
+      if (!data.success) {
+        throw new Error(data.error || 'Payment initialization failed');
+      }
+
       const paymentUrl = data.paymentUrl || data.url;
 
       if (!paymentUrl) {
@@ -260,7 +306,12 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
         throw new Error('No payment URL received');
       }
 
-      // Step 6: Immediately redirect to Viva Wallet payment page
+      // Log viva_order_code if returned (for debugging)
+      if (data.viva_order_code) {
+        console.log('✅ Viva order code stored:', data.viva_order_code);
+      }
+
+      // Step 6: Redirect to Viva Wallet payment page
       console.log('✅ Redirecting to Viva Wallet:', paymentUrl);
       window.location.href = paymentUrl;
 
@@ -557,22 +608,23 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
               className="py-12"
             >
               <div className="text-center space-y-6">
-                <motion.div
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                  className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto"
-                >
-                  <Shield className="w-10 h-10 text-primary" />
-                </motion.div>
-
-                <div>
-                  <p className="font-heading text-2xl text-foreground">REDIRECTING TO SECURE PAYMENT...</p>
-                  <p className="text-muted-foreground text-sm mt-2">
-                    You'll be redirected to our payment partner
-                  </p>
+                <div className="relative">
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                    className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto"
+                  >
+                    <Shield className="w-10 h-10 text-primary" />
+                  </motion.div>
+                  <Loader2 className="w-6 h-6 text-primary/60 absolute -bottom-1 right-1/2 translate-x-10 animate-spin" />
                 </div>
 
-                <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+                <div>
+                  <p className="font-heading text-2xl text-foreground">PREPARING SECURE PAYMENT...</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Connecting to payment gateway
+                  </p>
+                </div>
 
                 {/* Retry button appears after 10 seconds */}
                 {showRetryButton && (
