@@ -10,8 +10,11 @@ interface PaymentConfirmPayload {
   viva_order_code: string;    // Always required
   viva_transaction_id?: string;
   payment_status: "pending" | "paid" | "completed" | "failed" | "refunded";
-  status?: "confirmed" | "preparing" | "ready" | "completed" | "cancelled";
+  status?: "pending" | "cooking" | "ready" | "completed" | "pending_payment"; // Must match DB enum
 }
+
+// Allowed order status values (must match database enum)
+const ALLOWED_ORDER_STATUSES = ["pending", "cooking", "ready", "completed", "pending_payment"];
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -61,6 +64,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate status if provided
+    if (payload.status && !ALLOWED_ORDER_STATUSES.includes(payload.status)) {
+      console.error(`❌ Invalid status value: ${payload.status}`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid status value provided",
+          provided: payload.status,
+          allowed: ALLOWED_ORDER_STATUSES
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Determine operation mode
     const isInitialization = !!payload.order_id;
     const identifier = payload.order_id || payload.viva_order_code;
@@ -102,10 +118,10 @@ Deno.serve(async (req) => {
       updateData.payment_status = "completed";
     }
 
-    // If payment completed/paid and no status override, set status to confirmed (triggers KDS)
+    // If payment completed/paid and no status override, set status to 'cooking' (triggers KDS)
     if ((payload.payment_status === "completed" || payload.payment_status === "paid") && !payload.status) {
-      updateData.status = "confirmed";
-      console.log("🍳 Auto-setting order status to 'confirmed' for kitchen display");
+      updateData.status = "cooking";
+      console.log("🍳 Auto-setting order status to 'cooking' for kitchen display");
     }
 
     console.log("📝 Update data:", JSON.stringify(updateData, null, 2));
@@ -128,9 +144,16 @@ Deno.serve(async (req) => {
 
     if (error) {
       console.error("❌ Database update error:", error);
+      
+      // Check for enum constraint violation
+      const isEnumError = error.message?.includes("invalid input value for enum");
+      
       return new Response(
-        JSON.stringify({ error: "Failed to update order", details: error.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ 
+          error: isEnumError ? "Invalid status value provided" : "Failed to update order", 
+          details: error.message 
+        }),
+        { status: isEnumError ? 400 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
