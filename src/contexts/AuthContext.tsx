@@ -194,29 +194,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       // Use 'global' scope to ensure server-side session termination
-      await supabase.auth.signOut({ scope: 'global' });
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      
+      if (error) {
+        console.error("Sign out error:", error);
+        // Still proceed with local cleanup even if server-side fails
+        applyManualCleanup();
+      }
     } catch (error) {
       console.error("Sign out failed, applying manual cleanup:", error);
-      
-      // FALLBACK: Manual cleanup if signOut hangs or throws
-      // Clear all Supabase auth tokens from storage
-      const keysToRemove: string[] = [];
-      
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith('sb-') && key.includes('-auth-token')) {
-          keysToRemove.push(key);
-        }
-      }
-      
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      });
-      
-      // Force redirect to auth page
-      window.location.href = '/auth';
+      applyManualCleanup();
     }
+  };
+  
+  // Helper function for manual cleanup without page reload
+  const applyManualCleanup = () => {
+    // Clear all Supabase auth tokens from storage
+    const keysToRemove: string[] = [];
+    
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('sb-') && key.includes('-auth-token')) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+    
+    // Reset state manually instead of forcing a page reload
+    setState({
+      user: null,
+      session: null,
+      role: null,
+      loading: false,
+      profileLoading: false,
+      profile: null,
+    });
   };
 
   const updateProfile = async (data: { full_name?: string; phone?: string }) => {
