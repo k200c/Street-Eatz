@@ -31,6 +31,23 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Helper function for manual cleanup - defined outside component for stability
+const clearAuthStorage = () => {
+  const keysToRemove: string[] = [];
+  
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('sb-') && key.includes('-auth-token')) {
+      keysToRemove.push(key);
+    }
+  }
+  
+  keysToRemove.forEach(key => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -43,16 +60,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isMounted = useRef(true);
 
+  // Manual cleanup function - resets state to clean signed-out state
+  const applyManualCleanup = useCallback(() => {
+    clearAuthStorage();
+    
+    setState({
+      user: null,
+      session: null,
+      role: null,
+      loading: false,
+      profileLoading: false,
+      profile: null,
+    });
+  }, []);
+
   const fetchUserData = useCallback(async (userId: string) => {
     if (!isMounted.current) return;
     
     setState(prev => ({ ...prev, profileLoading: true }));
     
     try {
-      const [adminCheck, profileResult] = await Promise.all([
+      // Race against a 5-second timeout to prevent profileLoading from hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+      );
+      
+      const dataPromise = Promise.all([
         supabase.rpc('has_role', { _user_id: userId, _role: 'admin' }),
         supabase.from('profiles').select('full_name, phone').eq('id', userId).maybeSingle(),
       ]);
+
+      const [adminCheck, profileResult] = await Promise.race([
+        dataPromise,
+        timeoutPromise.then(() => { throw new Error('Profile fetch timeout'); }),
+      ]) as [any, any];
 
       if (!isMounted.current) return;
 
@@ -80,6 +121,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     isMounted.current = true;
+    
+    // Boot timeout - if still loading after 5 seconds, force clean state
+    const bootTimeout = setTimeout(() => {
+      if (isMounted.current && state.loading) {
+        console.warn('[Auth] Boot timeout - forcing clean state');
+        applyManualCleanup();
+      }
+    }, 5000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -110,27 +159,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMounted.current) return;
-      
-      setState(prev => ({
-        ...prev,
-        session,
-        user: session?.user ?? null,
-        loading: false,
-      }));
+    // Check for existing session - WRAPPED IN TRY/CATCH
+    const initSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[Auth] getSession error:', error);
+          if (isMounted.current) applyManualCleanup();
+          return;
+        }
+        
+        if (!isMounted.current) return;
+        
+        setState(prev => ({
+          ...prev,
+          session,
+          user: session?.user ?? null,
+          loading: false,
+        }));
 
-      if (session?.user) {
-        fetchUserData(session.user.id);
+        if (session?.user) {
+          fetchUserData(session.user.id);
+        }
+      } catch (error) {
+        console.error('[Auth] getSession failed:', error);
+        if (isMounted.current) applyManualCleanup();
       }
-    });
+    };
+    
+    initSession();
 
     return () => {
       isMounted.current = false;
+      clearTimeout(bootTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchUserData]);
+  }, [fetchUserData, applyManualCleanup]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -205,34 +270,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Sign out failed, applying manual cleanup:", error);
       applyManualCleanup();
     }
-  };
-  
-  // Helper function for manual cleanup without page reload
-  const applyManualCleanup = () => {
-    // Clear all Supabase auth tokens from storage
-    const keysToRemove: string[] = [];
-    
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('sb-') && key.includes('-auth-token')) {
-        keysToRemove.push(key);
-      }
-    }
-    
-    keysToRemove.forEach(key => {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
-    });
-    
-    // Reset state manually instead of forcing a page reload
-    setState({
-      user: null,
-      session: null,
-      role: null,
-      loading: false,
-      profileLoading: false,
-      profile: null,
-    });
   };
 
   const updateProfile = async (data: { full_name?: string; phone?: string }) => {
