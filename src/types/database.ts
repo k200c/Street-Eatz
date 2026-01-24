@@ -96,6 +96,7 @@ export interface SelectedModifier {
   id: string;
   name: string;
   price_adjustment: number;
+  modifier_type?: 'loaded_fries_small' | 'drink' | 'sauce' | 'addon' | 'extra';
 }
 
 export interface MarketingPost {
