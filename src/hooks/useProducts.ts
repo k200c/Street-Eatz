@@ -52,6 +52,10 @@ export function useProducts(category?: ProductCategory | 'All') {
       return data as Product[];
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
+    // Resilience: Retry on failure and keep previous data while refetching
+    retry: 2,
+    retryDelay: 1000,
+    placeholderData: (previousData) => previousData,
   });
 }
 
