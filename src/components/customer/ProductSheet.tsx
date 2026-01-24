@@ -36,9 +36,15 @@ interface ProductSheetProps {
 // Track ingredient customization state: 'included' (default), 'removed', or 'extra'
 type IngredientState = 'included' | 'removed' | 'extra';
 
+// Fixed price for small loaded fries portion (upsell pricing)
+const LOADED_FRIES_SMALL_PRICE = 6.50;
+
 // Standalone add-on items with fixed prices
 const STANDALONE_ADDONS = [
+  { id: 'beef-patty', name: 'Beef Patty', price: 2.50 },
+  { id: 'bacon', name: 'Bacon', price: 2.00 },
   { id: 'extra-chicken', name: 'Extra Chicken', price: 2.00 },
+  { id: 'cheese', name: 'Cheese', price: 1.00 },
   { id: 'smoked-applewood', name: 'Smoked Applewood Cheese', price: 1.50 },
   { id: 'handcut-chips', name: 'Handcut Chips', price: 3.00 },
 ];
@@ -146,18 +152,20 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
           id: addon.id,
           name: addon.name,
           price_adjustment: addon.price,
+          modifier_type: 'addon',
         });
       }
     });
 
-    // Add loaded fries selection
+    // Add loaded fries selection with fixed €6.50 price
     if (selectedLoadedFries && loadedFriesProducts) {
       const fry = loadedFriesProducts.find(p => p.id === selectedLoadedFries);
       if (fry) {
         allMods.push({
           id: fry.id,
-          name: `Side: ${fry.name}`,
-          price_adjustment: fry.price,
+          name: `Side: ${fry.name} (Small)`,
+          price_adjustment: LOADED_FRIES_SMALL_PRICE,
+          modifier_type: 'loaded_fries_small',
         });
       }
     }
@@ -170,6 +178,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
           id: drink.id,
           name: `Drink: ${drink.name}`,
           price_adjustment: drink.price,
+          modifier_type: 'drink',
         });
       }
     }
@@ -182,6 +191,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
           id: sauce.id,
           name: `Sauce: ${sauce.name}`,
           price_adjustment: sauce.price,
+          modifier_type: 'sauce',
         });
       }
     }
@@ -193,7 +203,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   const standaloneTotal = STANDALONE_ADDONS.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + a.price, 0);
   const extrasTotal = getExtraIngredients().reduce((sum, e) => sum + e.price_adjustment, 0);
   const modifiersTotal = selectedModifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
-  const loadedFriesPrice = loadedFriesProducts?.find(p => p.id === selectedLoadedFries)?.price || 0;
+  const loadedFriesPrice = selectedLoadedFries ? LOADED_FRIES_SMALL_PRICE : 0;
   const drinkPrice = drinksProducts?.find(p => p.id === selectedDrink)?.price || 0;
   const saucePrice = saucesProducts?.find(p => p.id === selectedSauce)?.price || 0;
   
@@ -321,7 +331,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
                         <SelectItem value="none">No Loaded Fries (€0.00)</SelectItem>
                         {loadedFriesProducts.map(fry => (
                           <SelectItem key={fry.id} value={fry.id}>
-                            {fry.name} (+€{fry.price.toFixed(2)})
+                            {fry.name} (+€{LOADED_FRIES_SMALL_PRICE.toFixed(2)})
                           </SelectItem>
                         ))}
                       </SelectContent>
