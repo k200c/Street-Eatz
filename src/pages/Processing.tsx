@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { CheckCircle2, User, UtensilsCrossed, ChefHat } from "lucide-react";
@@ -24,7 +24,6 @@ interface OrderData {
 
 const Processing = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const orderCode = searchParams.get("s");
   
@@ -94,7 +93,7 @@ const Processing = () => {
           )
         `)
         .eq("viva_order_code", orderCode)
-        .single();
+        .maybeSingle(); // Use maybeSingle to prevent throw on not found
 
       if (error) {
         console.error("Error fetching order:", error);
@@ -113,21 +112,45 @@ const Processing = () => {
     }
   }, [orderCode]);
 
+  // HARD NAVIGATION - destroys ALL React state
+  const handleNavigate = useCallback((path: string) => {
+    // Clean up before hard reload
+    queryClient.cancelQueries();
+    queryClient.clear();
+    localStorage.removeItem('viva-payment-session');
+    localStorage.removeItem('pending-order-id');
+    
+    // Force hard reload - destroys ALL React state
+    window.location.href = `${path}?fresh=${Date.now()}`;
+  }, [queryClient]);
+
   // On mount: NUCLEAR RESET - confetti, clear cart, wipe cache, fetch order
   useEffect(() => {
-    // 1. Trigger confetti immediately
+    // 1. Cancel any pending/stuck queries FIRST
+    queryClient.cancelQueries();
+    
+    // 2. Trigger confetti immediately
     triggerConfetti();
     
-    // 2. Clear the cart (Supabase + localStorage)
+    // 3. Clear the cart (Supabase + localStorage)
     clearCart();
     
-    // 3. Wipe ALL cached queries to prevent stale data collisions
+    // 4. Wipe ALL cached queries to prevent stale data collisions
     queryClient.clear();
     
-    // 4. Fetch fresh order details for display
+    // 5. Clear payment-related localStorage
+    localStorage.removeItem('viva-payment-session');
+    localStorage.removeItem('pending-order-id');
+    
+    // 6. Fetch fresh order details for display
     fetchOrderDetails();
     
-    console.log("🧹 Clean slate applied: cart cleared, query cache wiped");
+    console.log("🧹 Clean slate applied: cart cleared, queries cancelled, cache wiped");
+    
+    // Cleanup on unmount - cancel any remaining queries
+    return () => {
+      queryClient.cancelQueries();
+    };
   }, [triggerConfetti, clearCart, fetchOrderDetails, queryClient]);
 
   // Format order number
@@ -298,7 +321,7 @@ const Processing = () => {
           </div>
         </motion.div>
 
-        {/* Navigation Buttons */}
+        {/* Navigation Buttons - HARD NAVIGATION */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -306,7 +329,7 @@ const Processing = () => {
           className="flex flex-col gap-3 w-full"
         >
           <Button
-            onClick={() => navigate("/profile")}
+            onClick={() => handleNavigate("/profile")}
             className="w-full"
             size="lg"
           >
@@ -314,7 +337,7 @@ const Processing = () => {
             Track Order in Profile
           </Button>
           <Button
-            onClick={() => navigate("/menu")}
+            onClick={() => handleNavigate("/menu")}
             variant="outline"
             className="w-full"
             size="lg"

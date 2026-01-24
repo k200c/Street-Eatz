@@ -34,11 +34,13 @@ const CartSyncProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => {
-  const [queryClient] = useState(() => new QueryClient({
+const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 1000 * 60 * 5,
-        retry: 1,
+        staleTime: 0,                    // Data is stale immediately
+        gcTime: 0,                       // Remove from cache immediately
+        retry: 1,                        // Only retry once
+        refetchOnWindowFocus: false,     // CRITICAL: Prevent hanging on focus
       },
     },
   }));

@@ -44,18 +44,22 @@ export function Navbar() {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
-      
-      // Clear all cached data on sign out for clean slate
+      // Cancel all queries first to prevent hanging
+      queryClient.cancelQueries();
       queryClient.clear();
       
+      await signOut();
+      
       toast.success('Signed out successfully');
-      navigate('/');
+      
+      // HARD REDIRECT - destroys ALL React state
+      window.location.href = '/';
     } catch (error) {
       console.error("Sign out error:", error);
-      // Fallback is handled in AuthContext, but ensure navigation
-      toast.success('Signed out');
-      navigate('/auth');
+      // Nuclear fallback - clear everything and redirect
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/auth';
     }
   };
 

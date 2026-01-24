@@ -16,14 +16,22 @@ export const useCartSync = () => {
   useEffect(() => {
     isMounted.current = true;
 
-    // Initial sync based on current session
+    // Initial sync based on current session - WRAPPED IN TRY/CATCH
     const initSync = async () => {
       if (hasInitialized.current) return;
       hasInitialized.current = true;
       
-      const { data: { session } } = await supabase.auth.getSession();
-      if (isMounted.current) {
-        await syncWithUser(session?.user?.id || null);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isMounted.current) {
+          await syncWithUser(session?.user?.id || null);
+        }
+      } catch (error) {
+        console.error('[CartSync] getSession failed:', error);
+        // Fallback to guest mode
+        if (isMounted.current) {
+          await syncWithUser(null);
+        }
       }
     };
 
