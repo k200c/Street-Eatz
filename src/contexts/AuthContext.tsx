@@ -192,7 +192,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      // Use 'global' scope to ensure server-side session termination
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (error) {
+      console.error("Sign out failed, applying manual cleanup:", error);
+      
+      // FALLBACK: Manual cleanup if signOut hangs or throws
+      // Clear all Supabase auth tokens from storage
+      const keysToRemove: string[] = [];
+      
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('sb-') && key.includes('-auth-token')) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+      
+      // Force redirect to auth page
+      window.location.href = '/auth';
+    }
   };
 
   const updateProfile = async (data: { full_name?: string; phone?: string }) => {

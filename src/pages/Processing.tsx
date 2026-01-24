@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { CheckCircle2, User, UtensilsCrossed, ChefHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ interface OrderData {
 const Processing = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const orderCode = searchParams.get("s");
   
   const [orderData, setOrderData] = useState<OrderData | null>(null);
@@ -111,12 +113,22 @@ const Processing = () => {
     }
   }, [orderCode]);
 
-  // On mount: confetti, clear cart, fetch order
+  // On mount: NUCLEAR RESET - confetti, clear cart, wipe cache, fetch order
   useEffect(() => {
+    // 1. Trigger confetti immediately
     triggerConfetti();
+    
+    // 2. Clear the cart (Supabase + localStorage)
     clearCart();
+    
+    // 3. Wipe ALL cached queries to prevent stale data collisions
+    queryClient.clear();
+    
+    // 4. Fetch fresh order details for display
     fetchOrderDetails();
-  }, [triggerConfetti, clearCart, fetchOrderDetails]);
+    
+    console.log("🧹 Clean slate applied: cart cleared, query cache wiped");
+  }, [triggerConfetti, clearCart, fetchOrderDetails, queryClient]);
 
   // Format order number
   const formatOrderNumber = (displayId: number) => {

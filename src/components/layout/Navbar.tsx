@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ShoppingBag, Menu, X, User, LogOut, Settings, History, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cartStore';
@@ -23,6 +24,7 @@ export function Navbar() {
   const itemCount = useCartStore((state) => state.getItemCount());
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const { user, profile, signOut, isAdmin } = useAuth();
 
   const scrollToSection = (sectionId: string) => {
@@ -41,9 +43,20 @@ export function Navbar() {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    toast.success('Signed out successfully');
-    navigate('/');
+    try {
+      await signOut();
+      
+      // Clear all cached data on sign out for clean slate
+      queryClient.clear();
+      
+      toast.success('Signed out successfully');
+      navigate('/');
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Fallback is handled in AuthContext, but ensure navigation
+      toast.success('Signed out');
+      navigate('/auth');
+    }
   };
 
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Account';
