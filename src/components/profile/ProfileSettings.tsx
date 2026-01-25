@@ -71,9 +71,17 @@ export function ProfileSettings({
       toast.success('Profile updated successfully!');
       onSave();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile. Please try again.');
+      
+      // Handle specific error codes
+      if (error?.code === '42501' || error?.message?.includes('row-level security')) {
+        toast.error('Session expired. Please log out and back in.');
+      } else if (error?.code === '23505') {
+        toast.error('This phone number is already in use.');
+      } else {
+        toast.error('Failed to update profile. Please try again.');
+      }
     } finally {
       setSaving(false);
     }

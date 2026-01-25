@@ -124,6 +124,24 @@ const Processing = () => {
     window.location.href = `${path}?fresh=${Date.now()}`;
   }, [queryClient]);
 
+  // Auth-preserving cleanup function
+  const preserveAuthCleanup = useCallback(() => {
+    // Get all localStorage keys and remove non-auth ones
+    const keysToRemove = Object.keys(localStorage).filter(key => 
+      !key.startsWith('sb-') && 
+      !key.includes('-auth-token')
+    );
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Also clear sessionStorage (except auth)
+    const sessionKeysToRemove = Object.keys(sessionStorage).filter(key =>
+      !key.startsWith('sb-') && !key.includes('-auth-token')
+    );
+    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+    
+    console.log("🧹 Auth-preserving cleanup complete");
+  }, []);
+
   // On mount: NUCLEAR RESET - confetti, clear cart, wipe cache, fetch order
   useEffect(() => {
     // 1. Cancel any pending/stuck queries FIRST
@@ -138,9 +156,8 @@ const Processing = () => {
     // 4. Wipe ALL cached queries to prevent stale data collisions
     queryClient.clear();
     
-    // 5. Clear payment-related localStorage
-    localStorage.removeItem('viva-payment-session');
-    localStorage.removeItem('pending-order-id');
+    // 5. Auth-preserving localStorage/sessionStorage cleanup
+    preserveAuthCleanup();
     
     // 6. Fetch fresh order details for display
     fetchOrderDetails();
@@ -151,7 +168,7 @@ const Processing = () => {
     return () => {
       queryClient.cancelQueries();
     };
-  }, [triggerConfetti, clearCart, fetchOrderDetails, queryClient]);
+  }, [triggerConfetti, clearCart, fetchOrderDetails, queryClient, preserveAuthCleanup]);
 
   // Format order number
   const formatOrderNumber = (displayId: number) => {

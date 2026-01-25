@@ -22,12 +22,14 @@ interface ProductCardHorizontalProps {
   product: Product;
   hasModifiers: boolean;
   onClick: () => void;
+  variant?: 'horizontal' | 'vertical';
 }
 
 export function ProductCardHorizontal({
   product,
   hasModifiers,
   onClick,
+  variant = 'vertical',
 }: ProductCardHorizontalProps) {
   const addItem = useCartStore((state) => state.addItem);
   const [imgError, setImgError] = useState(false);
@@ -52,6 +54,59 @@ export function ProductCardHorizontal({
     onClick();
   };
 
+  // Vertical card variant for grid layout
+  if (variant === 'vertical') {
+    return (
+      <div
+        className={cn(
+          'street-card overflow-hidden flex flex-col cursor-pointer hover:border-primary/40 transition-all',
+          isSoldOut && 'opacity-50'
+        )}
+        onClick={onClick}
+      >
+        {/* Product Image - Full Width */}
+        <div className="relative h-36 sm:h-40 w-full">
+          <img
+            src={imageUrl}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+          {isSoldOut && (
+            <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+              <span className="text-xs font-bold text-muted-foreground">SOLD OUT</span>
+            </div>
+          )}
+        </div>
+
+        {/* Content Below */}
+        <div className="p-3 flex flex-col flex-1">
+          <h3 className="font-heading text-base text-foreground line-clamp-1">
+            {product.name}
+          </h3>
+          <p className="text-muted-foreground text-xs line-clamp-2 mt-1 flex-1">
+            {product.description || 'Delicious street food'}
+          </p>
+          <div className="flex items-center justify-between mt-3">
+            <span className="price-badge">€{product.price.toFixed(2)}</span>
+            <button
+              onClick={handleQuickAdd}
+              disabled={isSoldOut}
+              className={cn(
+                'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                'bg-primary text-primary-foreground hover:scale-110',
+                isSoldOut && 'cursor-not-allowed opacity-50'
+              )}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Horizontal card variant (original layout)
   return (
     <div
       className={cn(
