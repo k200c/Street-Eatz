@@ -398,7 +398,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="w-full h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-md bg-card border-border overflow-y-auto">
+      <DialogContent className="w-full h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-md bg-card border-border overflow-y-auto safe-area-pb">
         <AnimatePresence mode="wait">
           {/* Step 1: Customer Details */}
           {step === 'details' && (

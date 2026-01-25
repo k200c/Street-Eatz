@@ -112,7 +112,7 @@ export default function Cart() {
   return (
     <div className="min-h-screen">
       <Navbar />
-      <div className="pt-20 px-4 max-w-lg mx-auto pb-32">
+      <div className="pt-20 px-4 max-w-lg mx-auto pb-40">
         {/* Header */}
         <header className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -235,7 +235,7 @@ export default function Cart() {
         </div>
 
         {/* Checkout Button - Thumb-Friendly */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 pb-6 bg-gradient-to-t from-black via-black/95 to-transparent">
+        <div className="fixed bottom-0 left-0 right-0 p-4 pb-6 safe-area-pb bg-gradient-to-t from-black via-black/95 to-transparent">
           <div className="max-w-lg mx-auto">
             {hasUnavailableItems && (
               <div className="mb-3 p-3 bg-destructive/20 border border-destructive/30 rounded-lg flex items-center gap-2 text-destructive text-sm">

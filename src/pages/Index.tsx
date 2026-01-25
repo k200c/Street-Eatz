@@ -32,7 +32,7 @@ function AboutSection() {
 
 export default function Index() {
   return (
-    <div className="min-h-screen relative flex flex-col">
+    <div className="min-h-screen relative flex flex-col pb-24">
       <Navbar />
       <HeroSection />
       <MenuSection />
