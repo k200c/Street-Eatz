@@ -12,7 +12,7 @@ export function HeroSection() {
   };
 
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center text-center px-4 pt-16 pb-20 relative overflow-hidden">
+    <section className="min-h-[80vh] sm:min-h-screen flex flex-col items-center justify-center text-center px-4 pt-16 pb-20 relative overflow-hidden">
       {/* Background with Vignette */}
       <div className="absolute inset-0 bg-[#0A0A0A] pointer-events-none" />
       <div 
@@ -135,7 +135,7 @@ export function HeroSection() {
       </div>
 
       {/* Scroll Indicator - CSS animation */}
-      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 animate-bounce opacity-70">
+      <div className="absolute bottom-16 sm:bottom-24 left-1/2 -translate-x-1/2 animate-bounce opacity-70">
         <ChevronDown className="w-8 h-8 text-muted-foreground" />
       </div>
     </section>

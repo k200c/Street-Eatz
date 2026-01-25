@@ -243,7 +243,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
         </button>
 
         {/* Scrollable Content */}
-        <div className="h-full overflow-y-auto pb-32">
+        <div className="h-full overflow-y-auto pb-36">
           {/* Product Image */}
           <div className="relative h-56 sm:h-64">
             <img
