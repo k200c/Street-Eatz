@@ -190,16 +190,16 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu - Full Height Overlay */}
         {isOpen && (
-          <div className="md:hidden py-4 border-t border-white/10 animate-fade-in">
-            <div className="flex flex-col gap-4">
+          <div className="fixed inset-0 top-16 z-40 md:hidden bg-black/95 backdrop-blur-lg animate-fade-in overflow-y-auto">
+            <div className="flex flex-col gap-6 p-6">
               {navLinks.map((link) => (
                 link.isRoute ? (
                   <button
                     key={link.label}
                     onClick={() => { navigate(link.href); setIsOpen(false); }}
-                    className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors tracking-wider text-left"
+                    className="text-lg font-medium text-foreground hover:text-primary transition-colors tracking-wider text-left py-2"
                   >
                     {link.label}
                   </button>
@@ -207,47 +207,49 @@ export function Navbar() {
                   <button
                     key={link.label}
                     onClick={() => scrollToSection(link.href.replace('#', ''))}
-                    className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors tracking-wider text-left"
+                    className="text-lg font-medium text-foreground hover:text-primary transition-colors tracking-wider text-left py-2"
                   >
                     {link.label}
                   </button>
                 )
               ))}
               
-              {user ? (
-                <>
-                  <button
-                    onClick={() => { navigate('/profile'); setIsOpen(false); }}
-                    className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors tracking-wider text-left flex items-center gap-2"
-                  >
-                    <User className="w-4 h-4" />
-                    PROFILE
-                  </button>
-                  {isAdmin && (
+              <div className="border-t border-white/10 pt-4">
+                {user ? (
+                  <>
                     <button
-                      onClick={() => { navigate('/admin/pos'); setIsOpen(false); }}
-                      className="text-sm font-medium text-primary hover:text-primary/80 transition-colors tracking-wider text-left"
+                      onClick={() => { navigate('/profile'); setIsOpen(false); }}
+                      className="w-full text-lg font-medium text-foreground hover:text-primary transition-colors tracking-wider text-left py-3 flex items-center gap-3"
                     >
-                      ADMIN DASHBOARD
+                      <User className="w-5 h-5" />
+                      PROFILE
                     </button>
-                  )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => { navigate('/admin/pos'); setIsOpen(false); }}
+                        className="w-full text-lg font-medium text-primary hover:text-primary/80 transition-colors tracking-wider text-left py-3"
+                      >
+                        ADMIN DASHBOARD
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { handleSignOut(); setIsOpen(false); }}
+                      className="w-full text-lg font-medium text-destructive hover:text-destructive/80 transition-colors tracking-wider text-left py-3"
+                    >
+                      SIGN OUT
+                    </button>
+                  </>
+                ) : (
                   <button
-                    onClick={() => { handleSignOut(); setIsOpen(false); }}
-                    className="text-sm font-medium text-destructive hover:text-destructive/80 transition-colors tracking-wider text-left"
+                    onClick={() => { navigate('/auth'); setIsOpen(false); }}
+                    className="w-full text-lg font-medium text-foreground hover:text-primary transition-colors tracking-wider text-left py-3"
                   >
-                    SIGN OUT
+                    LOGIN / SIGN UP
                   </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => { navigate('/auth'); setIsOpen(false); }}
-                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors tracking-wider text-left"
-                >
-                  LOGIN / SIGN UP
-                </button>
-              )}
+                )}
+              </div>
               
-              <Button onClick={() => scrollToSection('menu')} className="w-full btn-glow mt-2">
+              <Button onClick={() => scrollToSection('menu')} className="w-full btn-glow mt-4 h-14 text-lg">
                 ORDER NOW
               </Button>
             </div>

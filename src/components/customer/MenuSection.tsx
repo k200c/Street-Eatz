@@ -60,7 +60,7 @@ function AnimatedCategorySection({
         {category}
       </h3>
       
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {products.map((product, index) => (
           <AnimatedProductCard
             key={product.id}
@@ -214,7 +214,7 @@ export function MenuSection() {
           ))}
         </div>
       ) : products && products.length > 0 ? (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {products.map((product, index) => (
             <AnimatedProductCard
               key={product.id}
