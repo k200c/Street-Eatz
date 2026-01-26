@@ -53,7 +53,7 @@ export function ProductCardHorizontal({
     onClick();
   };
 
-  // Ultra-compact mobile-grid variant for 2-column layout (4 cards on screen)
+  // Ultra-compact mobile-grid variant for 2-column layout (4+ cards on screen)
   if (variant === 'mobile-grid') {
     return (
       <div
@@ -64,8 +64,8 @@ export function ProductCardHorizontal({
         )}
         onClick={onClick}
       >
-        {/* Ultra-compact image */}
-        <div className="relative h-[80px] w-full">
+        {/* Compact image - 70px for tiny phones, 80px for larger */}
+        <div className="relative h-[70px] sm:h-[80px] w-full">
           <img
             src={imageUrl}
             alt={product.name}
@@ -75,7 +75,7 @@ export function ProductCardHorizontal({
           />
           {isSoldOut && (
             <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-              <span className="bg-destructive/80 px-2 py-1 rounded text-destructive-foreground font-bold text-[10px]">
+              <span className="bg-destructive/80 px-2 py-0.5 rounded text-destructive-foreground font-bold text-[9px]">
                 SOLD OUT
               </span>
             </div>
@@ -83,14 +83,14 @@ export function ProductCardHorizontal({
         </div>
 
         {/* Minimal content section */}
-        <div className="p-2 space-y-1">
-          <h3 className="text-xs font-bold text-foreground font-heading line-clamp-1">
+        <div className="p-1.5 sm:p-2 space-y-0.5">
+          <h3 className="text-[11px] sm:text-xs font-bold text-foreground font-heading line-clamp-1">
             {product.name}
           </h3>
           
           {/* Price and Quick Add row */}
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-primary">
+            <span className="text-xs sm:text-sm font-bold text-primary">
               €{product.price.toFixed(2)}
             </span>
             
@@ -98,7 +98,7 @@ export function ProductCardHorizontal({
               onClick={handleQuickAdd}
               disabled={isSoldOut}
               className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center',
+                'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center',
                 'bg-primary text-primary-foreground transition-all',
                 'active:scale-95 touch-manipulation',
                 isSoldOut && 'cursor-not-allowed opacity-50'
