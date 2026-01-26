@@ -27,7 +27,7 @@ function AnimatedProductCard({
   hasModifiers: boolean; 
   onClick: () => void; 
   index: number;
-  variant: 'compact' | 'vertical' | 'mobile-vertical';
+  variant: 'compact' | 'vertical' | 'mobile-vertical' | 'mobile-grid';
 }) {
   return (
     <div className="opacity-100">
@@ -62,11 +62,11 @@ function AnimatedCategorySection({
       ref={categoryRef}
       className="scroll-mt-32"
     >
-      <h3 className="font-heading text-xl font-bold text-primary mb-4 uppercase tracking-wider">
+      <h3 className="font-heading text-lg md:text-xl font-bold text-primary mb-2 md:mb-4 uppercase tracking-wider">
         {category}
       </h3>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
         {products.map((product, index) => (
           <AnimatedProductCard
             key={product.id}
@@ -74,7 +74,7 @@ function AnimatedCategorySection({
             hasModifiers={hasModifiers(product.id)}
             onClick={() => onProductClick(product)}
             index={index}
-            variant={isMobile ? 'mobile-vertical' : 'vertical'}
+            variant={isMobile ? 'mobile-grid' : 'vertical'}
           />
         ))}
       </div>
@@ -152,13 +152,13 @@ export function MenuSection() {
         {/* Animated Section Header */}
         <motion.div 
           ref={headerRef}
-          className="text-center mb-8"
+          className="text-center mb-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <motion.h2 
-            className="font-heading text-3xl sm:text-4xl font-bold text-foreground mb-2"
+            className="font-heading text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-1"
             initial={{ opacity: 0, y: 30 }}
             animate={isHeaderInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.2 }}
@@ -166,7 +166,7 @@ export function MenuSection() {
             OUR <span className="text-primary">MENU</span>
           </motion.h2>
           <motion.p 
-            className="text-muted-foreground"
+            className="text-muted-foreground text-sm"
             initial={{ opacity: 0 }}
             animate={isHeaderInView ? { opacity: 1 } : {}}
             transition={{ duration: 0.6, delay: 0.4 }}
@@ -176,7 +176,7 @@ export function MenuSection() {
         </motion.div>
 
         {/* Sticky Category Bar with Scroll Snap and Gradients */}
-        <div className="sticky top-16 z-30 bg-black/90 backdrop-blur-md py-4 -mx-4 px-4 mb-8 border-y border-white/5 overflow-hidden">
+        <div className="sticky top-16 z-30 bg-black/90 backdrop-blur-md py-2 md:py-4 -mx-4 px-4 mb-4 md:mb-8 border-y border-white/5 overflow-hidden">
           <div className="relative">
             {/* Left gradient indicator */}
             <div 
@@ -190,7 +190,7 @@ export function MenuSection() {
             <div 
               ref={categoryScrollRef}
               onScroll={handleCategoryScroll}
-              className="flex gap-3 overflow-x-auto no-scrollbar category-scroll px-1"
+              className="flex gap-2 overflow-x-auto no-scrollbar category-scroll px-1"
             >
               {categories.map((category) => (
                 <button
@@ -269,7 +269,7 @@ export function MenuSection() {
             ))}
           </div>
         ) : products && products.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
             {products.map((product, index) => (
               <AnimatedProductCard
                 key={product.id}
@@ -277,7 +277,7 @@ export function MenuSection() {
                 hasModifiers={hasModifiers(product.id)}
                 onClick={() => setSelectedProduct(product)}
                 index={index}
-                variant={isMobile ? 'mobile-vertical' : 'vertical'}
+                variant={isMobile ? 'mobile-grid' : 'vertical'}
               />
             ))}
           </div>
