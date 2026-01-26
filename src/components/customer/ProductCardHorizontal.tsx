@@ -22,7 +22,7 @@ interface ProductCardHorizontalProps {
   product: Product;
   hasModifiers: boolean;
   onClick: () => void;
-  variant?: 'horizontal' | 'vertical' | 'compact' | 'mobile-vertical';
+  variant?: 'horizontal' | 'vertical' | 'compact' | 'mobile-vertical' | 'mobile-grid';
 }
 
 export function ProductCardHorizontal({
@@ -52,6 +52,65 @@ export function ProductCardHorizontal({
     if (isSoldOut) return;
     onClick();
   };
+
+  // Ultra-compact mobile-grid variant for 2-column layout (4 cards on screen)
+  if (variant === 'mobile-grid') {
+    return (
+      <div
+        className={cn(
+          'street-card overflow-hidden flex flex-col cursor-pointer',
+          'hover:border-primary/40 transition-all active:scale-[0.98]',
+          isSoldOut && 'opacity-50'
+        )}
+        onClick={onClick}
+      >
+        {/* Ultra-compact image */}
+        <div className="relative h-[80px] w-full">
+          <img
+            src={imageUrl}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+          {isSoldOut && (
+            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+              <span className="bg-destructive/80 px-2 py-1 rounded text-destructive-foreground font-bold text-[10px]">
+                SOLD OUT
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Minimal content section */}
+        <div className="p-2 space-y-1">
+          <h3 className="text-xs font-bold text-foreground font-heading line-clamp-1">
+            {product.name}
+          </h3>
+          
+          {/* Price and Quick Add row */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-primary">
+              €{product.price.toFixed(2)}
+            </span>
+            
+            <button
+              onClick={handleQuickAdd}
+              disabled={isSoldOut}
+              className={cn(
+                'w-8 h-8 rounded-full flex items-center justify-center',
+                'bg-primary text-primary-foreground transition-all',
+                'active:scale-95 touch-manipulation',
+                isSoldOut && 'cursor-not-allowed opacity-50'
+              )}
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Mobile-vertical card variant - compact to fit on mobile screen
   if (variant === 'mobile-vertical') {
