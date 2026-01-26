@@ -12,7 +12,7 @@ export function HeroSection() {
   };
 
   return (
-    <section className="min-h-[80vh] sm:min-h-screen flex flex-col items-center justify-center text-center px-4 pt-16 pb-20 relative overflow-hidden">
+    <section className="min-h-[50vh] sm:min-h-[70vh] md:min-h-screen flex flex-col items-center justify-center text-center px-4 pt-12 sm:pt-16 pb-12 sm:pb-20 relative overflow-hidden">
       {/* Background with Vignette */}
       <div className="absolute inset-0 bg-[#0A0A0A] pointer-events-none" />
       <div 
@@ -57,14 +57,14 @@ export function HeroSection() {
           <img
             src={streetEatzLogo}
             alt="Street Eatz Logo"
-            className="w-48 sm:w-56 md:w-64 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(255,107,0,0.5)]"
+            className="w-32 sm:w-48 md:w-56 lg:w-64 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(255,107,0,0.5)]"
           />
         </motion.div>
 
         {/* Text Animations - Staggered Entrance */}
-        <div className="space-y-2 mb-6">
+        <div className="space-y-1 sm:space-y-2 mb-4 sm:mb-6">
           <motion.h1
-            className="font-heading text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-primary tracking-tight"
+            className="font-heading text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-extrabold text-primary tracking-tight"
             style={{
               textShadow: '0 0 40px rgba(255, 107, 0, 0.5), 0 0 80px rgba(255, 107, 0, 0.3)',
             }}
@@ -80,7 +80,7 @@ export function HeroSection() {
           </motion.h1>
           
           <motion.h2
-            className="font-heading text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-foreground tracking-tight"
+            className="font-heading text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold text-foreground tracking-tight"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
@@ -95,7 +95,7 @@ export function HeroSection() {
 
         {/* Tagline */}
         <motion.p
-          className="text-muted-foreground text-sm sm:text-base tracking-[0.3em] uppercase mb-10"
+          className="text-muted-foreground text-xs sm:text-sm md:text-base tracking-[0.2em] sm:tracking-[0.3em] uppercase mb-6 sm:mb-10"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{
@@ -119,7 +119,7 @@ export function HeroSection() {
           <Button
             size="lg"
             onClick={scrollToMenu}
-            className="btn-glow text-base px-8 py-6 font-semibold tracking-wider"
+            className="btn-glow text-sm sm:text-base px-6 py-4 sm:px-8 sm:py-6 font-semibold tracking-wider"
           >
             ORDER NOW
           </Button>
@@ -127,7 +127,7 @@ export function HeroSection() {
             size="lg"
             variant="outline"
             onClick={scrollToMenu}
-            className="border-primary text-primary hover:bg-primary hover:text-primary-foreground text-base px-8 py-6 font-semibold tracking-wider"
+            className="border-primary text-primary hover:bg-primary hover:text-primary-foreground text-sm sm:text-base px-6 py-4 sm:px-8 sm:py-6 font-semibold tracking-wider"
           >
             VIEW MENU
           </Button>

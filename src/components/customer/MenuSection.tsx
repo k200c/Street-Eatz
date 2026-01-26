@@ -62,11 +62,11 @@ function AnimatedCategorySection({
       ref={categoryRef}
       className="scroll-mt-32"
     >
-      <h3 className="font-heading text-lg md:text-xl font-bold text-primary mb-2 md:mb-4 uppercase tracking-wider">
+      <h3 className="font-heading text-sm sm:text-lg md:text-xl font-bold text-primary mb-2 sm:mb-3 md:mb-4 uppercase tracking-wider">
         {category}
       </h3>
       
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2 md:gap-4">
         {products.map((product, index) => (
           <AnimatedProductCard
             key={product.id}
@@ -148,17 +148,17 @@ export function MenuSection() {
       {/* Wait Time Banner - only show when store is open */}
       {isStoreOpen && waitTime && <WaitTimeBanner waitTime={waitTime} />}
       
-      <section ref={sectionRef} id="menu" className="px-4 py-12 pb-28 max-w-4xl mx-auto scroll-mt-20 relative overflow-x-hidden">
+      <section ref={sectionRef} id="menu" className="px-2 sm:px-4 py-6 sm:py-12 pb-28 max-w-3xl mx-auto scroll-mt-20 relative overflow-x-hidden">
         {/* Animated Section Header */}
         <motion.div 
           ref={headerRef}
-          className="text-center mb-4"
+          className="text-center mb-2 sm:mb-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <motion.h2 
-            className="font-heading text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-1"
+            className="font-heading text-xl sm:text-2xl md:text-4xl font-bold text-foreground mb-0.5 sm:mb-1"
             initial={{ opacity: 0, y: 30 }}
             animate={isHeaderInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.2 }}
@@ -166,7 +166,7 @@ export function MenuSection() {
             OUR <span className="text-primary">MENU</span>
           </motion.h2>
           <motion.p 
-            className="text-muted-foreground text-sm"
+            className="text-muted-foreground text-xs sm:text-sm"
             initial={{ opacity: 0 }}
             animate={isHeaderInView ? { opacity: 1 } : {}}
             transition={{ duration: 0.6, delay: 0.4 }}
@@ -176,7 +176,7 @@ export function MenuSection() {
         </motion.div>
 
         {/* Sticky Category Bar with Scroll Snap and Gradients */}
-        <div className="sticky top-16 z-30 bg-black/90 backdrop-blur-md py-2 md:py-4 -mx-4 px-4 mb-4 md:mb-8 border-y border-white/5 overflow-hidden">
+        <div className="sticky top-16 z-30 bg-black/90 backdrop-blur-md py-1.5 sm:py-2 md:py-4 -mx-2 sm:-mx-4 px-2 sm:px-4 mb-3 sm:mb-4 md:mb-8 border-y border-white/5 overflow-hidden">
           <div className="relative">
             {/* Left gradient indicator */}
             <div 
@@ -198,7 +198,9 @@ export function MenuSection() {
                   data-category={category}
                   onClick={() => handleCategoryClick(category)}
                   className={cn(
-                    'category-pill whitespace-nowrap flex-shrink-0 transition-transform hover:scale-105 active:scale-95 touch-target-44',
+                    'category-pill whitespace-nowrap flex-shrink-0 transition-transform',
+                    'px-3 py-1.5 text-xs sm:px-5 sm:py-2.5 sm:text-sm',
+                    'hover:scale-105 active:scale-95 touch-target-44',
                     selectedCategory === category && 'active'
                   )}
                 >
@@ -255,7 +257,7 @@ export function MenuSection() {
           </motion.div>
         ) : selectedCategory === 'All' && productsByCategory ? (
           // Show grouped by category with parallax
-          <div className="space-y-10">
+          <div className="space-y-6 sm:space-y-10">
             {(Object.keys(productsByCategory) as ProductCategory[]).map((category) => (
               <AnimatedCategorySection
                 key={category}
@@ -269,7 +271,7 @@ export function MenuSection() {
             ))}
           </div>
         ) : products && products.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2 md:gap-4">
             {products.map((product, index) => (
               <AnimatedProductCard
                 key={product.id}
