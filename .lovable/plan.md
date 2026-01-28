@@ -1,309 +1,241 @@
 
 
-# Advanced Stock Management UI - Search, Filter & Category Editing
+# Dual-Status Inventory Logic: Out of Stock vs. Available
 
 ## Overview
 
-This plan upgrades the Quick Stock sidebar in the Staff Dashboard Operations tab to support high-volume inventory management with instant search, category filtering, and inline category editing.
+This plan refactors the product availability system to support **two distinct controls**:
+
+| Control | Effect on User Menu | Effect on Staff POS |
+|---------|---------------------|---------------------|
+| **Is Available** = OFF | Completely hidden | Completely hidden |
+| **Is Sold Out** = ON | Visible but grayed out + unclickable | Visible but grayed out + unclickable |
 
 ---
 
-## Current State
+## Current State Analysis
 
-The current `OperationsContent.tsx` has a basic stock list that:
-- Shows all products in a vertical list
-- Displays name, category, price, and availability toggle
-- Has an edit button that opens a full dialog
-- Uses `lg:w-80 xl:w-96` for the sidebar width
+### Database Schema
+The `products` table currently has a single boolean field:
+- `is_available` (boolean, default: true)
 
-**Limitations:**
-- No search functionality - staff must scroll through all items
-- No category filter - cannot quickly narrow to specific product types
-- Category changes require opening the full edit dialog
-- Not optimized for fast-paced, high-density operations
+### Current Behavior
+- `is_available = false` → Product is grayed out with "SOLD OUT" overlay
+- Products are **never hidden** - they're always shown in all views
+
+### Problem
+There's no way to:
+1. Completely hide a product from menus (seasonal items, discontinued)
+2. Show a product as sold out (visible but unorderable)
 
 ---
 
 ## Solution Architecture
 
-### New Component Structure
+### Step 1: Database Migration
+
+Add a new column `is_sold_out` to the products table:
+
+```sql
+ALTER TABLE products 
+ADD COLUMN is_sold_out BOOLEAN DEFAULT false;
+
+COMMENT ON COLUMN products.is_sold_out IS 
+  'When true, item is visible but grayed out and unclickable (temporary out of stock)';
+
+COMMENT ON COLUMN products.is_available IS 
+  'When false, item is completely hidden from all menus (discontinued/seasonal)';
+```
+
+### Step 2: Update TypeScript Types
+
+**File: `src/types/database.ts`**
+
+```typescript
+export interface Product {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category: ProductCategory;
+  image_url: string | null;
+  is_available: boolean;    // Hidden from menus when false
+  is_sold_out: boolean;     // Grayed out when true (NEW)
+  is_featured: boolean;
+  stock_count: number;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### Step 3: Update Product Fetching Logic
+
+**File: `src/hooks/useProducts.ts`**
+
+For **Customer-facing** menus, filter out hidden products:
+
+```typescript
+// Add filter for customer menus - only show available products
+const { data, error } = await query.eq('is_available', true);
+```
+
+Create a separate hook for **Staff Stock Manager** (shows all products):
+
+```typescript
+export function useAllProducts() {
+  // Returns ALL products including hidden ones
+  // Used only by Stock Manager
+}
+```
+
+### Step 4: Update Product Cards
+
+**File: `src/components/customer/ProductCardHorizontal.tsx`**
+
+Update the sold-out logic to use the new field:
+
+```typescript
+// Before:
+const isSoldOut = !product.is_available;
+
+// After:
+const isSoldOut = product.is_sold_out;
+```
+
+**File: `src/components/staff/StaffPOSContent.tsx`**
+
+Filter products and show sold-out state:
+
+```typescript
+// Filter: only show available products (is_available = true)
+const visibleProducts = products.filter(p => p.is_available);
+
+// For each product, check is_sold_out for grayed-out state
+const isSoldOut = product.is_sold_out;
+```
+
+### Step 5: Upgrade Stock Manager UI
+
+**File: `src/components/staff/OperationsContent.tsx`**
+
+Replace the single toggle with **two distinct controls**:
 
 ```text
-OperationsContent.tsx
-  |
-  +-- Card (Stock Manager)
-       |
-       +-- CardHeader
-       |     +-- Title + Add Item button
-       |
-       +-- Search & Filter Bar (NEW)
-       |     +-- Search Input (with icon)
-       |     +-- Category Filter Select
-       |
-       +-- Product List
-             +-- ProductStockRow (NEW component)
-                   +-- Name + Price
-                   +-- Category Dropdown (inline edit)
-                   +-- Availability Switch
+┌─────────────────────────────────────────────────────────┐
+│ Classic Smash Burger                        €12.50     │
+│ [▼ Burgers]                                            │
+│ ┌──────────────────────────────────────────────────┐   │
+│ │ ⚠ SOLD OUT     [toggle]  │  👁 VISIBLE  [toggle] │   │
+│ └──────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
 ```
+
+**Toggle Behaviors:**
+- **SOLD OUT** toggle (amber/orange): `is_sold_out` field
+  - ON = grayed out on menus, unclickable
+  - OFF = normal display
+  
+- **VISIBLE** toggle (green/gray): `is_available` field  
+  - ON = shown on menus
+  - OFF = completely hidden
+
+**Visual States in Stock Manager:**
+
+| State | Row Appearance |
+|-------|----------------|
+| Normal (visible + in stock) | Default styling |
+| Sold Out (visible + OOS) | Orange border, "SOLD OUT" badge |
+| Hidden (not visible) | Gray background, "HIDDEN" badge |
+| Hidden + Sold Out | Gray bg + "HIDDEN" badge (OOS irrelevant when hidden) |
 
 ---
 
-## Implementation Details
+## File Changes Summary
 
-### File 1: `src/components/staff/OperationsContent.tsx`
+| File | Changes |
+|------|---------|
+| **Database** | Add `is_sold_out BOOLEAN DEFAULT false` column |
+| `src/types/database.ts` | Add `is_sold_out: boolean` to Product interface |
+| `src/hooks/useProducts.ts` | Filter `is_available = true` for customer queries; add `useAllProducts()` hook |
+| `src/components/customer/ProductCardHorizontal.tsx` | Use `is_sold_out` instead of `!is_available` |
+| `src/components/customer/MenuSection.tsx` | Products already filtered by hook |
+| `src/components/staff/StaffPOSContent.tsx` | Filter visible products, gray out sold-out items |
+| `src/components/staff/OperationsContent.tsx` | Two toggle switches per product row |
 
-**Changes:**
+---
 
-1. **Add state for search and filter:**
-```tsx
-const [searchQuery, setSearchQuery] = useState('');
-const [categoryFilter, setCategoryFilter] = useState<ProductCategory | 'All'>('All');
-```
+## Technical Details
 
-2. **Add filtered products logic:**
-```tsx
-const filteredProducts = useMemo(() => {
-  if (!products) return [];
-  
-  return products.filter(product => {
-    // Search filter
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+### New Handler Functions in OperationsContent
+
+```typescript
+const handleSoldOutToggle = async (productId: string, isSoldOut: boolean) => {
+  const { error } = await supabase
+    .from('products')
+    .update({ is_sold_out: isSoldOut })
+    .eq('id', productId);
     
-    // Category filter
-    const matchesCategory = categoryFilter === 'All' || product.category === categoryFilter;
-    
-    return matchesSearch && matchesCategory;
-  });
-}, [products, searchQuery, categoryFilter]);
-```
-
-3. **Add Search & Filter Bar UI** below `CardHeader`:
-```tsx
-<div className="px-4 pb-3 space-y-2 flex-shrink-0">
-  {/* Search Input */}
-  <div className="relative">
-    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-    <Input
-      placeholder="Search items..."
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-      className="pl-8 h-9 bg-black/40 border-border/50 text-sm"
-    />
-    {searchQuery && (
-      <button 
-        onClick={() => setSearchQuery('')}
-        className="absolute right-2 top-1/2 -translate-y-1/2"
-      >
-        <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-      </button>
-    )}
-  </div>
-  
-  {/* Category Filter */}
-  <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as ProductCategory | 'All')}>
-    <SelectTrigger className="h-9 bg-black/40 border-border/50 text-sm">
-      <SelectValue placeholder="All Categories" />
-    </SelectTrigger>
-    <SelectContent className="bg-card border-border">
-      <SelectItem value="All">All Categories</SelectItem>
-      <SelectItem value="Burgers">Burgers</SelectItem>
-      <SelectItem value="Flatbreads">Flatbreads</SelectItem>
-      <SelectItem value="Fries">Fries</SelectItem>
-      <SelectItem value="Drinks">Drinks</SelectItem>
-      <SelectItem value="Specials">Specials</SelectItem>
-      <SelectItem value="Sauces">Sauces</SelectItem>
-    </SelectContent>
-  </Select>
-</div>
-```
-
-4. **Add inline category change handler:**
-```tsx
-const handleCategoryChange = async (productId: string, newCategory: ProductCategory) => {
-  try {
-    const { error } = await supabase
-      .from('products')
-      .update({ category: newCategory, updated_at: new Date().toISOString() })
-      .eq('id', productId);
-
-    if (error) throw error;
+  if (!error) {
     refetchProducts();
-    toast.success('Category updated');
-  } catch (error) {
-    toast.error('Failed to update category');
+    toast.success(isSoldOut ? 'Marked as sold out' : 'Back in stock');
+  }
+};
+
+const handleVisibilityToggle = async (productId: string, isAvailable: boolean) => {
+  const { error } = await supabase
+    .from('products')
+    .update({ is_available: isAvailable })
+    .eq('id', productId);
+    
+  if (!error) {
+    refetchProducts();
+    toast.success(isAvailable ? 'Now visible on menu' : 'Hidden from menu');
   }
 };
 ```
 
-5. **Update product row with inline category dropdown:**
+### Realtime Sync (Already Implemented)
 
-Replace the simple category text display with an interactive dropdown:
+The existing realtime subscription in `useProducts.ts` already handles this:
 
-```tsx
-<div
-  key={product.id}
-  className={cn(
-    'p-2 rounded-lg border transition-colors',
-    product.is_available
-      ? 'bg-secondary/20 border-border hover:border-primary/30'
-      : 'bg-red-500/10 border-red-500/30'
-  )}
->
-  <div className="flex items-center justify-between gap-2">
-    {/* Left: Name + Category Dropdown */}
-    <div className="flex-1 min-w-0 space-y-1">
-      <div className="flex items-center gap-2">
-        <p className={cn(
-          'font-medium text-sm truncate flex-1',
-          !product.is_available && 'text-muted-foreground line-through'
-        )}>
-          {product.name}
-        </p>
-        <span className="text-primary font-bold text-xs">€{product.price.toFixed(2)}</span>
-      </div>
-      
-      {/* Inline Category Dropdown */}
-      <Select
-        value={product.category}
-        onValueChange={(value) => handleCategoryChange(product.id, value as ProductCategory)}
-      >
-        <SelectTrigger className="h-6 w-auto text-[11px] px-2 bg-black/30 border-none">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="bg-card border-border">
-          {allCategories.map((cat) => (
-            <SelectItem key={cat} value={cat} className="text-xs">
-              {cat}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-    
-    {/* Right: Edit + Switch */}
-    <div className="flex items-center gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6"
-        onClick={() => handleEditProduct(product)}
-      >
-        <Pencil className="w-3 h-3" />
-      </Button>
-      <Switch
-        checked={product.is_available ?? true}
-        onCheckedChange={(checked) => handleProductAvailability(product.id, checked)}
-        className="scale-90"
-      />
-    </div>
-  </div>
-</div>
+```typescript
+const channel = supabase
+  .channel('products-realtime')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, 
+    () => queryClient.invalidateQueries({ queryKey: ['products'] })
+  )
+  .subscribe();
 ```
 
-6. **Add results count indicator:**
-```tsx
-<div className="px-4 pb-2 flex items-center justify-between text-xs text-muted-foreground">
-  <span>{filteredProducts.length} items</span>
-  {(searchQuery || categoryFilter !== 'All') && (
-    <button 
-      onClick={() => { setSearchQuery(''); setCategoryFilter('All'); }}
-      className="text-primary hover:underline"
-    >
-      Clear filters
-    </button>
-  )}
-</div>
-```
-
----
-
-### New Imports Required
-
-```tsx
-import { useState, useMemo } from 'react';
-import { Package, Pencil, Search, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { ProductCategory } from '@/types/database';
-import { cn } from '@/lib/utils';
-```
-
----
-
-### Category Constants
-
-Add a constant array for all categories including Sauces:
-
-```tsx
-const allCategories: ProductCategory[] = [
-  'Burgers', 'Flatbreads', 'Fries', 'Drinks', 'Specials', 'Sauces'
-];
-```
-
----
-
-## Design Considerations
-
-### High-Density Layout
-
-| Element | Current | New |
-|---------|---------|-----|
-| Row padding | `p-2.5` | `p-2` (tighter) |
-| Row gap | `space-y-1.5` | `space-y-1` (denser) |
-| Font sizes | `text-sm` | `text-sm` name, `text-xs` price/category |
-| Button sizes | `h-7 w-7` | `h-6 w-6` (smaller) |
-
-### Brand Colors
-
-- Search/filter background: `bg-black/40` (dark charcoal)
-- Borders: `border-border/50` (subtle)
-- Active/focus: `border-primary` (orange)
-- Category dropdown: Small, inline, dark background
-
----
-
-## Summary of Changes
-
-| File | Changes |
-|------|---------|
-| `src/components/staff/OperationsContent.tsx` | Add search state, category filter state, filtered products memo, search bar UI, category filter UI, inline category dropdown in rows, results count, clear filters button |
+When staff toggles either switch, changes propagate instantly to:
+- Staff POS (Tab 1)
+- Customer Menu (mobile phones)
+- Other Stock Manager instances
 
 ---
 
 ## Expected Result
 
+### Stock Manager Row Layout
+
 ```text
-┌─────────────────────────────────────┐
-│ 📦 Quick Stock           [+ Add]   │
-├─────────────────────────────────────┤
-│ 🔍 Search items...              [x] │
-│ [▼ All Categories              ]    │
-├─────────────────────────────────────┤
-│ 12 items                Clear filters│
-├─────────────────────────────────────┤
-│ Classic Smash           €12.50 ✏️ ◯ │
-│ [▼ Burgers]                         │
-├─────────────────────────────────────┤
-│ Loaded Fries            €8.50  ✏️ ◯ │
-│ [▼ Fries]                           │
-├─────────────────────────────────────┤
-│ Jerk Mayonnaise         €1.50  ✏️ ◯ │
-│ [▼ Sauces]                          │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│ Classic Smash                               €12.50        ✏️   │
+│ [▼ Burgers]                                                     │
+│                                                                 │
+│   ⚠ SOLD OUT  [●────]      👁 VISIBLE  [────●]                 │
+│     (amber)                   (green)                           │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Features:**
-- Instant search filtering as you type
-- Category dropdown to narrow list
-- Inline category change without opening dialog
-- Compact, high-density rows for fast scrolling
-- Clear filters button when filters are active
-- Item count shows filtered results
+### Customer Menu Behavior
+
+- `is_available = false` → Product not rendered at all
+- `is_available = true, is_sold_out = true` → Grayed out, "SOLD OUT" overlay, unclickable
+- `is_available = true, is_sold_out = false` → Normal display
+
+### Staff POS Behavior
+
+- Same as customer menu (only shows available products)
+- Sold out items visible but grayed/unclickable
 
