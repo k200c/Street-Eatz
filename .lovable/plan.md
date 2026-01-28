@@ -1,101 +1,309 @@
 
 
-# Menu Update: Remove Burger & Add New Sauces
+# Advanced Stock Management UI - Search, Filter & Category Editing
 
 ## Overview
 
-This plan addresses your request to:
-1. Remove the "Smoked Cheese Burger" (without chips) from the menu
-2. Add 4 new sauces at €1.50 each
-3. Ensure sauces appear in the "Make It Epic" dropdown
+This plan upgrades the Quick Stock sidebar in the Staff Dashboard Operations tab to support high-volume inventory management with instant search, category filtering, and inline category editing.
 
 ---
 
-## Current Database State
+## Current State
 
-### Burgers with "Smoked Cheese":
+The current `OperationsContent.tsx` has a basic stock list that:
+- Shows all products in a vertical list
+- Displays name, category, price, and availability toggle
+- Has an edit button that opens a full dialog
+- Uses `lg:w-80 xl:w-96` for the sidebar width
 
-| Name | Has Chips? | Price | Status |
-|------|-----------|-------|--------|
-| Applewood Double Smash Cheeseburger | Yes (in description) | €12.50 | Available |
-| Smoked Applewood Double Smash Cheeseburger | No | €11.50 | Already unavailable |
-| The Smoked Cheese Double Cheeseburger | No | €12.50 | Already unavailable |
-
-**Note:** Both "Smoked Cheese" burgers without chips are already marked as unavailable (`is_available = false`). If you want them permanently removed from the database, we can delete them. Otherwise, they're already hidden from customers.
-
-### Current Sauces:
-
-| Name | Price | Status |
-|------|-------|--------|
-| BBQ Sauce | €1.50 | Available |
-| Garlic Aioli | €1.50 | Available |
-| Chipotle Mayo | €0.75 | Unavailable |
-| Hot Sauce | €1.50 | Unavailable |
-| Ranch | €1.50 | Unavailable |
+**Limitations:**
+- No search functionality - staff must scroll through all items
+- No category filter - cannot quickly narrow to specific product types
+- Category changes require opening the full edit dialog
+- Not optimized for fast-paced, high-density operations
 
 ---
 
-## Solution
+## Solution Architecture
 
-### Step 1: Remove Burger (Database Migration)
+### New Component Structure
 
-Delete the burger(s) without chips from the products table. Based on descriptions:
-- "Smoked Applewood Double Smash Cheeseburger" has no chips mentioned
-- "The Smoked Cheese Double Cheeseburger" has no chips mentioned
-
-```sql
-DELETE FROM products 
-WHERE id IN (
-  '12a139ea-321c-4d6e-b64b-8b02c647ddf4',  -- Smoked Applewood Double Smash
-  'e790a6c6-01ff-4cb6-a015-445cc11f326c'   -- The Smoked Cheese Double
-);
-```
-
-**Alternative:** If you only want to hide (not delete), we can set `is_available = false` (but they're already hidden).
-
----
-
-### Step 2: Add New Sauces (Database Migration)
-
-Insert 4 new sauce products into the products table:
-
-```sql
-INSERT INTO products (name, description, price, category, is_available, is_featured) VALUES
-  ('Jerk Mayonnaise', 'Caribbean-inspired spicy mayo with warm jerk spices', 1.50, 'Sauces', true, false),
-  ('Curry Mayonnaise', 'Creamy mayo blended with aromatic curry spices', 1.50, 'Sauces', true, false),
-  ('Mojo Picon Sauce', 'Spanish taco-style sauce with smoky peppers and cumin', 1.50, 'Sauces', true, false),
-  ('Burger Sauce', 'Our signature house burger sauce', 1.50, 'Sauces', true, false);
+```text
+OperationsContent.tsx
+  |
+  +-- Card (Stock Manager)
+       |
+       +-- CardHeader
+       |     +-- Title + Add Item button
+       |
+       +-- Search & Filter Bar (NEW)
+       |     +-- Search Input (with icon)
+       |     +-- Category Filter Select
+       |
+       +-- Product List
+             +-- ProductStockRow (NEW component)
+                   +-- Name + Price
+                   +-- Category Dropdown (inline edit)
+                   +-- Availability Switch
 ```
 
 ---
 
-### Step 3: UI Reflection (Automatic)
+## Implementation Details
 
-No code changes needed! The "Add a Sauce" dropdown in the "Make It Epic" section uses the `useSauces()` hook, which automatically fetches all products where:
-- `category = 'Sauces'`
-- `is_available = true`
+### File 1: `src/components/staff/OperationsContent.tsx`
 
-Once the new sauces are inserted, they will immediately appear in the dropdown.
+**Changes:**
+
+1. **Add state for search and filter:**
+```tsx
+const [searchQuery, setSearchQuery] = useState('');
+const [categoryFilter, setCategoryFilter] = useState<ProductCategory | 'All'>('All');
+```
+
+2. **Add filtered products logic:**
+```tsx
+const filteredProducts = useMemo(() => {
+  if (!products) return [];
+  
+  return products.filter(product => {
+    // Search filter
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Category filter
+    const matchesCategory = categoryFilter === 'All' || product.category === categoryFilter;
+    
+    return matchesSearch && matchesCategory;
+  });
+}, [products, searchQuery, categoryFilter]);
+```
+
+3. **Add Search & Filter Bar UI** below `CardHeader`:
+```tsx
+<div className="px-4 pb-3 space-y-2 flex-shrink-0">
+  {/* Search Input */}
+  <div className="relative">
+    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+    <Input
+      placeholder="Search items..."
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      className="pl-8 h-9 bg-black/40 border-border/50 text-sm"
+    />
+    {searchQuery && (
+      <button 
+        onClick={() => setSearchQuery('')}
+        className="absolute right-2 top-1/2 -translate-y-1/2"
+      >
+        <X className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+      </button>
+    )}
+  </div>
+  
+  {/* Category Filter */}
+  <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as ProductCategory | 'All')}>
+    <SelectTrigger className="h-9 bg-black/40 border-border/50 text-sm">
+      <SelectValue placeholder="All Categories" />
+    </SelectTrigger>
+    <SelectContent className="bg-card border-border">
+      <SelectItem value="All">All Categories</SelectItem>
+      <SelectItem value="Burgers">Burgers</SelectItem>
+      <SelectItem value="Flatbreads">Flatbreads</SelectItem>
+      <SelectItem value="Fries">Fries</SelectItem>
+      <SelectItem value="Drinks">Drinks</SelectItem>
+      <SelectItem value="Specials">Specials</SelectItem>
+      <SelectItem value="Sauces">Sauces</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+```
+
+4. **Add inline category change handler:**
+```tsx
+const handleCategoryChange = async (productId: string, newCategory: ProductCategory) => {
+  try {
+    const { error } = await supabase
+      .from('products')
+      .update({ category: newCategory, updated_at: new Date().toISOString() })
+      .eq('id', productId);
+
+    if (error) throw error;
+    refetchProducts();
+    toast.success('Category updated');
+  } catch (error) {
+    toast.error('Failed to update category');
+  }
+};
+```
+
+5. **Update product row with inline category dropdown:**
+
+Replace the simple category text display with an interactive dropdown:
+
+```tsx
+<div
+  key={product.id}
+  className={cn(
+    'p-2 rounded-lg border transition-colors',
+    product.is_available
+      ? 'bg-secondary/20 border-border hover:border-primary/30'
+      : 'bg-red-500/10 border-red-500/30'
+  )}
+>
+  <div className="flex items-center justify-between gap-2">
+    {/* Left: Name + Category Dropdown */}
+    <div className="flex-1 min-w-0 space-y-1">
+      <div className="flex items-center gap-2">
+        <p className={cn(
+          'font-medium text-sm truncate flex-1',
+          !product.is_available && 'text-muted-foreground line-through'
+        )}>
+          {product.name}
+        </p>
+        <span className="text-primary font-bold text-xs">€{product.price.toFixed(2)}</span>
+      </div>
+      
+      {/* Inline Category Dropdown */}
+      <Select
+        value={product.category}
+        onValueChange={(value) => handleCategoryChange(product.id, value as ProductCategory)}
+      >
+        <SelectTrigger className="h-6 w-auto text-[11px] px-2 bg-black/30 border-none">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="bg-card border-border">
+          {allCategories.map((cat) => (
+            <SelectItem key={cat} value={cat} className="text-xs">
+              {cat}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+    
+    {/* Right: Edit + Switch */}
+    <div className="flex items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6"
+        onClick={() => handleEditProduct(product)}
+      >
+        <Pencil className="w-3 h-3" />
+      </Button>
+      <Switch
+        checked={product.is_available ?? true}
+        onCheckedChange={(checked) => handleProductAvailability(product.id, checked)}
+        className="scale-90"
+      />
+    </div>
+  </div>
+</div>
+```
+
+6. **Add results count indicator:**
+```tsx
+<div className="px-4 pb-2 flex items-center justify-between text-xs text-muted-foreground">
+  <span>{filteredProducts.length} items</span>
+  {(searchQuery || categoryFilter !== 'All') && (
+    <button 
+      onClick={() => { setSearchQuery(''); setCategoryFilter('All'); }}
+      className="text-primary hover:underline"
+    >
+      Clear filters
+    </button>
+  )}
+</div>
+```
 
 ---
 
-## Summary
+### New Imports Required
 
-| Action | Method | Impact |
-|--------|--------|--------|
-| Remove smoked cheese burgers (no chips) | Database DELETE | 2 products permanently removed |
-| Add 4 new sauces | Database INSERT | 4 new sauce products at €1.50 each |
-| Update UI | None needed | `useSauces()` hook auto-fetches available sauces |
+```tsx
+import { useState, useMemo } from 'react';
+import { Package, Pencil, Search, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ProductCategory } from '@/types/database';
+import { cn } from '@/lib/utils';
+```
+
+---
+
+### Category Constants
+
+Add a constant array for all categories including Sauces:
+
+```tsx
+const allCategories: ProductCategory[] = [
+  'Burgers', 'Flatbreads', 'Fries', 'Drinks', 'Specials', 'Sauces'
+];
+```
+
+---
+
+## Design Considerations
+
+### High-Density Layout
+
+| Element | Current | New |
+|---------|---------|-----|
+| Row padding | `p-2.5` | `p-2` (tighter) |
+| Row gap | `space-y-1.5` | `space-y-1` (denser) |
+| Font sizes | `text-sm` | `text-sm` name, `text-xs` price/category |
+| Button sizes | `h-7 w-7` | `h-6 w-6` (smaller) |
+
+### Brand Colors
+
+- Search/filter background: `bg-black/40` (dark charcoal)
+- Borders: `border-border/50` (subtle)
+- Active/focus: `border-primary` (orange)
+- Category dropdown: Small, inline, dark background
+
+---
+
+## Summary of Changes
+
+| File | Changes |
+|------|---------|
+| `src/components/staff/OperationsContent.tsx` | Add search state, category filter state, filtered products memo, search bar UI, category filter UI, inline category dropdown in rows, results count, clear filters button |
 
 ---
 
 ## Expected Result
 
-After implementation, the "Add a Sauce" dropdown will show:
-- BBQ Sauce (+€1.50)
-- Burger Sauce (+€1.50)
-- Curry Mayonnaise (+€1.50)
-- Garlic Aioli (+€1.50)
-- Jerk Mayonnaise (+€1.50)
-- Mojo Picon Sauce (+€1.50)
+```text
+┌─────────────────────────────────────┐
+│ 📦 Quick Stock           [+ Add]   │
+├─────────────────────────────────────┤
+│ 🔍 Search items...              [x] │
+│ [▼ All Categories              ]    │
+├─────────────────────────────────────┤
+│ 12 items                Clear filters│
+├─────────────────────────────────────┤
+│ Classic Smash           €12.50 ✏️ ◯ │
+│ [▼ Burgers]                         │
+├─────────────────────────────────────┤
+│ Loaded Fries            €8.50  ✏️ ◯ │
+│ [▼ Fries]                           │
+├─────────────────────────────────────┤
+│ Jerk Mayonnaise         €1.50  ✏️ ◯ │
+│ [▼ Sauces]                          │
+└─────────────────────────────────────┘
+```
+
+**Features:**
+- Instant search filtering as you type
+- Category dropdown to narrow list
+- Inline category change without opening dialog
+- Compact, high-density rows for fast scrolling
+- Clear filters button when filters are active
+- Item count shows filtered results
 
