@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { MapPin, Phone, Mail } from "lucide-react";
-
+import { MapPin, Phone, Mail, Info } from "lucide-react";
+import { AllergenModal } from "@/components/ui/allergen-modal";
 // SVG Payment Icons as components for clean rendering
 const VisaIcon = () => (
   <svg viewBox="0 0 48 32" className="h-8 w-auto" aria-label="Visa">
@@ -107,6 +107,14 @@ export function SiteFooter() {
               >
                 Terms & Conditions
               </Link>
+              <AllergenModal
+                trigger={
+                  <button className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors">
+                    <Info className="w-4 h-4" />
+                    Allergen Information
+                  </button>
+                }
+              />
             </div>
           </div>
         </div>

@@ -13,7 +13,7 @@ import { Product, ProductCategory } from '@/types/database';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-const categories: (ProductCategory | 'All')[] = ['All', 'Burgers', 'Flatbreads', 'Fries', 'Drinks', 'Specials'];
+const categories: (ProductCategory | 'All')[] = ['All', 'Burgers', 'Flatbreads', 'Fries', 'Kids Menu', 'Drinks', 'Specials'];
 
 // Simple Product Card wrapper
 function AnimatedProductCard({ 

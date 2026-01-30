@@ -5,13 +5,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Minus, Plus, X, Flame } from 'lucide-react';
-import { Product, Modifier, SelectedModifier, RemovedIngredient } from '@/types/database';
+import { Product, Modifier, SelectedModifier, RemovedIngredient, ProductCategory } from '@/types/database';
 import { ModifierGroupWithModifiers } from '@/hooks/useProductModifiers';
 import { ProductIngredientWithDetails } from '@/hooks/useProductIngredients';
 import { useLoadedFries, useDrinks, useSauces } from '@/hooks/useProductsByCategory';
+import { useProductAllergens } from '@/hooks/useProductAllergens';
 import { useCartStore } from '@/stores/cartStore';
 import { getExtraPrice } from '@/lib/pricingRules';
 import { toast } from 'sonner';
+import { AllergenBadges } from './AllergenBadges';
+import { AllergenModal } from '@/components/ui/allergen-modal';
 
 import heroBurger from '@/assets/hero-burger.jpg';
 import loadedFries from '@/assets/loaded-fries.jpg';
@@ -24,6 +27,7 @@ const categoryImages: Record<string, string> = {
   Flatbreads: flatbread,
   Drinks: drinks,
   Specials: heroBurger,
+  'Kids Menu': heroBurger,
 };
 
 interface ProductSheetProps {
@@ -36,10 +40,16 @@ interface ProductSheetProps {
 // Track ingredient customization state: 'included' (default), 'removed', or 'extra'
 type IngredientState = 'included' | 'removed' | 'extra';
 
-// Fixed price for small loaded fries portion (upsell pricing)
-const LOADED_FRIES_SMALL_PRICE = 6.50;
+// Pricing for loaded fries based on category
+const LOADED_FRIES_STANDARD_PRICE = 6.50;
+const LOADED_FRIES_SPECIALS_PRICE = 3.50; // Specials already include chips, this is an upgrade
 
-// Standalone add-on items with fixed prices
+// Get loaded fries price based on product category
+const getLoadedFriesPrice = (category: ProductCategory): number => {
+  return category === 'Specials' ? LOADED_FRIES_SPECIALS_PRICE : LOADED_FRIES_STANDARD_PRICE;
+};
+
+// Standalone add-on items with fixed prices (for standard categories)
 const STANDALONE_ADDONS = [
   { id: 'beef-patty', name: 'Beef Patty', price: 2.50 },
   { id: 'bacon', name: 'Bacon', price: 2.00 },
@@ -47,6 +57,12 @@ const STANDALONE_ADDONS = [
   { id: 'cheese', name: 'Cheese', price: 1.00 },
   { id: 'smoked-applewood', name: 'Smoked Applewood Cheese', price: 1.50 },
   { id: 'handcut-chips', name: 'Handcut Chips', price: 3.00 },
+];
+
+// Kids Menu specific add-ons
+const KIDS_MENU_ADDONS = [
+  { id: 'add-chips', name: 'Add Chips', price: 2.00 },
+  { id: 'capri-sun', name: 'Capri Sun', price: 1.50 },
 ];
 
 export function ProductSheet({ product, modifierGroups, ingredients, onClose }: ProductSheetProps) {
@@ -64,6 +80,9 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   const { data: loadedFriesProducts } = useLoadedFries();
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
+  
+  // Fetch allergen data for this product
+  const { data: allergenData } = useProductAllergens(product?.id || null);
 
   // Reset state when product changes
   useEffect(() => {
@@ -88,10 +107,21 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   if (!product) return null;
 
   const imageUrl = product.image_url || categoryImages[product.category] || heroBurger;
+  
+  // Determine if this is a Kids Menu item
+  const isKidsMenu = product.category === 'Kids Menu';
+  
+  // Get the appropriate add-ons based on category
+  const currentAddons = isKidsMenu ? KIDS_MENU_ADDONS : STANDALONE_ADDONS;
+  
+  // Get loaded fries price based on category
+  const loadedFriesPrice = getLoadedFriesPrice(product.category);
 
-  // Visibility: Show "Make It Epic" for everything EXCEPT Fries and Drinks
+  // Visibility: Show "Make It Epic" for everything EXCEPT Fries, Drinks, and Sauces
   const showMakeItEpic = product.category !== 'Fries' && product.category !== 'Drinks' && product.category !== 'Sauces';
-
+  
+  // For Kids Menu, don't show the dropdowns (loaded fries, drinks, sauces)
+  const showDropdowns = !isKidsMenu;
   const toggleStandaloneAddon = (addonId: string) => {
     setStandaloneAddons(prev => {
       const next = new Set(prev);
@@ -145,8 +175,8 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   const buildAllModifiers = (): SelectedModifier[] => {
     const allMods: SelectedModifier[] = [...selectedModifiers, ...getExtraIngredients()];
 
-    // Add standalone add-ons
-    STANDALONE_ADDONS.forEach(addon => {
+    // Add standalone add-ons (use the appropriate list based on category)
+    currentAddons.forEach(addon => {
       if (standaloneAddons.has(addon.id)) {
         allMods.push({
           id: addon.id,
@@ -157,21 +187,21 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
       }
     });
 
-    // Add loaded fries selection with fixed €6.50 price
-    if (selectedLoadedFries && loadedFriesProducts) {
+    // Add loaded fries selection with category-based price (not for Kids Menu)
+    if (selectedLoadedFries && loadedFriesProducts && !isKidsMenu) {
       const fry = loadedFriesProducts.find(p => p.id === selectedLoadedFries);
       if (fry) {
         allMods.push({
           id: fry.id,
           name: `Side: ${fry.name} (Small)`,
-          price_adjustment: LOADED_FRIES_SMALL_PRICE,
+          price_adjustment: loadedFriesPrice,
           modifier_type: 'loaded_fries_small',
         });
       }
     }
 
-    // Add drink selection
-    if (selectedDrink && drinksProducts) {
+    // Add drink selection (not for Kids Menu)
+    if (selectedDrink && drinksProducts && !isKidsMenu) {
       const drink = drinksProducts.find(p => p.id === selectedDrink);
       if (drink) {
         allMods.push({
@@ -183,8 +213,8 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
       }
     }
 
-    // Add sauce selection
-    if (selectedSauce && saucesProducts) {
+    // Add sauce selection (not for Kids Menu)
+    if (selectedSauce && saucesProducts && !isKidsMenu) {
       const sauce = saucesProducts.find(p => p.id === selectedSauce);
       if (sauce) {
         allMods.push({
@@ -200,14 +230,14 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   };
 
   // Calculate total price
-  const standaloneTotal = STANDALONE_ADDONS.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + a.price, 0);
+  const currentAddonsTotal = currentAddons.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + a.price, 0);
   const extrasTotal = getExtraIngredients().reduce((sum, e) => sum + e.price_adjustment, 0);
   const modifiersTotal = selectedModifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
-  const loadedFriesPrice = selectedLoadedFries ? LOADED_FRIES_SMALL_PRICE : 0;
-  const drinkPrice = drinksProducts?.find(p => p.id === selectedDrink)?.price || 0;
-  const saucePrice = saucesProducts?.find(p => p.id === selectedSauce)?.price || 0;
+  const selectedLoadedFriesPrice = (selectedLoadedFries && !isKidsMenu) ? loadedFriesPrice : 0;
+  const drinkPrice = (!isKidsMenu && drinksProducts?.find(p => p.id === selectedDrink)?.price) || 0;
+  const saucePrice = (!isKidsMenu && saucesProducts?.find(p => p.id === selectedSauce)?.price) || 0;
   
-  const totalPrice = (product.price + standaloneTotal + extrasTotal + modifiersTotal + loadedFriesPrice + drinkPrice + saucePrice) * quantity;
+  const totalPrice = (product.price + currentAddonsTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice) * quantity;
 
   const handleAddToOrder = () => {
     const removedIngredients = getRemovedIngredients();
@@ -263,7 +293,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
 
           {/* Product Info */}
           <div className="p-6">
-            <SheetHeader className="text-left mb-6">
+            <SheetHeader className="text-left mb-4">
               <SheetTitle className="font-heading text-2xl text-foreground">
                 {product.name}
               </SheetTitle>
@@ -271,6 +301,20 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
                 <p className="text-muted-foreground mt-2">{product.description}</p>
               )}
             </SheetHeader>
+            
+            {/* Allergen Badges */}
+            {allergenData && allergenData.allergen_numbers && allergenData.allergen_numbers.length > 0 && (
+              <div className="flex items-center gap-2 mb-6">
+                <AllergenBadges allergenNumbers={allergenData.allergen_numbers} size="md" />
+                <AllergenModal
+                  trigger={
+                    <button className="text-xs text-muted-foreground hover:text-primary underline">
+                      View allergen key
+                    </button>
+                  }
+                />
+              </div>
+            )}
 
             {/* SECTION 1: Make it Epic (Premium Upsell Section) */}
             {showMakeItEpic && (
@@ -285,9 +329,9 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
                   Make it Epic
                 </h4>
 
-                {/* Standalone Add-on Checkboxes */}
+                {/* Add-on Checkboxes (Kids Menu or Standard) */}
                 <div className="space-y-3 mb-6">
-                  {STANDALONE_ADDONS.map((addon) => {
+                  {currentAddons.map((addon) => {
                     const isSelected = standaloneAddons.has(addon.id);
                     return (
                       <label
@@ -314,79 +358,84 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
                   })}
                 </div>
 
-                {/* Dropdown 1: Loaded Fries */}
-                {loadedFriesProducts && loadedFriesProducts.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    <label className="text-sm text-muted-foreground font-medium">
-                      Add Small Loaded Fries
-                    </label>
-                    <Select 
-                      value={selectedLoadedFries || 'none'} 
-                      onValueChange={(v) => setSelectedLoadedFries(v === 'none' ? null : v)}
-                    >
-                      <SelectTrigger className="w-full bg-white/5 border-white/10 hover:border-primary/40">
-                        <SelectValue placeholder="No Loaded Fries" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="none">No Loaded Fries (€0.00)</SelectItem>
-                        {loadedFriesProducts.map(fry => (
-                          <SelectItem key={fry.id} value={fry.id}>
-                            {fry.name} (+€{LOADED_FRIES_SMALL_PRICE.toFixed(2)})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                {/* Dropdowns - only shown for non-Kids Menu items */}
+                {showDropdowns && (
+                  <>
+                    {/* Dropdown 1: Loaded Fries */}
+                    {loadedFriesProducts && loadedFriesProducts.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <label className="text-sm text-muted-foreground font-medium">
+                          {product.category === 'Specials' ? 'Upgrade to Loaded Fries' : 'Add Small Loaded Fries'}
+                        </label>
+                        <Select 
+                          value={selectedLoadedFries || 'none'} 
+                          onValueChange={(v) => setSelectedLoadedFries(v === 'none' ? null : v)}
+                        >
+                          <SelectTrigger className="w-full bg-white/5 border-white/10 hover:border-primary/40">
+                            <SelectValue placeholder="No Loaded Fries" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="none">No Loaded Fries (€0.00)</SelectItem>
+                            {loadedFriesProducts.map(fry => (
+                              <SelectItem key={fry.id} value={fry.id}>
+                                {fry.name} (+€{loadedFriesPrice.toFixed(2)})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
-                {/* Dropdown 2: Drinks */}
-                {drinksProducts && drinksProducts.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    <label className="text-sm text-muted-foreground font-medium">
-                      Add a Drink
-                    </label>
-                    <Select 
-                      value={selectedDrink || 'none'} 
-                      onValueChange={(v) => setSelectedDrink(v === 'none' ? null : v)}
-                    >
-                      <SelectTrigger className="w-full bg-white/5 border-white/10 hover:border-primary/40">
-                        <SelectValue placeholder="No Drink" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="none">No Drink (€0.00)</SelectItem>
-                        {drinksProducts.map(drink => (
-                          <SelectItem key={drink.id} value={drink.id}>
-                            {drink.name} (+€{drink.price.toFixed(2)})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                    {/* Dropdown 2: Drinks */}
+                    {drinksProducts && drinksProducts.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <label className="text-sm text-muted-foreground font-medium">
+                          Add a Drink
+                        </label>
+                        <Select 
+                          value={selectedDrink || 'none'} 
+                          onValueChange={(v) => setSelectedDrink(v === 'none' ? null : v)}
+                        >
+                          <SelectTrigger className="w-full bg-white/5 border-white/10 hover:border-primary/40">
+                            <SelectValue placeholder="No Drink" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="none">No Drink (€0.00)</SelectItem>
+                            {drinksProducts.map(drink => (
+                              <SelectItem key={drink.id} value={drink.id}>
+                                {drink.name} (+€{drink.price.toFixed(2)})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
-                {/* Dropdown 3: Sauces */}
-                {saucesProducts && saucesProducts.length > 0 && (
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground font-medium">
-                      Add a Sauce
-                    </label>
-                    <Select 
-                      value={selectedSauce || 'none'} 
-                      onValueChange={(v) => setSelectedSauce(v === 'none' ? null : v)}
-                    >
-                      <SelectTrigger className="w-full bg-white/5 border-white/10 hover:border-primary/40">
-                        <SelectValue placeholder="No Sauce" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border z-50">
-                        <SelectItem value="none">No Sauce (€0.00)</SelectItem>
-                        {saucesProducts.map(sauce => (
-                          <SelectItem key={sauce.id} value={sauce.id}>
-                            {sauce.name} (+€{sauce.price.toFixed(2)})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    {/* Dropdown 3: Sauces */}
+                    {saucesProducts && saucesProducts.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground font-medium">
+                          Add a Sauce
+                        </label>
+                        <Select 
+                          value={selectedSauce || 'none'} 
+                          onValueChange={(v) => setSelectedSauce(v === 'none' ? null : v)}
+                        >
+                          <SelectTrigger className="w-full bg-white/5 border-white/10 hover:border-primary/40">
+                            <SelectValue placeholder="No Sauce" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border z-50">
+                            <SelectItem value="none">No Sauce (€0.00)</SelectItem>
+                            {saucesProducts.map(sauce => (
+                              <SelectItem key={sauce.id} value={sauce.id}>
+                                {sauce.name} (+€{sauce.price.toFixed(2)})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

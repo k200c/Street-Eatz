@@ -445,6 +445,38 @@ export type Database = {
           },
         ]
       }
+      product_allergens: {
+        Row: {
+          allergen_numbers: number[]
+          created_at: string | null
+          id: string
+          product_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          allergen_numbers?: number[]
+          created_at?: string | null
+          id?: string
+          product_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          allergen_numbers?: number[]
+          created_at?: string | null
+          id?: string
+          product_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_allergens_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_ingredients: {
         Row: {
           created_at: string
@@ -738,6 +770,7 @@ export type Database = {
         | "Drinks"
         | "Specials"
         | "Sauces"
+        | "Kids Menu"
       user_role: "customer" | "staff" | "admin"
     }
     CompositeTypes: {
@@ -884,6 +917,7 @@ export const Constants = {
         "Drinks",
         "Specials",
         "Sauces",
+        "Kids Menu",
       ],
       user_role: ["customer", "staff", "admin"],
     },
