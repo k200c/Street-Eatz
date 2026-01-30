@@ -4,6 +4,8 @@ import { Plus, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCartStore } from '@/stores/cartStore';
 import { toast } from 'sonner';
+import { AllergenBadges } from './AllergenBadges';
+import { useAllProductAllergens } from '@/hooks/useProductAllergens';
 
 import heroBurger from '@/assets/hero-burger.jpg';
 import loadedFries from '@/assets/loaded-fries.jpg';
@@ -16,6 +18,7 @@ const categoryImages: Record<string, string> = {
   Fries: loadedFries,
   Drinks: drinks,
   Specials: heroBurger,
+  'Kids Menu': heroBurger,
 };
 
 interface ProductCardHorizontalProps {
@@ -33,9 +36,11 @@ export function ProductCardHorizontal({
 }: ProductCardHorizontalProps) {
   const addItem = useCartStore((state) => state.addItem);
   const [imgError, setImgError] = useState(false);
+  const { data: allergensMap } = useAllProductAllergens();
   const fallbackImage = categoryImages[product.category] || heroBurger;
   const imageUrl = imgError ? fallbackImage : (product.image_url || fallbackImage);
   const isSoldOut = product.is_sold_out;
+  const allergenNumbers = allergensMap?.get(product.id) || [];
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -87,6 +92,11 @@ export function ProductCardHorizontal({
           <h3 className="text-[11px] sm:text-xs font-bold text-foreground font-heading line-clamp-1 w-full overflow-hidden text-ellipsis">
             {product.name}
           </h3>
+          
+          {/* Allergen badges - compact */}
+          {allergenNumbers.length > 0 && (
+            <AllergenBadges allergenNumbers={allergenNumbers} size="sm" showTooltip={false} />
+          )}
           
           {/* Price and Quick Add row */}
           <div className="flex items-center justify-between">

@@ -23,7 +23,7 @@ import { Product, ProductCategory } from '@/types/database';
 import { cn } from '@/lib/utils';
 
 const allCategories: ProductCategory[] = [
-  'Burgers', 'Flatbreads', 'Fries', 'Drinks', 'Specials', 'Sauces'
+  'Burgers', 'Flatbreads', 'Fries', 'Kids Menu', 'Drinks', 'Specials', 'Sauces'
 ];
 
 export function OperationsContent() {
