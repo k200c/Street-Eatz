@@ -79,6 +79,19 @@ export default function Auth() {
   // Get the intended destination from location state
   const from = (location.state as { from?: Location })?.from?.pathname || '/menu';
 
+  // Pre-populate profile form from user metadata (fallback if profile not loaded yet)
+  useEffect(() => {
+    if (user && step === 'profile') {
+      const metadata = user.user_metadata;
+      if (metadata?.full_name && !fullName) {
+        setFullName(metadata.full_name);
+      }
+      if (metadata?.phone && !phone) {
+        setPhone(metadata.phone);
+      }
+    }
+  }, [user, step, fullName, phone]);
+
   // Redirect based on role once authenticated and profile is loaded
   useEffect(() => {
     if (loading || profileLoading) return;
@@ -392,6 +405,7 @@ export default function Auth() {
                                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <Input
                                   id="signupName"
+                                  autoComplete="name"
                                   placeholder="John Doe"
                                   value={fullName}
                                   onChange={(e) => setFullName(e.target.value)}
@@ -407,6 +421,7 @@ export default function Auth() {
                                 <Input
                                   id="signupPhone"
                                   type="tel"
+                                  autoComplete="tel"
                                   placeholder="+353 85 123 4567"
                                   value={phone}
                                   onChange={(e) => setPhone(e.target.value)}
@@ -424,6 +439,7 @@ export default function Auth() {
                             <Input
                               id="email"
                               type="email"
+                              autoComplete="email"
                               placeholder="you@example.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
@@ -441,6 +457,7 @@ export default function Auth() {
                             <Input
                               id="password"
                               type="password"
+                              autoComplete={isSignUp ? "new-password" : "current-password"}
                               placeholder="••••••••"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
@@ -458,6 +475,7 @@ export default function Auth() {
                               <Input
                                 id="confirmPassword"
                                 type="password"
+                                autoComplete="new-password"
                                 placeholder="••••••••"
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}

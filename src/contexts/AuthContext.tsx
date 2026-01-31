@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const isMounted = useRef(true);
+  const isInitialLoad = useRef(true);
 
   // Manual cleanup function - resets state to clean signed-out state
   const applyManualCleanup = useCallback(() => {
@@ -74,15 +75,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const fetchUserData = useCallback(async (userId: string) => {
+  // Fetch user role and profile - returns promise so we can await it
+  const fetchUserData = useCallback(async (userId: string): Promise<void> => {
     if (!isMounted.current) return;
     
     setState(prev => ({ ...prev, profileLoading: true }));
     
     try {
-      // Race against a 5-second timeout to prevent profileLoading from hanging
+      // Race against a 8-second timeout to prevent profileLoading from hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 8000)
       );
       
       const dataPromise = Promise.all([
@@ -121,28 +123,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     isMounted.current = true;
-    
-    // Boot timeout - if still loading after 5 seconds, force clean state
-    const bootTimeout = setTimeout(() => {
-      if (isMounted.current && state.loading) {
-        console.warn('[Auth] Boot timeout - forcing clean state');
-        applyManualCleanup();
-      }
-    }, 5000);
+    isInitialLoad.current = true;
 
+    // Set up auth state change listener FIRST (before getSession)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         if (!isMounted.current) return;
+
+        // For initial load, we handle this in initSession below
+        // This listener handles SUBSEQUENT auth changes (login, logout, token refresh)
+        if (isInitialLoad.current) {
+          return;
+        }
 
         setState(prev => ({
           ...prev,
           session,
           user: session?.user ?? null,
-          loading: false,
         }));
 
         if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock
+          // Use setTimeout to avoid Supabase deadlock on auth state change
           setTimeout(() => {
             if (isMounted.current) {
               fetchUserData(session.user.id);
@@ -159,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Check for existing session - WRAPPED IN TRY/CATCH
+    // Initialize session - AWAIT profile data before setting loading to false
     const initSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -172,15 +173,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (!isMounted.current) return;
         
+        // Update session and user immediately
         setState(prev => ({
           ...prev,
           session,
           user: session?.user ?? null,
-          loading: false,
         }));
 
+        // If we have a session, AWAIT profile data before setting loading to false
         if (session?.user) {
-          fetchUserData(session.user.id);
+          await fetchUserData(session.user.id);
+        }
+        
+        // NOW set loading to false - after profile is loaded
+        if (isMounted.current) {
+          setState(prev => ({ ...prev, loading: false }));
+          isInitialLoad.current = false;
         }
       } catch (error) {
         console.error('[Auth] getSession failed:', error);
@@ -188,11 +196,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
     
+    // Safety timeout - only for catastrophic network failures (15 seconds)
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted.current && state.loading) {
+        console.warn('[Auth] Safety timeout - network may be slow');
+        setState(prev => ({ ...prev, loading: false }));
+        isInitialLoad.current = false;
+      }
+    }, 15000);
+    
     initSession();
 
     return () => {
       isMounted.current = false;
-      clearTimeout(bootTimeout);
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserData, applyManualCleanup]);
