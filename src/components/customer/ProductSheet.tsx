@@ -35,6 +35,14 @@ interface ProductSheetProps {
   modifierGroups?: ModifierGroupWithModifiers[];
   ingredients?: ProductIngredientWithDetails[];
   onClose: () => void;
+  // Edit mode props
+  editMode?: boolean;
+  editIndex?: number;
+  initialItem?: {
+    quantity: number;
+    selectedModifiers: SelectedModifier[];
+    removedIngredients: RemovedIngredient[];
+  };
 }
 
 // Track ingredient customization state: 'included' (default), 'removed', or 'extra'
@@ -56,7 +64,7 @@ const STANDALONE_ADDONS = [
   { id: 'extra-chicken', name: 'Extra Chicken', price: 2.00 },
   { id: 'cheese', name: 'Cheese', price: 1.00 },
   { id: 'smoked-applewood', name: 'Smoked Applewood Cheese', price: 1.50 },
-  { id: 'handcut-chips', name: 'Handcut Chips', price: 3.00 },
+  { id: 'handcut-chips', name: 'Handcut Chips', price: 3.50 },
 ];
 
 // Kids Menu specific add-ons
@@ -65,7 +73,15 @@ const KIDS_MENU_ADDONS = [
   { id: 'capri-sun', name: 'Capri Sun', price: 1.50 },
 ];
 
-export function ProductSheet({ product, modifierGroups, ingredients, onClose }: ProductSheetProps) {
+export function ProductSheet({ 
+  product, 
+  modifierGroups, 
+  ingredients, 
+  onClose,
+  editMode = false,
+  editIndex,
+  initialItem 
+}: ProductSheetProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([]);
   const [ingredientStates, setIngredientStates] = useState<Record<string, IngredientState>>({});
@@ -75,6 +91,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   const [selectedSauce, setSelectedSauce] = useState<string | null>(null);
   
   const addItem = useCartStore((state) => state.addItem);
+  const updateItem = useCartStore((state) => state.updateItem);
 
   // Fetch dynamic products for dropdowns
   const { data: loadedFriesProducts } = useLoadedFries();
@@ -84,27 +101,90 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   // Fetch allergen data for this product
   const { data: allergenData } = useProductAllergens(product?.id || null);
 
-  // Reset state when product changes
+  // Reset state when product changes or initialize for edit mode
   useEffect(() => {
     if (product) {
-      setQuantity(1);
-      setSelectedModifiers([]);
-      setStandaloneAddons(new Set());
-      setSelectedLoadedFries(null);
-      setSelectedDrink(null);
-      setSelectedSauce(null);
-      // Initialize all default ingredients as 'included'
-      // For addable-only ingredients (like fries add-ons), don't set initial state (they start unchecked)
-      const initialStates: Record<string, IngredientState> = {};
-      ingredients?.forEach((ing) => {
-        if (ing.is_default) {
-          initialStates[ing.id] = 'included';
-        }
-        // Addable-only ingredients (is_addable=true, is_default=false) are not initialized - they start unchecked
-      });
-      setIngredientStates(initialStates);
+      if (editMode && initialItem) {
+        // Edit mode: pre-populate from existing item
+        setQuantity(initialItem.quantity);
+        
+        // Extract standalone addons from modifiers
+        const addonIds = new Set<string>();
+        let loadedFries: string | null = null;
+        let drink: string | null = null;
+        let sauce: string | null = null;
+        const otherMods: SelectedModifier[] = [];
+        
+        initialItem.selectedModifiers.forEach(mod => {
+          // Check if it's a standalone addon
+          const isStandaloneAddon = [...STANDALONE_ADDONS, ...KIDS_MENU_ADDONS].some(a => a.id === mod.id || a.name === mod.name);
+          if (isStandaloneAddon) {
+            addonIds.add(mod.id);
+          } else if (mod.modifier_type === 'loaded_fries_small') {
+            loadedFries = mod.id;
+          } else if (mod.modifier_type === 'drink') {
+            drink = mod.id;
+          } else if (mod.modifier_type === 'sauce') {
+            sauce = mod.id;
+          } else {
+            otherMods.push(mod);
+          }
+        });
+        
+        setStandaloneAddons(addonIds);
+        setSelectedLoadedFries(loadedFries);
+        setSelectedDrink(drink);
+        setSelectedSauce(sauce);
+        setSelectedModifiers(otherMods);
+        
+        // Set ingredient states from removed ingredients and extras
+        const ingStates: Record<string, IngredientState> = {};
+        ingredients?.forEach((ing) => {
+          if (ing.is_default) {
+            ingStates[ing.id] = 'included';
+          }
+        });
+        
+        // Mark removed ingredients
+        initialItem.removedIngredients.forEach(ri => {
+          const found = ingredients?.find(ing => ing.id === ri.id || ing.name === ri.name);
+          if (found) {
+            ingStates[found.id] = 'removed';
+          }
+        });
+        
+        // Mark extras from modifiers
+        initialItem.selectedModifiers.forEach(mod => {
+          if (mod.modifier_type === 'extra') {
+            const found = ingredients?.find(ing => 
+              mod.name.includes(ing.name) || ing.id === mod.id
+            );
+            if (found) {
+              ingStates[found.id] = 'extra';
+            }
+          }
+        });
+        
+        setIngredientStates(ingStates);
+      } else {
+        // Normal mode: reset all
+        setQuantity(1);
+        setSelectedModifiers([]);
+        setStandaloneAddons(new Set());
+        setSelectedLoadedFries(null);
+        setSelectedDrink(null);
+        setSelectedSauce(null);
+        // Initialize all default ingredients as 'included'
+        const initStates: Record<string, IngredientState> = {};
+        ingredients?.forEach((ing) => {
+          if (ing.is_default) {
+            initStates[ing.id] = 'included';
+          }
+        });
+        setIngredientStates(initStates);
+      }
     }
-  }, [product?.id, ingredients]);
+  }, [product?.id, ingredients, editMode, initialItem]);
 
   if (!product) return null;
 
@@ -243,14 +323,21 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
   
   const totalPrice = (product.price + currentAddonsTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice) * quantity;
 
-  const handleAddToOrder = () => {
+  const handleAddToOrder = async () => {
     const removedIngredients = getRemovedIngredients();
     const allModifiers = buildAllModifiers();
     
-    addItem(product, quantity, allModifiers, removedIngredients);
-    toast.success('Added to Cart', {
-      description: `${quantity}x ${product.name} added to your order`,
-    });
+    if (editMode && editIndex !== undefined) {
+      await updateItem(editIndex, product, quantity, allModifiers, removedIngredients);
+      toast.success('Updated Cart', {
+        description: `${product.name} updated`,
+      });
+    } else {
+      await addItem(product, quantity, allModifiers, removedIngredients);
+      toast.success('Added to Cart', {
+        description: `${quantity}x ${product.name} added to your order`,
+      });
+    }
     onClose();
   };
 
@@ -622,7 +709,7 @@ export function ProductSheet({ product, modifierGroups, ingredients, onClose }: 
             className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg shadow-primary/30"
             onClick={handleAddToOrder}
           >
-            ADD TO ORDER · €{totalPrice.toFixed(2)}
+            {editMode ? 'UPDATE ORDER' : 'ADD TO ORDER'} · €{totalPrice.toFixed(2)}
           </Button>
         </div>
       </SheetContent>

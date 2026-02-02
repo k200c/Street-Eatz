@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '@/hooks/useProducts';
 import { useStaffCartStore } from '@/stores/staffCartStore';
-import { Product, ProductCategory } from '@/types/database';
+import { Product, ProductCategory, CartItem } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,6 +23,12 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [lastOrderNumber, setLastOrderNumber] = useState<number | null>(null);
+  
+  // Edit mode state
+  const [editingItem, setEditingItem] = useState<{ index: number; item: CartItem } | null>(null);
+  
+  // Checkout safeguard - delay before checkout becomes ready after cart changes
+  const [checkoutReady, setCheckoutReady] = useState(true);
 
   const { data: products = [], isLoading } = useProducts(activeCategory);
   
@@ -31,6 +37,17 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
 
   const total = getTotal();
   const itemCount = getItemCount();
+
+  // Checkout safeguard: brief delay after cart changes to prevent accidental taps
+  useEffect(() => {
+    if (items.length > 0) {
+      setCheckoutReady(false);
+      const timer = setTimeout(() => setCheckoutReady(true), 300);
+      return () => clearTimeout(timer);
+    } else {
+      setCheckoutReady(true);
+    }
+  }, [items.length]);
 
   // One-tap add to cart
   const handleQuickAdd = useCallback((product: Product) => {
@@ -41,6 +58,13 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
   // Long press to customize
   const handleCustomize = useCallback((product: Product) => {
     setSelectedProduct(product);
+    setEditingItem(null); // Clear any edit mode
+  }, []);
+
+  // Handle edit item
+  const handleEditItem = useCallback((index: number, item: CartItem) => {
+    setEditingItem({ index, item });
+    setSelectedProduct(item.product);
   }, []);
 
   // Handle successful checkout - auto-reset for next customer
@@ -49,6 +73,12 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
     toast.success(`Order #${orderNumber} complete!`, { duration: 2000 });
     onOrderComplete?.(orderNumber);
   };
+
+  // Close sheet handler
+  const handleCloseSheet = useCallback(() => {
+    setSelectedProduct(null);
+    setEditingItem(null);
+  }, []);
 
   return (
     <div className="h-full flex overflow-hidden">
@@ -212,20 +242,31 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
                         €{item.totalPrice.toFixed(2)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      {/* Edit Button */}
                       <button
-                        onClick={() => item.quantity === 1 ? removeItem(index) : updateQuantity(index, item.quantity - 1)}
-                        className="w-7 h-7 rounded-full bg-background flex items-center justify-center"
+                        onClick={() => handleEditItem(index, item)}
+                        className="p-1.5 rounded bg-background hover:bg-primary hover:text-primary-foreground transition-colors"
+                        title="Edit item"
                       >
-                        {item.quantity === 1 ? <Trash2 className="w-3 h-3 text-destructive" /> : <Minus className="w-3 h-3" />}
+                        <Edit2 className="w-3 h-3" />
                       </button>
-                      <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(index, item.quantity + 1)}
-                        className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => item.quantity === 1 ? removeItem(index) : updateQuantity(index, item.quantity - 1)}
+                          className="w-7 h-7 rounded-full bg-background flex items-center justify-center"
+                        >
+                          {item.quantity === 1 ? <Trash2 className="w-3 h-3 text-destructive" /> : <Minus className="w-3 h-3" />}
+                        </button>
+                        <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(index, item.quantity + 1)}
+                          className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -252,11 +293,15 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
             <span className="font-heading text-2xl text-primary">€{total.toFixed(2)}</span>
           </div>
 
-          {/* Checkout Button */}
+          {/* Checkout Button with safeguard */}
           {items.length > 0 && (
             <Button
-              className="w-full h-14 btn-glow text-lg"
+              className={cn(
+                "w-full h-14 text-lg",
+                checkoutReady ? "btn-glow" : "bg-primary/70"
+              )}
               onClick={() => setShowCheckout(true)}
+              disabled={!checkoutReady}
             >
               CHECKOUT
             </Button>
@@ -267,7 +312,14 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
       {/* Staff Product Customization Sheet */}
       <StaffProductSheet
         product={selectedProduct}
-        onClose={() => setSelectedProduct(null)}
+        onClose={handleCloseSheet}
+        editMode={editingItem !== null}
+        editIndex={editingItem?.index}
+        initialItem={editingItem ? {
+          quantity: editingItem.item.quantity,
+          selectedModifiers: editingItem.item.selectedModifiers,
+          removedIngredients: editingItem.item.removedIngredients,
+        } : undefined}
       />
 
       {/* Staff Checkout Modal */}
