@@ -1,193 +1,284 @@
 
-# Menu Customization Update: Fries Add-ons & Kids Burger Ingredients
+# Production Changes Plan: StreetEatz Web App
 
-## Overview
+## Summary
 
-This update adds two customization features:
-1. **Regular Fries (Handcut Chips)**: Enable a simplified "Customize Your Fries" section with paid sauce add-ons
-2. **Kids Burgers**: Add default removable ingredients (Lettuce, Onion, Pickles) that appear below the Kids "Make It Epic" section
-
----
-
-## Current State Analysis
-
-| Item | Category | Current Behavior |
-|------|----------|------------------|
-| Handcut Chips (€3.50) | Fries | No customization section shown (hidden by `showMakeItEpic` logic) |
-| Kids Cheeseburger (€6.00) | Kids Menu | Only shows Chips/Capri Sun add-ons, no ingredients |
-| Smash Burger Plain (€5.50) | Kids Menu | Only shows Chips/Capri Sun add-ons, no ingredients |
-
-**Existing Ingredient IDs in Database:**
-- Lettuce: `3571bc99-4db1-4f0f-adf6-c702383fdcf9`
-- Onions: `0eae9511-dd26-4be6-8d25-7ab991cb881f`
-- Pickles: `06abfb8a-4593-4d67-b571-dd5b007937e9`
-- Garlic Aioli: `a10056b1-645f-41b6-bf35-9ee69c2ceccb`
-- Cheese Sauce: `ab4ea416-d4f2-460a-8e57-6aadceecfe49`
+This plan addresses four key requirements:
+1. Remove Quick Access (OTP) login - enforce email/password only
+2. Add Edit Cart Item functionality for both Staff POS and Customer carts
+3. Update Handcut Chips price to €3.50 in "Make It Epic" section
+4. Quality and safety checks for cart, payments, and receipts
 
 ---
 
-## Implementation Plan
+## 1. Remove Quick Access Login (Critical)
 
-### 1. Database Migration
+### Current State
+The Auth.tsx page has a tabbed interface with two tabs:
+- "Sign In" (email/password) - Lines 375-520
+- "Quick Access" (OTP via email/phone) - Lines 522-576
 
-Insert the required `product_ingredients` records to link ingredients to products.
+There's also an OTP verification step (Lines 581-663) and profile completion step (Lines 666-734) that are only used by the Quick Access flow.
 
-**Kids Burgers - Default Removable Ingredients:**
-```sql
--- Kids Cheeseburger (39852f78-69d9-4d80-bd65-54ca2f2c1b31)
-INSERT INTO product_ingredients (product_id, ingredient_id, is_default, is_removable, is_addable)
-VALUES 
-  ('39852f78-69d9-4d80-bd65-54ca2f2c1b31', '3571bc99-4db1-4f0f-adf6-c702383fdcf9', true, true, false), -- Lettuce
-  ('39852f78-69d9-4d80-bd65-54ca2f2c1b31', '0eae9511-dd26-4be6-8d25-7ab991cb881f', true, true, false), -- Onions
-  ('39852f78-69d9-4d80-bd65-54ca2f2c1b31', '06abfb8a-4593-4d67-b571-dd5b007937e9', true, true, false); -- Pickles
+### Changes Required
 
--- Smash Burger Plain (c64610a8-2031-4b7d-abec-5dcbcca4cf6f)
-INSERT INTO product_ingredients (product_id, ingredient_id, is_default, is_removable, is_addable)
-VALUES 
-  ('c64610a8-2031-4b7d-abec-5dcbcca4cf6f', '3571bc99-4db1-4f0f-adf6-c702383fdcf9', true, true, false), -- Lettuce
-  ('c64610a8-2031-4b7d-abec-5dcbcca4cf6f', '0eae9511-dd26-4be6-8d25-7ab991cb881f', true, true, false), -- Onions
-  ('c64610a8-2031-4b7d-abec-5dcbcca4cf6f', '06abfb8a-4593-4d67-b571-dd5b007937e9', true, true, false); -- Pickles
+**File: `src/pages/Auth.tsx`**
 
--- Handcut Chips - Fries Add-ons (4ed71daf-5832-4f73-8690-dde2cd390e21)
--- These are NOT default ingredients, but ADDABLE extras with custom pricing
-INSERT INTO product_ingredients (product_id, ingredient_id, is_default, is_removable, is_addable)
-VALUES 
-  ('4ed71daf-5832-4f73-8690-dde2cd390e21', 'a10056b1-645f-41b6-bf35-9ee69c2ceccb', false, false, true), -- Garlic Aioli (add-on)
-  ('4ed71daf-5832-4f73-8690-dde2cd390e21', 'ab4ea416-d4f2-460a-8e57-6aadceecfe49', false, false, true); -- Cheese Sauce (add-on)
+| Change | Description |
+|--------|-------------|
+| Remove Tabs component | Replace tabbed UI with just the email/password form |
+| Remove Quick Access state | Delete `identifier`, `otpType`, `otp` state variables |
+| Remove OTP handlers | Delete `handleSendOtp`, `handleVerifyOtp`, `handleResendOtp` functions |
+| Remove OTP step | Delete the `step === 'otp'` conditional render block |
+| Simplify step type | Change from `'credentials' | 'otp' | 'profile' | 'success'` to `'credentials' | 'profile' | 'success'` |
+| Clean up imports | Remove `InputOTP`, `InputOTPGroup`, `InputOTPSlot`, `Zap` imports |
+
+The profile completion step remains for users who signed up without completing their profile (edge case from signup flow).
+
+### Code Flow After Change
+
+```text
+User visits /auth
+    ↓
+Shows email/password form (Sign In or Sign Up toggle)
+    ↓
+On successful sign in → Redirect based on role
+On successful sign up → "Check your email to confirm" message
 ```
 
-### 2. Update Pricing Rules
+---
 
-Add Garlic Aioli and Cheese Sauce to the pricing logic in `src/lib/pricingRules.ts`:
+## 2. Edit Cart Item Feature (High Priority)
+
+### Current State
+Both cart stores (`cartStore.ts` and `staffCartStore.ts`) support:
+- `addItem` - Add new item
+- `removeItem` - Remove by index
+- `updateQuantity` - Change quantity only
+- `clearCart` - Clear all items
+
+**Missing:** No way to edit modifiers, extras, or removed ingredients on an existing cart item.
+
+### Solution Architecture
+
+Add an `updateItem` function to both stores that replaces an item at a given index with new customizations.
+
+**Flow:**
+
+```text
+User clicks "Edit" on cart item
+    ↓
+Opens ProductSheet/StaffProductSheet with existing item data pre-populated
+    ↓
+User modifies options (extras, removals, quantity)
+    ↓
+On "Update Order" → replaces item at index with new configuration
+    ↓
+Price recalculates automatically
+```
+
+### Changes Required
+
+**File: `src/stores/cartStore.ts`**
+
+Add new `updateItem` function:
+```typescript
+updateItem: async (index: number, product: Product, quantity: number, modifiers: SelectedModifier[], removedIngredients: RemovedIngredient[]) => Promise<void>;
+```
+
+This function will:
+1. Calculate new total price
+2. For authenticated users: Update the `cart_items` record in Supabase
+3. For guest users: Update localStorage
+4. Update local state
+
+**File: `src/stores/staffCartStore.ts`**
+
+Add synchronous `updateItem` function (staff cart is localStorage-only):
+```typescript
+updateItem: (index: number, product: Product, quantity: number, modifiers: SelectedModifier[], removedIngredients: RemovedIngredient[]) => void;
+```
+
+**File: `src/components/customer/ProductSheet.tsx`**
+
+Add edit mode support:
+- New optional props: `editMode?: boolean`, `editIndex?: number`, `initialItem?: CartItem`
+- When in edit mode, pre-populate all fields from `initialItem`
+- Change button text from "ADD TO ORDER" to "UPDATE ORDER"
+- On submit, call `updateItem(editIndex, ...)` instead of `addItem(...)`
+
+**File: `src/pages/Cart.tsx`**
+
+Add Edit button to each cart item:
+- New state: `editingItem: { index: number, item: CartItem } | null`
+- Render ProductSheet when `editingItem` is set
+- Pass edit mode props to ProductSheet
+
+**File: `src/components/staff/StaffProductSheet.tsx`**
+
+Same changes as ProductSheet - add edit mode support.
+
+**File: `src/components/staff/StaffPOSContent.tsx`**
+
+Add Edit button next to each cart item:
+- New state for editing
+- Open StaffProductSheet in edit mode when clicked
+
+### Cart Item UI Enhancement
+
+Each cart item will show:
+```text
+┌─────────────────────────────────────────┐
+│ [Image] Smash Burger         €12.50    │
+│         + Extra Cheese (+€1.00)        │
+│         - No Onions                     │
+│         Qty: 2                          │
+│ [Edit]  [−] 2 [+]              [🗑️]    │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## 3. Menu Price Update: Handcut Chips to €3.50
+
+### Current State
+
+The price €3.00 appears in two places:
+
+1. **Database `modifiers` table:**
+   - Record ID: `63eeede4-8f64-46a2-97e1-94b90e0fe4d7`
+   - Name: "Handcut Chips"
+   - Price: €3.00
+
+2. **Frontend constant arrays:**
+   - `src/components/customer/ProductSheet.tsx` line 59
+   - `src/components/staff/StaffProductSheet.tsx` line 48
+
+Both have:
+```typescript
+const STANDALONE_ADDONS = [
+  // ...
+  { id: 'handcut-chips', name: 'Handcut Chips', price: 3.00 },
+];
+```
+
+### Changes Required
+
+**Database Migration:**
+```sql
+UPDATE modifiers 
+SET price_adjustment = 3.50 
+WHERE id = '63eeede4-8f64-46a2-97e1-94b90e0fe4d7';
+```
+
+**File: `src/components/customer/ProductSheet.tsx`**
+```typescript
+// Line 59: Change price from 3.00 to 3.50
+{ id: 'handcut-chips', name: 'Handcut Chips', price: 3.50 },
+```
+
+**File: `src/components/staff/StaffProductSheet.tsx`**
+```typescript
+// Line 48: Change price from 3.00 to 3.50
+{ id: 'handcut-chips', name: 'Handcut Chips', price: 3.50 },
+```
+
+### Price Flow Verification
+
+The €3.50 price will flow through:
+1. **Cart display:** Uses `item.selectedModifiers` which stores the `price_adjustment`
+2. **Order totals:** Calculated from `selectedModifiers.reduce((sum, m) => sum + m.price_adjustment, 0)`
+3. **Database orders:** The `selected_modifiers` JSONB column stores the full modifier objects including prices
+4. **Kitchen Display:** Reads from `order_items.selected_modifiers`
+5. **Receipts:** Built from the same order data
+
+---
+
+## 4. Quality & Safety Checks
+
+### Already Implemented ✓
+
+After reviewing the codebase:
+
+| Check | Status | Location |
+|-------|--------|----------|
+| Cart shows base item | ✓ | Cart.tsx lines 156-183 |
+| Cart shows modifiers | ✓ | Green/red badges for +/- items |
+| Cart shows item total | ✓ | `item.totalPrice.toFixed(2)` |
+| Payment matches cart | ✓ | Checkout modals use `getTotal()` |
+| No SMS/Twilio for orders | ✓ | Orders use database + Viva Wallet |
+
+### Additional Safeguards to Add
+
+**Staff POS Checkout Protection:**
+
+Add a confirmation step or delay before the checkout button becomes active to prevent accidental taps during busy service.
+
+**File: `src/components/staff/StaffPOSContent.tsx`**
+
+The checkout button currently has no safeguard. Add a 300ms touch delay:
 
 ```typescript
-// Add new sauce keywords with €1.00 pricing
-sauceKeywords: ['aioli', 'cheese sauce'],
-saucePrice: 1.00,
+// Add state
+const [checkoutReady, setCheckoutReady] = useState(true);
+
+// Reset when items change
+useEffect(() => {
+  if (items.length > 0) {
+    setCheckoutReady(false);
+    const timer = setTimeout(() => setCheckoutReady(true), 300);
+    return () => clearTimeout(timer);
+  }
+}, [items.length]);
 ```
 
-Update the `getExtraPrice()` function to check for sauces.
-
-### 3. Update ProductSheet.tsx (Customer UI)
-
-**Changes Required:**
-
-1. **Add "Customize Your Fries" section for Regular Fries:**
-   - Create a new conditional block for `category === 'Fries'` products that have addable ingredients
-   - Display addable ingredients (Garlic Aioli, Cheese Sauce) as checkboxes with +€1.00 pricing
-   - Use a simpler header: "Customize Your Fries" instead of "Make It Epic"
-
-2. **Show Ingredients section for Kids Menu:**
-   - Currently, the ingredients section is shown for all products with `hasIngredients`
-   - This will automatically work once the database records are inserted
-   - The ingredients will appear BELOW the Kids "Make It Epic" section
-
-**UI Flow for Fries:**
-```text
-┌────────────────────────────────────┐
-│  HANDCUT CHIPS - €3.50             │
-│  ─────────────────────────────────  │
-│  🍟 Customize Your Fries           │
-│  ─────────────────────────────────  │
-│  ☐ Garlic Aioli         +€1.00    │
-│  ☐ Cheese Sauce         +€1.00    │
-│  ─────────────────────────────────  │
-│  [  ADD TO ORDER · €3.50  ]        │
-└────────────────────────────────────┘
-```
-
-**UI Flow for Kids Burger:**
-```text
-┌────────────────────────────────────┐
-│  KIDS CHEESEBURGER - €6.00         │
-│  ─────────────────────────────────  │
-│  🔥 Make It Epic                   │
-│  ☐ Add Chips           +€2.00     │
-│  ☐ Capri Sun           +€1.50     │
-│  ─────────────────────────────────  │
-│  Customize Your Order              │
-│  [Lettuce         ][−]            │
-│  [Onions          ][−]            │
-│  [Pickles         ][−]            │
-│  ─────────────────────────────────  │
-│  [  ADD TO ORDER · €6.00  ]        │
-└────────────────────────────────────┘
-```
-
-### 4. Update StaffProductSheet.tsx (Staff POS UI)
-
-Apply the same logic changes for consistency:
-- Enable "Customize Your Fries" for Fries category
-- Add Kids Menu to category images
-- Show ingredients for Kids Menu items
-
-### 5. Allergen Updates
-
-The allergen numbers for the add-on sauces need to be documented for staff reference:
-- **Garlic Aioli**: Contains Eggs (3) - allergen number 3
-- **Cheese Sauce**: Contains Milk (7), possibly Gluten (1) depending on recipe
-
-*Note: These are add-ons, not products, so they don't have their own product_allergens records. Consider adding a tooltip or note when selected.*
+This prevents accidental double-taps when adding the last item before checkout.
 
 ---
 
-## Files to Modify
+## File Modification Summary
 
 | File | Changes |
 |------|---------|
-| `src/lib/pricingRules.ts` | Add sauce keywords with €1.00 pricing |
-| `src/components/customer/ProductSheet.tsx` | Add Fries customization section, ensure Kids Menu shows ingredients |
-| `src/components/staff/StaffProductSheet.tsx` | Mirror changes for Staff POS consistency |
+| `src/pages/Auth.tsx` | Remove Quick Access tab and OTP flow |
+| `src/stores/cartStore.ts` | Add `updateItem` function |
+| `src/stores/staffCartStore.ts` | Add `updateItem` function |
+| `src/components/customer/ProductSheet.tsx` | Add edit mode, update Handcut Chips to €3.50 |
+| `src/pages/Cart.tsx` | Add Edit button and editing state |
+| `src/components/staff/StaffProductSheet.tsx` | Add edit mode, update Handcut Chips to €3.50 |
+| `src/components/staff/StaffPOSContent.tsx` | Add Edit button and checkout safeguard |
 
 **Database Migration:**
-- Insert 8 new `product_ingredients` records
+- Update `modifiers` table: Handcut Chips price to €3.50
 
 ---
 
-## Cart Display Logic
+## Implementation Order
 
-When a user removes an ingredient, the cart will show:
-- "No Lettuce", "No Onions", "No Pickles" (in red)
-
-When a user adds a fries add-on, the cart will show:
-- "+ Garlic Aioli (+€1.00)" (in green)
-
-This information will be passed to the Kitchen Display System for accurate order preparation.
+1. **Auth changes** - Remove Quick Access (least dependencies)
+2. **Price update** - Database + constants (simple, isolated change)
+3. **Cart stores** - Add `updateItem` functions
+4. **Cart UI** - Add Edit buttons and edit mode
+5. **Safety checks** - Add checkout delay
 
 ---
 
-## Technical Details
+## Testing Checklist
 
-### Ingredient State Flow for Kids Burgers
+After implementation, verify:
 
-```text
-1. User opens Kids Cheeseburger sheet
-2. useProductIngredients(productId) fetches Lettuce, Onions, Pickles
-3. ingredientStates initialized: { lettuce: 'included', onions: 'included', pickles: 'included' }
-4. User toggles OFF "Onions" → ingredientStates: { ..., onions: 'removed' }
-5. On "Add to Order":
-   - getRemovedIngredients() returns [{ id: '...', name: 'Onions' }]
-   - Cart displays: "No Onions"
-```
-
-### Fries Add-on Flow
-
-```text
-1. User opens Handcut Chips sheet
-2. useProductIngredients(productId) fetches Garlic Aioli (is_addable: true), Cheese Sauce (is_addable: true)
-3. New "Customize Your Fries" section displays addable ingredients as checkboxes
-4. User checks "Garlic Aioli" → ingredientStates: { aioli: 'extra' }
-5. On "Add to Order":
-   - getExtraIngredients() returns [{ id: '...', name: 'Extra Garlic Aioli', price_adjustment: 1.00 }]
-   - Total: €3.50 + €1.00 = €4.50
-```
-
----
-
-## Expected Outcome
-
-After implementation:
-- **Handcut Chips** will have a "Customize Your Fries" section with Garlic Aioli (+€1.00) and Cheese Sauce (+€1.00) as selectable add-ons
-- **Kids Cheeseburger** and **Smash Burger Plain** will display Lettuce, Onions, and Pickles as default ON ingredients that can be toggled OFF
-- Kitchen orders will correctly show "No Onion", "No Pickles", etc. for removed items
-- All pricing calculations will update dynamically in the cart
+- [ ] Quick Access tab is gone from /auth
+- [ ] Email/password login works for customers
+- [ ] Email/password login works for staff (redirects to /admin/pos)
+- [ ] Sessions persist after login
+- [ ] Sign up flow still works (with email confirmation)
+- [ ] Customer cart: Edit button appears on each item
+- [ ] Customer cart: Editing updates modifiers and recalculates price
+- [ ] Staff POS cart: Edit button appears on each item
+- [ ] Staff POS cart: Editing updates modifiers and recalculates price
+- [ ] Edited items display correctly in order summary
+- [ ] Edited items appear correctly on KDS
+- [ ] Handcut Chips shows €3.50 in Make It Epic section
+- [ ] Adding Handcut Chips to cart adds €3.50 to total
+- [ ] Staff checkout has brief delay before becoming active
+- [ ] Payment total always matches cart total
