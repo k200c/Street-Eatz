@@ -30,6 +30,14 @@ const categoryImages: Record<string, string> = {
 interface StaffProductSheetProps {
   product: Product | null;
   onClose: () => void;
+  // Edit mode props
+  editMode?: boolean;
+  editIndex?: number;
+  initialItem?: {
+    quantity: number;
+    selectedModifiers: SelectedModifier[];
+    removedIngredients: RemovedIngredient[];
+  };
 }
 
 // Track ingredient customization state
@@ -45,7 +53,7 @@ const STANDALONE_ADDONS = [
   { id: 'extra-chicken', name: 'Extra Chicken', price: 2.00 },
   { id: 'cheese', name: 'Cheese', price: 1.00 },
   { id: 'smoked-applewood', name: 'Smoked Applewood Cheese', price: 1.50 },
-  { id: 'handcut-chips', name: 'Handcut Chips', price: 3.00 },
+  { id: 'handcut-chips', name: 'Handcut Chips', price: 3.50 },
 ];
 
 // Kids Menu specific add-ons
@@ -54,7 +62,13 @@ const KIDS_MENU_ADDONS = [
   { id: 'capri-sun', name: 'Capri Sun', price: 1.50 },
 ];
 
-export function StaffProductSheet({ product, onClose }: StaffProductSheetProps) {
+export function StaffProductSheet({ 
+  product, 
+  onClose,
+  editMode = false,
+  editIndex,
+  initialItem 
+}: StaffProductSheetProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([]);
   const [ingredientStates, setIngredientStates] = useState<Record<string, IngredientState>>({});
@@ -64,6 +78,7 @@ export function StaffProductSheet({ product, onClose }: StaffProductSheetProps) 
   const [selectedSauce, setSelectedSauce] = useState<string | null>(null);
   
   const addItem = useStaffCartStore((state) => state.addItem);
+  const updateItem = useStaffCartStore((state) => state.updateItem);
   
   // Fetch ingredients and modifiers for this product
   const { data: ingredients } = useProductIngredients(product?.id);
@@ -74,26 +89,86 @@ export function StaffProductSheet({ product, onClose }: StaffProductSheetProps) 
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
 
-  // Reset state when product changes
+  // Reset state when product changes or initialize for edit mode
   useEffect(() => {
     if (product) {
-      setQuantity(1);
-      setSelectedModifiers([]);
-      setStandaloneAddons(new Set());
-      setSelectedLoadedFries(null);
-      setSelectedDrink(null);
-      setSelectedSauce(null);
-      // Initialize all default ingredients as 'included'
-      // For addable-only ingredients (like fries add-ons), don't set initial state
-      const initialStates: Record<string, IngredientState> = {};
-      ingredients?.forEach((ing) => {
-        if (ing.is_default) {
-          initialStates[ing.id] = 'included';
-        }
-      });
-      setIngredientStates(initialStates);
+      if (editMode && initialItem) {
+        // Edit mode: pre-populate from existing item
+        setQuantity(initialItem.quantity);
+        
+        // Extract standalone addons from modifiers
+        const addonIds = new Set<string>();
+        let loadedFries: string | null = null;
+        let drink: string | null = null;
+        let sauce: string | null = null;
+        const otherMods: SelectedModifier[] = [];
+        
+        initialItem.selectedModifiers.forEach(mod => {
+          const isStandaloneAddon = [...STANDALONE_ADDONS, ...KIDS_MENU_ADDONS].some(a => a.id === mod.id || a.name === mod.name);
+          if (isStandaloneAddon) {
+            addonIds.add(mod.id);
+          } else if (mod.modifier_type === 'loaded_fries_small') {
+            loadedFries = mod.id;
+          } else if (mod.modifier_type === 'drink') {
+            drink = mod.id;
+          } else if (mod.modifier_type === 'sauce') {
+            sauce = mod.id;
+          } else {
+            otherMods.push(mod);
+          }
+        });
+        
+        setStandaloneAddons(addonIds);
+        setSelectedLoadedFries(loadedFries);
+        setSelectedDrink(drink);
+        setSelectedSauce(sauce);
+        setSelectedModifiers(otherMods);
+        
+        // Set ingredient states from removed ingredients and extras
+        const ingStates: Record<string, IngredientState> = {};
+        ingredients?.forEach((ing) => {
+          if (ing.is_default) {
+            ingStates[ing.id] = 'included';
+          }
+        });
+        
+        initialItem.removedIngredients.forEach(ri => {
+          const found = ingredients?.find(ing => ing.id === ri.id || ing.name === ri.name);
+          if (found) {
+            ingStates[found.id] = 'removed';
+          }
+        });
+        
+        initialItem.selectedModifiers.forEach(mod => {
+          if (mod.modifier_type === 'extra') {
+            const found = ingredients?.find(ing => 
+              mod.name.includes(ing.name) || ing.id === mod.id
+            );
+            if (found) {
+              ingStates[found.id] = 'extra';
+            }
+          }
+        });
+        
+        setIngredientStates(ingStates);
+      } else {
+        // Normal mode: reset all
+        setQuantity(1);
+        setSelectedModifiers([]);
+        setStandaloneAddons(new Set());
+        setSelectedLoadedFries(null);
+        setSelectedDrink(null);
+        setSelectedSauce(null);
+        const initStates: Record<string, IngredientState> = {};
+        ingredients?.forEach((ing) => {
+          if (ing.is_default) {
+            initStates[ing.id] = 'included';
+          }
+        });
+        setIngredientStates(initStates);
+      }
     }
-  }, [product?.id, ingredients]);
+  }, [product?.id, ingredients, editMode, initialItem]);
 
   if (!product) return null;
 
@@ -235,11 +310,19 @@ export function StaffProductSheet({ product, onClose }: StaffProductSheetProps) 
     const removedIngredients = getRemovedIngredients();
     const allModifiers = buildAllModifiers();
     
-    addItem(product, quantity, allModifiers, removedIngredients);
-    toast.success('Added to Order', {
-      description: `${quantity}x ${product.name} added`,
-      duration: 1500,
-    });
+    if (editMode && editIndex !== undefined) {
+      updateItem(editIndex, product, quantity, allModifiers, removedIngredients);
+      toast.success('Updated Order', {
+        description: `${product.name} updated`,
+        duration: 1500,
+      });
+    } else {
+      addItem(product, quantity, allModifiers, removedIngredients);
+      toast.success('Added to Order', {
+        description: `${quantity}x ${product.name} added`,
+        duration: 1500,
+      });
+    }
     onClose();
   };
 
@@ -603,7 +686,7 @@ export function StaffProductSheet({ product, onClose }: StaffProductSheetProps) 
             className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl"
             onClick={handleAddToOrder}
           >
-            SAVE TO ORDER · €{totalPrice.toFixed(2)}
+            {editMode ? 'UPDATE ORDER' : 'SAVE TO ORDER'} · €{totalPrice.toFixed(2)}
           </Button>
         </div>
       </SheetContent>

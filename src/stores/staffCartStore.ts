@@ -8,6 +8,7 @@ import { CartItem, Product, SelectedModifier, RemovedIngredient } from '@/types/
 interface StaffCartStore {
   items: CartItem[];
   addItem: (product: Product, quantity: number, modifiers: SelectedModifier[], removedIngredients: RemovedIngredient[]) => void;
+  updateItem: (index: number, product: Product, quantity: number, modifiers: SelectedModifier[], removedIngredients: RemovedIngredient[]) => void;
   removeItem: (index: number) => void;
   updateQuantity: (index: number, quantity: number) => void;
   clearCart: () => void;
@@ -56,6 +57,25 @@ export const useStaffCartStore = create<StaffCartStore>()((set, get) => ({
 
     set((state) => {
       const newItems = [...state.items, newItem];
+      saveStaffCart(newItems);
+      return { items: newItems };
+    });
+  },
+
+  updateItem: (index, product, quantity, modifiers, removedIngredients) => {
+    const modifiersTotal = modifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+    const totalPrice = (product.price + modifiersTotal) * quantity;
+
+    const updatedItem: CartItem = {
+      product,
+      quantity,
+      selectedModifiers: modifiers,
+      removedIngredients,
+      totalPrice,
+    };
+
+    set((state) => {
+      const newItems = state.items.map((item, i) => i === index ? updatedItem : item);
       saveStaffCart(newItems);
       return { items: newItems };
     });

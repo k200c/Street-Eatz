@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { CartItem, Product, SelectedModifier, RemovedIngredient } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -19,6 +18,7 @@ interface CartStore {
   userId: string | null;
   isLoading: boolean;
   addItem: (product: Product, quantity: number, modifiers: SelectedModifier[], removedIngredients: RemovedIngredient[]) => Promise<void>;
+  updateItem: (index: number, product: Product, quantity: number, modifiers: SelectedModifier[], removedIngredients: RemovedIngredient[]) => Promise<void>;
   removeItem: (index: number) => Promise<void>;
   updateQuantity: (index: number, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -208,6 +208,56 @@ export const useCartStore = create<CartStore>()((set, get) => ({
         return { items: newItems };
       });
     }
+  },
+
+  updateItem: async (index, product, quantity, modifiers, removedIngredients) => {
+    const { userId, items } = get();
+    const existingItem = items[index];
+    
+    if (!existingItem) return;
+
+    const modifiersTotal = modifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+    const totalPrice = (product.price + modifiersTotal) * quantity;
+
+    const updatedItem: CartItem = {
+      product,
+      quantity,
+      selectedModifiers: modifiers,
+      removedIngredients,
+      totalPrice,
+      dbId: existingItem.dbId,
+    };
+
+    if (userId && existingItem.dbId) {
+      // Update in Supabase for authenticated users
+      try {
+        const { error } = await supabase
+          .from('cart_items')
+          .update({
+            product_id: product.id,
+            quantity,
+            selected_modifiers: modifiers as any,
+            removed_ingredients: removedIngredients as any,
+          })
+          .eq('id', existingItem.dbId);
+
+        if (error) {
+          console.error('Failed to update cart item:', error);
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to update item:', e);
+        return;
+      }
+    }
+
+    set((state) => {
+      const newItems = state.items.map((item, i) => i === index ? updatedItem : item);
+      if (!userId) {
+        saveGuestCart(newItems);
+      }
+      return { items: newItems };
+    });
   },
 
   removeItem: async (index) => {

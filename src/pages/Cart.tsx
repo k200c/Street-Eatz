@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useCartStore } from '@/stores/cartStore';
 import { Button } from '@/components/ui/button';
-import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, AlertTriangle, Edit2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
 import { CustomerCheckoutModal } from '@/components/checkout/CustomerCheckoutModal';
 import { OrderSuccessModal } from '@/components/checkout/OrderSuccessModal';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
 import { useValidateCartItems } from '@/hooks/useProducts';
+import { useProductModifiers } from '@/hooks/useProductModifiers';
+import { useProductIngredients } from '@/hooks/useProductIngredients';
+import { ProductSheet } from '@/components/customer/ProductSheet';
+import { CartItem } from '@/types/database';
 import { toast } from 'sonner';
 
 import heroBurger from '@/assets/hero-burger.jpg';
@@ -31,8 +35,15 @@ export default function Cart() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState<number>(0);
+  
+  // Edit item state
+  const [editingItem, setEditingItem] = useState<{ index: number; item: CartItem } | null>(null);
 
   const { isStoreOpen, devModeEnabled } = useStoreStatus();
+  
+  // Fetch modifiers and ingredients for the product being edited
+  const { data: editModifierGroups } = useProductModifiers(editingItem?.item.product.id);
+  const { data: editIngredients } = useProductIngredients(editingItem?.item.product.id);
 
   // Auto-open checkout if returning from payment error
   useEffect(() => {
@@ -89,6 +100,10 @@ export default function Cart() {
   const handleSuccessContinue = () => {
     setShowSuccess(false);
     navigate('/');
+  };
+
+  const handleEditItem = (index: number, item: CartItem) => {
+    setEditingItem({ index, item });
   };
 
   if (items.length === 0) {
@@ -154,9 +169,19 @@ export default function Cart() {
                   className="w-20 h-20 rounded-lg object-cover"
                 />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-heading text-base text-foreground">
-                    {item.product.name}
-                  </h3>
+                  <div className="flex items-start justify-between">
+                    <h3 className="font-heading text-base text-foreground">
+                      {item.product.name}
+                    </h3>
+                    {/* Edit Button */}
+                    <button
+                      onClick={() => handleEditItem(index, item)}
+                      className="p-1.5 rounded bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors"
+                      title="Edit item"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   
                   {/* Customizations - Clear Summary */}
                   {(hasRemovedIngredients || hasExtras) && (
@@ -259,6 +284,23 @@ export default function Cart() {
             </Button>
           </div>
         </div>
+
+        {/* Edit Item ProductSheet */}
+        {editingItem && (
+          <ProductSheet
+            product={editingItem.item.product}
+            modifierGroups={editModifierGroups}
+            ingredients={editIngredients}
+            onClose={() => setEditingItem(null)}
+            editMode={true}
+            editIndex={editingItem.index}
+            initialItem={{
+              quantity: editingItem.item.quantity,
+              selectedModifiers: editingItem.item.selectedModifiers,
+              removedIngredients: editingItem.item.removedIngredients,
+            }}
+          />
+        )}
 
         {/* Checkout Modal */}
         <CustomerCheckoutModal
