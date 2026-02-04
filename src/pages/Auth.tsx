@@ -58,25 +58,22 @@ export default function Auth() {
     }
   }, [user, step, fullName, phone]);
 
-  // Redirect based on role once authenticated and profile is loaded
+  // Redirect based on role once authenticated - NO profile gating
   useEffect(() => {
     if (loading || profileLoading) return;
     
     if (user) {
-      // Check if profile needs completion (edge case from OTP or incomplete signup)
-      if (!profile?.full_name || !profile?.phone) {
-        setStep('profile');
-        return;
-      }
+      // REMOVED: Profile completion check - never block app access
+      // Users can complete profile later via Settings or at checkout
       
-      // Redirect based on role
+      // Redirect based on role immediately
       if (role === 'admin') {
         navigate('/admin/pos', { replace: true });
       } else {
         navigate(from, { replace: true });
       }
     }
-  }, [user, role, loading, profileLoading, profile, navigate, from]);
+  }, [user, role, loading, profileLoading, navigate, from]);
 
   // Handle Email/Password Sign In
   const handleSignIn = async (e: React.FormEvent) => {
@@ -153,7 +150,17 @@ export default function Auth() {
     }
   };
 
-  // Handle Profile Completion
+  // Handle skip profile - navigate without saving
+  const handleSkipProfile = () => {
+    toast.info('You can complete your profile later in Settings');
+    if (role === 'admin') {
+      navigate('/admin/pos', { replace: true });
+    } else {
+      navigate(from, { replace: true });
+    }
+  };
+
+  // Handle Profile Completion with timeout protection
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -162,16 +169,33 @@ export default function Auth() {
       const validation = profileSchema.safeParse({ fullName, phone });
       if (!validation.success) {
         toast.error(validation.error.errors[0].message);
-        setSubmitting(false);
-        return;
+        return; // finally will still run
       }
 
-      const { error } = await updateProfile({
+      // Add 10-second timeout to prevent infinite spinner
+      const savePromise = updateProfile({
         full_name: fullName.trim(),
         phone: phone.trim(),
       });
+      
+      const timeoutPromise = new Promise<{ error: Error }>((resolve) =>
+        setTimeout(() => resolve({ error: new Error('Save timed out') }), 10000)
+      );
 
-      if (error) throw error;
+      const { error } = await Promise.race([savePromise, timeoutPromise]);
+
+      if (error) {
+        toast.error(error.message || 'Failed to update profile. You can try again in Settings.');
+        // Still navigate - don't block the user
+        setTimeout(() => {
+          if (role === 'admin') {
+            navigate('/admin/pos', { replace: true });
+          } else {
+            navigate(from, { replace: true });
+          }
+        }, 1500);
+        return;
+      }
 
       setStep('success');
       toast.success('Profile complete!');
@@ -185,8 +209,17 @@ export default function Auth() {
         }
       }, 1500);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update profile');
+      toast.error('Failed to update profile. You can try again later.');
+      // Navigate anyway after error
+      setTimeout(() => {
+        if (role === 'admin') {
+          navigate('/admin/pos', { replace: true });
+        } else {
+          navigate(from, { replace: true });
+        }
+      }, 1500);
     } finally {
+      // CRITICAL: Always clear loading state
       setSubmitting(false);
     }
   };
@@ -430,6 +463,15 @@ export default function Auth() {
                         </>
                       )}
                     </Button>
+
+                    <button
+                      type="button"
+                      onClick={handleSkipProfile}
+                      className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors mt-2"
+                      disabled={submitting}
+                    >
+                      Skip for now
+                    </button>
                   </form>
                 </motion.div>
               )}

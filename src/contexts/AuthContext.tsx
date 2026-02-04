@@ -82,9 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, profileLoading: true }));
     
     try {
-      // Race against a 8-second timeout to prevent profileLoading from hanging
+      // Race against a 5-second timeout to prevent profileLoading from hanging
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 8000)
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
       );
       
       const dataPromise = Promise.all([
