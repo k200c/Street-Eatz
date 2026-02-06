@@ -1,156 +1,126 @@
 
-# iOS Safe Area + Header Offset System Implementation
+
+# Create 'get-wait-time' Edge Function and Update Wait Time Options
 
 ## Overview
 
-Implement a centralized header offset system using CSS custom properties to ensure the hamburger menu is always visible and tappable on iOS devices with notches, while maintaining consistent spacing across all pages.
+Create a new public Edge Function for n8n integration that returns the current wait time, and update the Command Center wait time options to match the requested values.
 
 ---
 
-## Global CSS Variables
+## Part 1: Create Edge Function
 
-**File: `src/index.css`** (lines 12-73 in `:root`)
+### File: `supabase/functions/get-wait-time/index.ts`
 
-Add header offset system variables to the existing `:root` block:
+Create a new Edge Function that:
+- Queries `app_settings` table for `current_wait_time`
+- Returns JSON response: `{ "wait_time": "20 mins" }`
+- Uses `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS
+- Supports both GET and POST requests for flexibility
+- Has CORS headers for external access
 
-```css
-:root {
-  /* ... existing variables ... */
-  
-  /* Header offset system - iOS safe area support */
-  --nav-height: 64px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-  --header-offset: calc(var(--nav-height) + var(--safe-top));
-}
-```
+```typescript
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-This becomes the single source of truth for header spacing across the entire app.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
----
+Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
 
-## Navbar Changes
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-**File: `src/components/layout/Navbar.tsx`**
+    console.log('[get-wait-time] Fetching current wait time');
 
-### Change 1: Apply Safe Area Padding to Nav Element
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('current_wait_time')
+      .eq('id', 1)
+      .single();
 
-Update line 70 to include safe-area padding for top, left, and right edges:
+    if (error) {
+      console.error('[get-wait-time] Database error:', error);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to fetch wait time' }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
 
-**Before:**
-```tsx
-<nav className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/5">
-```
+    const waitTime = data?.current_wait_time || '20 mins';
+    console.log('[get-wait-time] Returning wait time:', waitTime);
 
-**After:**
-```tsx
-<nav 
-  className="fixed top-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-sm border-b border-white/5"
-  style={{
-    paddingTop: 'var(--safe-top)',
-    paddingLeft: 'env(safe-area-inset-left, 0px)',
-    paddingRight: 'env(safe-area-inset-right, 0px)',
-  }}
->
-```
+    return new Response(
+      JSON.stringify({
+        success: true,
+        wait_time: waitTime
+      }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
 
-### Change 2: Update Mobile Menu Overlay
-
-Update line 202-203 to use proper positioning and height:
-
-**Before:**
-```tsx
-<div 
-  className="fixed inset-0 top-16 z-50 md:hidden bg-black/95 backdrop-blur-lg animate-fade-in overflow-y-auto"
-```
-
-**After:**
-```tsx
-<div 
-  className="fixed inset-x-0 z-50 md:hidden bg-black/95 backdrop-blur-lg animate-fade-in overflow-y-auto"
-  style={{
-    top: 'var(--header-offset)',
-    height: 'calc(100dvh - var(--header-offset))',
-  }}
-```
-
----
-
-## Page Updates
-
-### Menu.tsx (line 9)
-
-**Before:**
-```tsx
-<div className="min-h-screen pt-16 pb-24 flex flex-col">
-```
-
-**After:**
-```tsx
-<div className="min-h-screen pt-[var(--header-offset)] pb-24 flex flex-col">
+  } catch (error) {
+    console.error('[get-wait-time] Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    return new Response(
+      JSON.stringify({ success: false, error: errorMessage }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+});
 ```
 
 ---
 
-### Cart.tsx (lines 113 and 130)
+## Part 2: Configure Edge Function
 
-**Line 113 - Empty cart state:**
+### File: `supabase/config.toml`
 
-**Before:**
-```tsx
-<div className="pt-20 px-4 flex flex-col items-center justify-center min-h-[60vh]">
-```
+Add configuration to disable JWT verification (allows n8n to call without auth):
 
-**After:**
-```tsx
-<div className="pt-[var(--header-offset)] px-4 flex flex-col items-center justify-center min-h-[60vh]">
-```
-
-**Line 130 - Cart with items:**
-
-**Before:**
-```tsx
-<div className="pt-20 px-4 max-w-lg mx-auto pb-40">
-```
-
-**After:**
-```tsx
-<div className="pt-[var(--header-offset)] px-4 max-w-lg mx-auto pb-40">
+```toml
+[functions.get-wait-time]
+verify_jwt = false
 ```
 
 ---
 
-### Details.tsx (line 44)
+## Part 3: Update Wait Time Options
 
-**Before:**
-```tsx
-<div className="min-h-screen bg-background pb-24 pt-20">
+### File: `src/pages/CommandCenter.tsx`
+
+Update line 25 to match the requested options:
+
+**Current:**
+```typescript
+const waitTimeOptions = ['15 mins', '20 mins', '30 mins', '45 mins', '1 hour'];
 ```
 
-**After:**
-```tsx
-<div className="min-h-screen bg-background pb-24 pt-[var(--header-offset)]">
+**Updated:**
+```typescript
+const waitTimeOptions = ['10 mins', '20 mins', '30 mins', '45 mins', '60 mins'];
 ```
 
----
-
-### HeroSection.tsx (line 15)
-
-Add scroll margin for anchor link support:
-
-**Before:**
-```tsx
-<section className="min-h-[50vh] sm:min-h-[70vh] md:min-h-screen flex flex-col items-center justify-center text-center px-4 pt-12 sm:pt-16 pb-12 sm:pb-20 relative overflow-hidden">
-```
-
-**After:**
-```tsx
-<section 
-  className="min-h-[50vh] sm:min-h-[70vh] md:min-h-screen flex flex-col items-center justify-center text-center px-4 pt-12 sm:pt-16 pb-12 sm:pb-20 relative overflow-hidden"
-  style={{ scrollMarginTop: 'var(--header-offset)' }}
->
-```
+This changes:
+- `'15 mins'` to `'10 mins'` 
+- `'1 hour'` to `'60 mins'` (consistent format)
 
 ---
 
@@ -158,77 +128,70 @@ Add scroll margin for anchor link support:
 
 | File | Change |
 |------|--------|
-| `src/index.css` | Add `--nav-height`, `--safe-top`, `--safe-left`, `--safe-right`, `--header-offset` variables |
-| `src/components/layout/Navbar.tsx` | Apply safe-area padding (top + left + right), update mobile menu overlay positioning |
-| `src/pages/Menu.tsx` | Replace `pt-16` with `pt-[var(--header-offset)]` |
-| `src/pages/Cart.tsx` | Replace `pt-20` with `pt-[var(--header-offset)]` (2 locations) |
-| `src/pages/Details.tsx` | Replace `pt-20` with `pt-[var(--header-offset)]` |
-| `src/components/customer/HeroSection.tsx` | Add `scrollMarginTop: var(--header-offset)` style |
+| `supabase/functions/get-wait-time/index.ts` | **NEW** - Edge function to return current wait time |
+| `supabase/config.toml` | Add `[functions.get-wait-time]` with `verify_jwt = false` |
+| `src/pages/CommandCenter.tsx` | Update `waitTimeOptions` array to match requirements |
 
 ---
 
-## Why This Works
+## API Response Format
 
-```text
-BEFORE (iPhone with notch):
-┌──────────────────────────────────────────────┐
-│████ NOTCH AREA ████│ [hamburger blocked!]    │
-├──────────────────────────────────────────────┤
-│       [LOGO]              [Cart]             │
-└──────────────────────────────────────────────┘
-
-AFTER (with CSS variables):
-┌──────────────────────────────────────────────┐
-│████ NOTCH AREA ████│                         │  ← var(--safe-top) padding
-├──────────────────────────────────────────────┤
-│  [LOGO]              [Cart] [☰ Hamburger]    │  ← h-16 content, fully tappable
-└──────────────────────────────────────────────┘
-        ↓
-Page content starts at var(--header-offset) = 64px + safe-top
+### Endpoint
 ```
+GET/POST https://ftzinsesuiuqcjfpbaur.supabase.co/functions/v1/get-wait-time
+```
+
+### Success Response
+```json
+{
+  "success": true,
+  "wait_time": "20 mins"
+}
+```
+
+### Error Response
+```json
+{
+  "success": false,
+  "error": "Failed to fetch wait time"
+}
+```
+
+---
+
+## n8n Integration Notes
+
+To call this endpoint from n8n:
+
+1. Use HTTP Request node
+2. Method: GET
+3. URL: `https://ftzinsesuiuqcjfpbaur.supabase.co/functions/v1/get-wait-time`
+4. No authentication required (public endpoint)
+5. Parse JSON response to get `wait_time` field
+
+---
+
+## Real-time Behavior
+
+The existing Command Center UI already:
+- Updates `current_wait_time` immediately when staff changes the dropdown
+- Uses `useUpdateAppSettings` mutation which calls Supabase directly
+- Has realtime subscription via `useAppSettings` hook
+
+When a staff member changes the wait time:
+1. Dropdown selection triggers `handleWaitTimeChange`
+2. Database is updated immediately
+3. Next n8n call to `get-wait-time` returns the fresh value
 
 ---
 
 ## Verification Steps
 
-### 1. iPhone Portrait Test
-- Open app in Safari on a notched iPhone
-- Hamburger button should be fully visible below status bar
-- Tap hamburger - menu opens immediately
-- Scroll page and tap again - works at any scroll position
+1. **Deploy Edge Function**: Function will auto-deploy on save
+2. **Test Endpoint**:
+   ```bash
+   curl https://ftzinsesuiuqcjfpbaur.supabase.co/functions/v1/get-wait-time
+   ```
+3. **Verify UI**: Open Command Center and confirm dropdown shows new options: "10 mins", "20 mins", "30 mins", "45 mins", "60 mins"
+4. **Test Update**: Change wait time in UI, then call endpoint again to confirm new value is returned
 
-### 2. Console Validation
-```javascript
-// Check CSS variable values
-getComputedStyle(document.documentElement).getPropertyValue('--header-offset');
-// iPhone 14 Pro: "111px" (64px + 47px)
-// iPhone SE: "64px"
-
-// Verify hamburger receives taps
-const btn = document.querySelector('[aria-label="Open menu"]');
-const r = btn.getBoundingClientRect();
-document.elementFromPoint(r.left + r.width/2, r.top + r.height/2);
-// Should return the button element, not an overlay
-```
-
-### 3. Cross-Device Testing
-| Device | Expected Behavior |
-|--------|-------------------|
-| iPhone 14 Pro (notch) | Hamburger below notch, tappable |
-| iPhone SE (no notch) | Same as before, no visual change |
-| iPad portrait/landscape | Safe areas apply correctly |
-| Android Chrome | `env()` returns 0, no change |
-| Desktop browsers | No change |
-| PWA standalone mode | Safe areas respected |
-
----
-
-## Edge Cases Handled
-
-| Scenario | Behavior |
-|----------|----------|
-| No notch device | `env(safe-area-inset-top)` returns `0px`, header-offset = `64px` |
-| Landscape mode | Safe area values adjust automatically via CSS |
-| PWA fullscreen | iOS status bar handled correctly |
-| Future iPhone models | `env()` will return correct values |
-| Right-edge safe area (PWA) | `paddingRight` prevents hamburger being under sensor |
