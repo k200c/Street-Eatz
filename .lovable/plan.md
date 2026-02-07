@@ -1,126 +1,218 @@
 
 
-# Create 'get-wait-time' Edge Function and Update Wait Time Options
+# Fix Smart Content Studio: Multi-File Carousel Upload
 
-## Overview
+## Summary
 
-Create a new public Edge Function for n8n integration that returns the current wait time, and update the Command Center wait time options to match the requested values.
+Update the Smart Content Studio to properly support multi-file carousel uploads with validation, better UI feedback, and consistent webhook payload handling.
 
 ---
 
-## Part 1: Create Edge Function
+## Current State Analysis
 
-### File: `supabase/functions/get-wait-time/index.ts`
+The current implementation already has:
+- `multiple={postType === 'carousel'}` on the file input (correct)
+- `uploadedFiles: File[]` state (correct array type)
+- `FILE_LIMITS` config with carousel limits: `{ min: 2, max: 10 }` (correct)
+- Hook already handles `files: File[]` and sends `media_urls` as array
 
-Create a new Edge Function that:
-- Queries `app_settings` table for `current_wait_time`
-- Returns JSON response: `{ "wait_time": "20 mins" }`
-- Uses `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS
-- Supports both GET and POST requests for flexibility
-- Has CORS headers for external access
+**What's Missing:**
+1. No validation blocking submission when carousel has < 2 files
+2. No individual filename display in UI
+3. Need to show better feedback for selected files
+
+---
+
+## Implementation Plan
+
+### 1. Update SocialMediaManager.tsx - Add Validation & File List UI
+
+**A) Add Validation Before Submit (lines 108-111)**
+
+Add a validation check at the start of `handleSubmit` to prevent carousel posts with < 2 images:
 
 ```typescript
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-Deno.serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!contentIdea.trim()) return;
+  
+  // NEW: Validate file count for carousel
+  if (!useAiVisuals && postType === 'carousel') {
+    if (uploadedFiles.length < 2) {
+      toast.error('Carousel needs at least 2 images');
+      return;
+    }
+    if (uploadedFiles.length > 10) {
+      toast.error('Maximum 10 images allowed for carousel');
+      return;
+    }
+  }
+  
+  // Validate single/video has at least 1 file
+  if (!useAiVisuals && (postType === 'single' || postType === 'video')) {
+    if (uploadedFiles.length === 0) {
+      toast.error(`Please upload a ${postType === 'video' ? 'video' : 'image'}`);
+      return;
+    }
   }
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  setUploading(true);
+  // ... rest of handler
+};
+```
+
+**B) Improve Post Type Change Handler (lines 226-229)**
+
+When switching post types, intelligently handle files:
+
+```typescript
+onClick={() => {
+  const prevType = postType;
+  setPostType(type.value);
+  
+  // Smart file handling on type change
+  if (type.value === 'single' || type.value === 'video') {
+    // Keep only first file for single/video
+    setUploadedFiles(prev => prev.length > 0 ? [prev[0]] : []);
+  } else if (type.value === 'carousel' && prevType !== 'carousel') {
+    // Switching TO carousel - keep existing files
+    // No change needed, allow adding more
+  }
+  
+  // Clear if switching to incompatible format (video <-> image)
+  if ((prevType === 'video' && type.value !== 'video') || 
+      (prevType !== 'video' && type.value === 'video')) {
+    setUploadedFiles([]);
+  }
+}}
+```
+
+**C) Enhance File Display UI (lines 286-294)**
+
+Replace the simple count display with a file list showing names:
+
+```tsx
+{uploadedFiles.length > 0 && (
+  <div className="space-y-2">
+    <div className="flex items-center gap-2 text-sm text-success">
+      <Check className="w-4 h-4" />
+      {uploadedFiles.length} file(s) selected
+      {uploadedFiles.length < fileLimits.min && (
+        <span className="text-amber-500 ml-2">
+          (Need at least {fileLimits.min})
+        </span>
+      )}
+      {uploadedFiles.length > fileLimits.max && (
+        <span className="text-destructive ml-2">
+          (Max {fileLimits.max})
+        </span>
+      )}
+    </div>
     
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    {/* File list with remove buttons */}
+    <div className="flex flex-wrap gap-2">
+      {uploadedFiles.map((file, index) => (
+        <div 
+          key={`${file.name}-${index}`}
+          className="flex items-center gap-1 px-2 py-1 bg-secondary/50 rounded-md text-xs"
+        >
+          <span className="max-w-[120px] truncate">{file.name}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+            }}
+            className="text-muted-foreground hover:text-destructive p-0.5"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+```
 
-    console.log('[get-wait-time] Fetching current wait time');
+**D) Add X Icon Import (line 4)**
 
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('current_wait_time')
-      .eq('id', 1)
-      .single();
+Add `X` to the lucide-react import:
 
-    if (error) {
-      console.error('[get-wait-time] Database error:', error);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to fetch wait time' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+```typescript
+import { 
+  Trash2, Upload, Calendar, Image, Film, Layers, Sparkles, 
+  AlertCircle, RefreshCw, Loader2, Check, Clock, Wand2, ImagePlus, X
+} from 'lucide-react';
+```
+
+---
+
+### 2. Update useSocialMediaPosts.ts - Improve Upload Naming
+
+**A) Update uploadFiles function (lines 144-169)**
+
+Add postId parameter for consistent naming:
+
+```typescript
+const uploadFiles = async (files: File[], postId: string): Promise<string[]> => {
+  const urls: string[] = [];
+  
+  for (let index = 0; index < files.length; index++) {
+    const file = files[index];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${postId}-${index}-${Date.now()}.${fileExt}`;
+    const filePath = `posts/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('social-media-content')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw uploadError;
     }
 
-    const waitTime = data?.current_wait_time || '20 mins';
-    console.log('[get-wait-time] Returning wait time:', waitTime);
+    const { data: urlData } = supabase.storage
+      .from('social-media-content')
+      .getPublicUrl(filePath);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        wait_time: waitTime
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
-
-  } catch (error) {
-    console.error('[get-wait-time] Unexpected error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    urls.push(urlData.publicUrl);
   }
-});
+
+  return urls;
+};
 ```
 
----
+**B) Update generateDraftMutation to pass postId (lines 193-197)**
 
-## Part 2: Configure Edge Function
+Generate UUID first, then pass to upload:
 
-### File: `supabase/config.toml`
-
-Add configuration to disable JWT verification (allows n8n to call without auth):
-
-```toml
-[functions.get-wait-time]
-verify_jwt = false
-```
-
----
-
-## Part 3: Update Wait Time Options
-
-### File: `src/pages/CommandCenter.tsx`
-
-Update line 25 to match the requested options:
-
-**Current:**
 ```typescript
-const waitTimeOptions = ['15 mins', '20 mins', '30 mins', '45 mins', '1 hour'];
+// Generate UUID BEFORE upload so we can use it in filenames
+const newId = crypto.randomUUID();
+
+if (aiPreference === 'upload_media' && files && files.length > 0) {
+  console.log("📤 Uploading", files.length, "media files with postId:", newId);
+  const uploadResult = await uploadFiles(files, newId);
+  finalMediaUrls = Array.isArray(uploadResult) ? uploadResult : [];
+}
+
+if (aiPreference === 'generate_ai' && referenceFile) {
+  console.log("📤 Uploading reference image...");
+  const uploadResult = await uploadFiles([referenceFile], `ref-${newId}`);
+  finalReferenceUrl = uploadResult[0] || null;
+}
 ```
 
-**Updated:**
+**C) Same for schedulePostMutation (lines 317-321)**
+
 ```typescript
-const waitTimeOptions = ['10 mins', '20 mins', '30 mins', '45 mins', '60 mins'];
-```
+const newId = crypto.randomUUID();
 
-This changes:
-- `'15 mins'` to `'10 mins'` 
-- `'1 hour'` to `'60 mins'` (consistent format)
+if (aiPreference === 'upload_media' && files && files.length > 0) {
+  const uploadResult = await uploadFiles(files, newId);
+  mediaUrls = Array.isArray(uploadResult) ? uploadResult : [];
+}
+```
 
 ---
 
@@ -128,70 +220,52 @@ This changes:
 
 | File | Change |
 |------|--------|
-| `supabase/functions/get-wait-time/index.ts` | **NEW** - Edge function to return current wait time |
-| `supabase/config.toml` | Add `[functions.get-wait-time]` with `verify_jwt = false` |
-| `src/pages/CommandCenter.tsx` | Update `waitTimeOptions` array to match requirements |
+| `src/components/staff/SocialMediaManager.tsx` | Add X icon import, validation in handleSubmit, smart post type switching, file list with remove buttons |
+| `src/hooks/useSocialMediaPosts.ts` | Update uploadFiles to accept postId, generate UUID before upload |
 
 ---
 
-## API Response Format
+## Validation Rules
 
-### Endpoint
-```
-GET/POST https://ftzinsesuiuqcjfpbaur.supabase.co/functions/v1/get-wait-time
-```
+| Post Type | Min Files | Max Files | Accept |
+|-----------|-----------|-----------|--------|
+| Single | 1 | 1 | image/* |
+| Carousel | 2 | 10 | image/* |
+| Video | 1 | 1 | video/* |
 
-### Success Response
+---
+
+## Webhook Payload (Unchanged Format)
+
+The webhook payload format remains the same - `media_urls` is already an array:
+
 ```json
 {
-  "success": true,
-  "wait_time": "20 mins"
+  "post_id": "uuid-here",
+  "idea": "Content idea text",
+  "brief": "Brief text",
+  "post_type": "carousel",
+  "ai_preference": "upload_media",
+  "media_urls": [
+    "https://storage.url/posts/uuid-0-timestamp.jpg",
+    "https://storage.url/posts/uuid-1-timestamp.jpg",
+    "https://storage.url/posts/uuid-2-timestamp.jpg"
+  ],
+  "visual_prompt": null,
+  "reference_image_url": null
 }
 ```
 
-### Error Response
-```json
-{
-  "success": false,
-  "error": "Failed to fetch wait time"
-}
-```
-
 ---
 
-## n8n Integration Notes
+## Testing Checklist
 
-To call this endpoint from n8n:
-
-1. Use HTTP Request node
-2. Method: GET
-3. URL: `https://ftzinsesuiuqcjfpbaur.supabase.co/functions/v1/get-wait-time`
-4. No authentication required (public endpoint)
-5. Parse JSON response to get `wait_time` field
-
----
-
-## Real-time Behavior
-
-The existing Command Center UI already:
-- Updates `current_wait_time` immediately when staff changes the dropdown
-- Uses `useUpdateAppSettings` mutation which calls Supabase directly
-- Has realtime subscription via `useAppSettings` hook
-
-When a staff member changes the wait time:
-1. Dropdown selection triggers `handleWaitTimeChange`
-2. Database is updated immediately
-3. Next n8n call to `get-wait-time` returns the fresh value
-
----
-
-## Verification Steps
-
-1. **Deploy Edge Function**: Function will auto-deploy on save
-2. **Test Endpoint**:
-   ```bash
-   curl https://ftzinsesuiuqcjfpbaur.supabase.co/functions/v1/get-wait-time
-   ```
-3. **Verify UI**: Open Command Center and confirm dropdown shows new options: "10 mins", "20 mins", "30 mins", "45 mins", "60 mins"
-4. **Test Update**: Change wait time in UI, then call endpoint again to confirm new value is returned
+1. **Single Post**: Can only select 1 image, shows file name, submits correctly
+2. **Carousel**: Can select 2-10 images, shows all filenames, blocks submission if < 2
+3. **Video**: Can only select 1 video, shows file name, uses `accept="video/*"`
+4. **Type Switching**: 
+   - From carousel (3 files) to single = keeps only first file
+   - From video to single/carousel = clears files (format change)
+5. **Remove Files**: Individual files can be removed via X button
+6. **Webhook**: Verify n8n receives `media_urls` as array with correct URLs
 
