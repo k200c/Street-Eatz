@@ -140,13 +140,14 @@ export function useSocialMediaPosts() {
     refetchOnWindowFocus: false,
   });
 
-  // Upload files to storage
-  const uploadFiles = async (files: File[]): Promise<string[]> => {
+  // Upload files to storage with postId for consistent naming
+  const uploadFiles = async (files: File[], postId: string): Promise<string[]> => {
     const urls: string[] = [];
     
-    for (const file of files) {
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const fileName = `${postId}-${index}-${Date.now()}.${fileExt}`;
       const filePath = `posts/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -182,34 +183,39 @@ export function useSocialMediaPosts() {
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 1: INITIALIZE MEDIA VARIABLES (GUARANTEED ARRAYS)
+      // STEP 1: GENERATE UUID FIRST (for consistent file naming)
+      // ═══════════════════════════════════════════════════════════════
+      const newId = crypto.randomUUID();
+      console.log("🆔 STEP 1: Generated UUID:", newId);
+
+      // ═══════════════════════════════════════════════════════════════
+      // STEP 2: INITIALIZE MEDIA VARIABLES (GUARANTEED ARRAYS)
       // ═══════════════════════════════════════════════════════════════
       let finalMediaUrls: string[] = []; // Always starts as empty array
       let finalReferenceUrl: string | null = null;
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 2: CONDITIONAL FILE UPLOAD (Only if files exist)
+      // STEP 3: CONDITIONAL FILE UPLOAD (Only if files exist)
       // ═══════════════════════════════════════════════════════════════
       if (aiPreference === 'upload_media' && files && files.length > 0) {
-        console.log("📤 STEP 2: Uploading", files.length, "media files...");
-        const uploadResult = await uploadFiles(files);
+        console.log("📤 STEP 3: Uploading", files.length, "media files with postId:", newId);
+        const uploadResult = await uploadFiles(files, newId);
         finalMediaUrls = Array.isArray(uploadResult) ? uploadResult : [];
-        console.log("✅ STEP 2 COMPLETE - finalMediaUrls:", JSON.stringify(finalMediaUrls));
+        console.log("✅ STEP 3 COMPLETE - finalMediaUrls:", JSON.stringify(finalMediaUrls));
       } else {
-        console.log("⏭️ STEP 2: No files to upload, finalMediaUrls = []");
+        console.log("⏭️ STEP 3: No files to upload, finalMediaUrls = []");
       }
 
       if (aiPreference === 'generate_ai' && referenceFile) {
-        console.log("📤 STEP 2b: Uploading reference image...");
-        const uploadResult = await uploadFiles([referenceFile]);
+        console.log("📤 STEP 3b: Uploading reference image...");
+        const uploadResult = await uploadFiles([referenceFile], `ref-${newId}`);
         finalReferenceUrl = uploadResult[0] || null;
-        console.log("✅ STEP 2b COMPLETE - finalReferenceUrl:", finalReferenceUrl);
+        console.log("✅ STEP 3b COMPLETE - finalReferenceUrl:", finalReferenceUrl);
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 3: CONSTRUCT PAYLOADS (GUARANTEED ARRAY IN media_urls)
+      // STEP 4: CONSTRUCT PAYLOADS (GUARANTEED ARRAY IN media_urls)
       // ═══════════════════════════════════════════════════════════════
-      const newId = crypto.randomUUID();
       console.log("🆔 STEP 3: Generated UUID:", newId);
 
       // SAFETY: Ensure finalMediaUrls is always an array (never null/undefined)
@@ -241,13 +247,13 @@ export function useSocialMediaPosts() {
         reference_image_url: finalReferenceUrl,
       };
 
-      console.log("%c 💾 STEP 2: DB PAYLOAD:", "background: #333; color: #00ffff", JSON.stringify(dbPayload, null, 2));
-      console.log("%c 📦 STEP 2: WEBHOOK PAYLOAD:", "background: #333; color: #00ff00", JSON.stringify(webhookPayload, null, 2));
+      console.log("%c 💾 STEP 4: DB PAYLOAD:", "background: #333; color: #00ffff", JSON.stringify(dbPayload, null, 2));
+      console.log("%c 📦 STEP 4: WEBHOOK PAYLOAD:", "background: #333; color: #00ff00", JSON.stringify(webhookPayload, null, 2));
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 3: DUAL DISPATCH (DB Insert + Webhook)
+      // STEP 5: DUAL DISPATCH (DB Insert + Webhook)
       // ═══════════════════════════════════════════════════════════════
-      console.log("🚀 STEP 3: Inserting to DB...");
+      console.log("🚀 STEP 5: Inserting to DB...");
       const { data: newPost, error: dbError } = await supabase
         .from('social_media_posts')
         .insert(dbPayload)
@@ -255,7 +261,7 @@ export function useSocialMediaPosts() {
         .single();
 
       if (dbError) {
-        console.error("❌ STEP 3 DB INSERT FAILED!");
+        console.error("❌ STEP 5 DB INSERT FAILED!");
         console.error("❌ Error Code:", dbError.code);
         console.error("❌ Error Message:", dbError.message);
         console.error("❌ Error Details:", dbError.details);
@@ -263,12 +269,12 @@ export function useSocialMediaPosts() {
         throw dbError;
       }
 
-      console.log("✅ STEP 3 DB SUCCESS - Post ID:", newPost.id);
+      console.log("✅ STEP 5 DB SUCCESS - Post ID:", newPost.id);
 
       // CRITICAL DEBUG LOG - Verify media_urls right before fetch
       console.log("🚀 FINAL Webhook Payload:", JSON.stringify(webhookPayload));
 
-      console.log("🚀 STEP 3: Triggering N8N webhook...");
+      console.log("🚀 STEP 5b: Triggering N8N webhook...");
       try {
         const response = await fetch(N8N_GENERATE_WEBHOOK, {
           method: "POST",
@@ -286,7 +292,7 @@ export function useSocialMediaPosts() {
           console.error(`❌ N8N Error (${response.status}):`, errorText);
           toast.error(`AI request failed: ${response.status}`);
         } else {
-          console.log("✅ STEP 3 WEBHOOK SUCCESS!");
+          console.log("✅ STEP 5b WEBHOOK SUCCESS!");
           toast.success("✨ AI is writing your caption...");
         }
       } catch (netError) {
@@ -310,13 +316,17 @@ export function useSocialMediaPosts() {
     mutationFn: async ({ contentIdea, brief, postType, files, scheduledDate, scheduledTime, aiPreference, visualPrompt }: CreatePostParams) => {
       console.log("📅 Scheduling post directly...", { postType, aiPreference });
       
+      // Generate UUID first for consistent file naming
+      const newId = crypto.randomUUID();
+      console.log("🆔 Generated UUID for scheduled post:", newId);
+      
       // Initialize media array (GUARANTEED to be an array)
       let mediaUrls: string[] = [];
       
       // Conditional upload - only if files exist
       if (aiPreference === 'upload_media' && files && files.length > 0) {
-        console.log("📤 Uploading", files.length, "files for scheduled post...");
-        const uploadResult = await uploadFiles(files);
+        console.log("📤 Uploading", files.length, "files for scheduled post with postId:", newId);
+        const uploadResult = await uploadFiles(files, newId);
         mediaUrls = Array.isArray(uploadResult) ? uploadResult : [];
       }
       

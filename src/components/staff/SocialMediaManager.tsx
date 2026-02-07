@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { 
   Trash2, Upload, Calendar, Image, Film, Layers, Sparkles, 
-  AlertCircle, RefreshCw, Loader2, Check, Clock, Wand2, ImagePlus
+  AlertCircle, RefreshCw, Loader2, Check, Clock, Wand2, ImagePlus, X
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -108,6 +109,25 @@ export function SocialMediaManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contentIdea.trim()) return;
+
+    // Validate file count based on post type (only when not using AI visuals)
+    if (!useAiVisuals) {
+      if (postType === 'carousel') {
+        if (uploadedFiles.length < 2) {
+          toast.error('Carousel needs at least 2 images');
+          return;
+        }
+        if (uploadedFiles.length > 10) {
+          toast.error('Maximum 10 images allowed for carousel');
+          return;
+        }
+      } else if (postType === 'single' || postType === 'video') {
+        if (uploadedFiles.length === 0) {
+          toast.error(`Please upload a ${postType === 'video' ? 'video' : 'image'}`);
+          return;
+        }
+      }
+    }
 
     setUploading(true);
     try {
@@ -224,8 +244,20 @@ export function SocialMediaManager() {
                       key={type.value}
                       type="button"
                       onClick={() => {
+                        const prevType = postType;
                         setPostType(type.value);
-                        setUploadedFiles([]); // Clear files on type change
+                        
+                        // Smart file handling on type change
+                        if (type.value === 'single' || type.value === 'video') {
+                          // Keep only first file for single/video
+                          setUploadedFiles(prev => prev.length > 0 ? [prev[0]] : []);
+                        }
+                        
+                        // Clear if switching to/from video (format change)
+                        if ((prevType === 'video' && type.value !== 'video') || 
+                            (prevType !== 'video' && type.value === 'video')) {
+                          setUploadedFiles([]);
+                        }
                       }}
                       className={cn(
                         "flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all",
@@ -277,19 +309,45 @@ export function SocialMediaManager() {
                     <Input
                       id="media"
                       type="file"
-                      multiple={postType !== 'single' && postType !== 'video'}
+                      multiple={postType === 'carousel'}
                       accept={postType === 'video' ? 'video/*' : 'image/*'}
                       onChange={handleFileChange}
                       className="bg-background/50 border-border file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-primary file:text-primary-foreground cursor-pointer"
                     />
                   </div>
                   {uploadedFiles.length > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-success">
-                      <Check className="w-4 h-4" />
-                      {uploadedFiles.length} file(s) selected
-                      {uploadedFiles.length < fileLimits.min && (
-                        <span className="text-amber-500 ml-2">(Need at least {fileLimits.min})</span>
-                      )}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-success">
+                        <Check className="w-4 h-4" />
+                        {uploadedFiles.length} file(s) selected
+                        {uploadedFiles.length < fileLimits.min && (
+                          <span className="text-amber-500 ml-2">(Need at least {fileLimits.min})</span>
+                        )}
+                        {uploadedFiles.length > fileLimits.max && (
+                          <span className="text-destructive ml-2">(Max {fileLimits.max})</span>
+                        )}
+                      </div>
+                      
+                      {/* File list with remove buttons */}
+                      <div className="flex flex-wrap gap-2">
+                        {uploadedFiles.map((file, index) => (
+                          <div 
+                            key={`${file.name}-${index}`}
+                            className="flex items-center gap-1 px-2 py-1 bg-secondary/50 rounded-md text-xs"
+                          >
+                            <span className="max-w-[120px] truncate">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+                              }}
+                              className="text-muted-foreground hover:text-destructive p-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
