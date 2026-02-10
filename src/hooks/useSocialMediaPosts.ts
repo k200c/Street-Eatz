@@ -1,7 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface SocialMediaPost {
   id: string;
@@ -18,17 +18,17 @@ export interface SocialMediaPost {
 interface CreatePostParams {
   contentIdea: string;
   brief: string;
-  postType: 'single' | 'carousel' | 'video';
+  postType: "single" | "carousel" | "video";
   files: File[];
   scheduledDate?: Date;
   scheduledTime?: string;
   // New AI-powered fields
-  aiPreference: 'generate_ai' | 'upload_media';
+  aiPreference: "generate_ai" | "upload_media";
   visualPrompt?: string;
   referenceFiles?: File[]; // Changed from referenceFile to support multi-file
 }
 
-const N8N_GENERATE_WEBHOOK = 'https://kyle2000.app.n8n.cloud/webhook-test/street-eatz-generate';
+const N8N_GENERATE_WEBHOOK = "https://kyle2000.app.n8n.cloud/webhook-test/street-eatz-generate";
 
 export function useSocialMediaPosts() {
   const queryClient = useQueryClient();
@@ -36,61 +36,61 @@ export function useSocialMediaPosts() {
   // Realtime subscription - LIVE updates for status changes
   useEffect(() => {
     console.log("🔌 Setting up Supabase Realtime subscription for social_media_posts...");
-    
+
     const channel = supabase
-      .channel('social-media-posts-live')
+      .channel("social-media-posts-live")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'social_media_posts',
+          event: "UPDATE",
+          schema: "public",
+          table: "social_media_posts",
         },
         (payload) => {
           console.log("🔔 Realtime UPDATE received:", payload);
-          
+
           const newRecord = payload.new as SocialMediaPost;
           const oldRecord = payload.old as Partial<SocialMediaPost>;
-          
+
           // Detect status change from 'generating' to 'draft'
-          if (oldRecord.status === 'generating' && newRecord.status === 'draft') {
+          if (oldRecord.status === "generating" && newRecord.status === "draft") {
             console.log("✨ Draft is READY! Post ID:", newRecord.id);
             toast.success("✅ Your draft is ready!", {
               description: "AI has generated your caption.",
               duration: 5000,
             });
           }
-          
+
           // Immediately invalidate queries (no debounce for status changes)
-          queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
-          queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
-        }
+          queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
+          queryClient.invalidateQueries({ queryKey: ["social-media-scheduled"] });
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'social_media_posts',
+          event: "INSERT",
+          schema: "public",
+          table: "social_media_posts",
         },
         (payload) => {
           console.log("🔔 Realtime INSERT received:", payload);
-          queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
-          queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
-        }
+          queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
+          queryClient.invalidateQueries({ queryKey: ["social-media-scheduled"] });
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'social_media_posts',
+          event: "DELETE",
+          schema: "public",
+          table: "social_media_posts",
         },
         (payload) => {
           console.log("🔔 Realtime DELETE received:", payload);
-          queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
-          queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
-        }
+          queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
+          queryClient.invalidateQueries({ queryKey: ["social-media-scheduled"] });
+        },
       )
       .subscribe((status) => {
         console.log("📡 Realtime subscription status:", status);
@@ -104,16 +104,16 @@ export function useSocialMediaPosts() {
 
   // Fetch drafts (status: 'draft' or 'generating')
   const draftsQuery = useQuery({
-    queryKey: ['social-media-drafts'],
+    queryKey: ["social-media-drafts"],
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase
-        .from('social_media_posts')
-        .select('*')
-        .in('status', ['draft', 'generating'])
-        .order('created_at', { ascending: false })
+        .from("social_media_posts")
+        .select("*")
+        .in("status", ["draft", "generating"])
+        .order("created_at", { ascending: false })
         .limit(20)
         .abortSignal(signal);
-      
+
       if (error) throw error;
       return data as SocialMediaPost[];
     },
@@ -123,16 +123,16 @@ export function useSocialMediaPosts() {
 
   // Fetch scheduled posts
   const scheduledQuery = useQuery({
-    queryKey: ['social-media-scheduled'],
+    queryKey: ["social-media-scheduled"],
     queryFn: async ({ signal }) => {
       const { data, error } = await supabase
-        .from('social_media_posts')
-        .select('*')
-        .eq('status', 'scheduled')
-        .order('scheduled_for', { ascending: true })
+        .from("social_media_posts")
+        .select("*")
+        .eq("status", "scheduled")
+        .order("scheduled_for", { ascending: true })
         .limit(20)
         .abortSignal(signal);
-      
+
       if (error) throw error;
       return data as SocialMediaPost[];
     },
@@ -143,31 +143,27 @@ export function useSocialMediaPosts() {
   // Upload files to storage with postId for consistent naming
   // folder param allows uploading to 'posts' or 'references'
   const uploadFiles = async (
-    files: File[], 
-    postId: string, 
-    folder: 'posts' | 'references' = 'posts'
+    files: File[],
+    postId: string,
+    folder: "posts" | "references" = "posts",
   ): Promise<string[]> => {
     const urls: string[] = [];
-    
+
     for (let index = 0; index < files.length; index++) {
       const file = files[index];
-      const fileExt = file.name.split('.').pop();
-      const prefix = folder === 'references' ? 'ref-' : '';
+      const fileExt = file.name.split(".").pop();
+      const prefix = folder === "references" ? "ref-" : "";
       const fileName = `${prefix}${postId}-${index}-${Date.now()}.${fileExt}`;
       const filePath = `${folder}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('social-media-content')
-        .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from("social-media-content").upload(filePath, file);
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        console.error("Upload error:", uploadError);
         throw uploadError;
       }
 
-      const { data: urlData } = supabase.storage
-        .from('social-media-content')
-        .getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage.from("social-media-content").getPublicUrl(filePath);
 
       urls.push(urlData.publicUrl);
     }
@@ -177,15 +173,28 @@ export function useSocialMediaPosts() {
 
   // Generate draft mutation (no date selected) - REFACTORED: Sequential Upload → Payload → Dispatch
   const generateDraftMutation = useMutation({
-    mutationFn: async ({ contentIdea, brief, postType, files, aiPreference, visualPrompt, referenceFiles }: CreatePostParams) => {
-      console.log("%c 🚀 STARTING DRAFT GENERATION v2...", "background: #222; color: #bada55", { 
-        contentIdea, brief, postType, filesCount: files.length, aiPreference, visualPrompt 
+    mutationFn: async ({
+      contentIdea,
+      brief,
+      postType,
+      files,
+      aiPreference,
+      visualPrompt,
+      referenceFiles,
+    }: CreatePostParams) => {
+      console.log("%c 🚀 STARTING DRAFT GENERATION v2...", "background: #222; color: #bada55", {
+        contentIdea,
+        brief,
+        postType,
+        filesCount: files.length,
+        aiPreference,
+        visualPrompt,
       });
 
       // VALIDATION: Check required fields
-      if (!contentIdea || contentIdea.trim() === '') {
-        toast.error('Content idea is required!');
-        throw new Error('Content idea is required');
+      if (!contentIdea || contentIdea.trim() === "") {
+        toast.error("Content idea is required!");
+        throw new Error("Content idea is required");
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -203,9 +212,9 @@ export function useSocialMediaPosts() {
       // ═══════════════════════════════════════════════════════════════
       // STEP 3: CONDITIONAL FILE UPLOAD (Only if files exist)
       // ═══════════════════════════════════════════════════════════════
-      if (aiPreference === 'upload_media' && files && files.length > 0) {
+      if (aiPreference === "upload_media" && files && files.length > 0) {
         console.log("📤 STEP 3: Uploading", files.length, "media files with postId:", newId);
-        const uploadResult = await uploadFiles(files, newId, 'posts');
+        const uploadResult = await uploadFiles(files, newId, "posts");
         finalMediaUrls = Array.isArray(uploadResult) ? uploadResult : [];
         console.log("✅ STEP 3 COMPLETE - finalMediaUrls:", JSON.stringify(finalMediaUrls));
       } else {
@@ -213,9 +222,9 @@ export function useSocialMediaPosts() {
       }
 
       // Upload reference files array (for AI generation mode)
-      if (aiPreference === 'generate_ai' && referenceFiles && referenceFiles.length > 0) {
+      if (aiPreference === "generate_ai" && referenceFiles && referenceFiles.length > 0) {
         console.log("📤 STEP 3b: Uploading", referenceFiles.length, "reference images...");
-        const uploadResult = await uploadFiles(referenceFiles, newId, 'references');
+        const uploadResult = await uploadFiles(referenceFiles, newId, "references");
         finalReferenceUrls = Array.isArray(uploadResult) ? uploadResult : [];
         console.log("✅ STEP 3b COMPLETE - finalReferenceUrls:", JSON.stringify(finalReferenceUrls));
       }
@@ -236,9 +245,9 @@ export function useSocialMediaPosts() {
         brief: brief?.trim() || null,
         post_type: postType,
         ai_preference: aiPreference,
-        visual_prompt: aiPreference === 'generate_ai' ? (visualPrompt || null) : null,
+        visual_prompt: aiPreference === "generate_ai" ? visualPrompt || null : null,
         media_urls: safeMediaUrls, // ← GUARANTEED ARRAY
-        status: 'generating',
+        status: "generating",
         created_at: new Date().toISOString(),
       };
 
@@ -250,19 +259,23 @@ export function useSocialMediaPosts() {
         post_type: postType,
         ai_preference: aiPreference,
         media_urls: safeMediaUrls, // ← GUARANTEED ARRAY (never null/undefined)
-        visual_prompt: aiPreference === 'generate_ai' ? (visualPrompt || "") : null,
+        visual_prompt: aiPreference === "generate_ai" ? visualPrompt || "" : null,
         reference_image_urls: finalReferenceUrls, // Changed to array for multi-file support
       };
 
       console.log("%c 💾 STEP 4: DB PAYLOAD:", "background: #333; color: #00ffff", JSON.stringify(dbPayload, null, 2));
-      console.log("%c 📦 STEP 4: WEBHOOK PAYLOAD:", "background: #333; color: #00ff00", JSON.stringify(webhookPayload, null, 2));
+      console.log(
+        "%c 📦 STEP 4: WEBHOOK PAYLOAD:",
+        "background: #333; color: #00ff00",
+        JSON.stringify(webhookPayload, null, 2),
+      );
 
       // ═══════════════════════════════════════════════════════════════
       // STEP 5: DUAL DISPATCH (DB Insert + Webhook)
       // ═══════════════════════════════════════════════════════════════
       console.log("🚀 STEP 5: Inserting to DB...");
       const { data: newPost, error: dbError } = await supabase
-        .from('social_media_posts')
+        .from("social_media_posts")
         .insert(dbPayload)
         .select()
         .single();
@@ -287,7 +300,7 @@ export function useSocialMediaPosts() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            Accept: "application/json",
           },
           mode: "cors",
           credentials: "omit",
@@ -304,102 +317,117 @@ export function useSocialMediaPosts() {
         }
       } catch (netError) {
         console.error("🚨 Network/Webhook Error:", netError);
-        toast.error(`Draft saved, but AI failed: ${netError instanceof Error ? netError.message : 'Unknown error'}`);
+        toast.error(`Draft saved, but AI failed: ${netError instanceof Error ? netError.message : "Unknown error"}`);
       }
 
       return newPost;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
+      queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
     },
     onError: (error) => {
-      console.error('❌ Generate draft mutation error:', error);
-      toast.error('Failed to create draft');
+      console.error("❌ Generate draft mutation error:", error);
+      toast.error("Failed to create draft");
     },
   });
 
   // Schedule post mutation (date selected) - skips AI generation
   const schedulePostMutation = useMutation({
-    mutationFn: async ({ contentIdea, brief, postType, files, scheduledDate, scheduledTime, aiPreference, visualPrompt }: CreatePostParams) => {
+    mutationFn: async ({
+      contentIdea,
+      brief,
+      postType,
+      files,
+      scheduledDate,
+      scheduledTime,
+      aiPreference,
+      visualPrompt,
+    }: CreatePostParams) => {
       console.log("📅 Scheduling post directly...", { postType, aiPreference });
-      
+
       // Generate UUID first for consistent file naming
       const newId = crypto.randomUUID();
       console.log("🆔 Generated UUID for scheduled post:", newId);
-      
+
       // Initialize media array (GUARANTEED to be an array)
       let mediaUrls: string[] = [];
-      
+
       // Conditional upload - only if files exist
-      if (aiPreference === 'upload_media' && files && files.length > 0) {
+      if (aiPreference === "upload_media" && files && files.length > 0) {
         console.log("📤 Uploading", files.length, "files for scheduled post with postId:", newId);
         const uploadResult = await uploadFiles(files, newId);
         mediaUrls = Array.isArray(uploadResult) ? uploadResult : [];
       }
-      
+
       // SAFETY: Ensure mediaUrls is always an array
       const safeMediaUrls: string[] = Array.isArray(mediaUrls) ? mediaUrls : [];
 
       // Calculate scheduled datetime
       let scheduledFor: string | null = null;
       if (scheduledDate) {
-        const [hours, minutes] = (scheduledTime || '12:00').split(':').map(Number);
+        const [hours, minutes] = (scheduledTime || "12:00").split(":").map(Number);
         const dateTime = new Date(scheduledDate);
         dateTime.setHours(hours, minutes, 0, 0);
         scheduledFor = dateTime.toISOString();
       }
 
-      const { error } = await supabase
-        .from('social_media_posts')
-        .insert({
-          content_idea: contentIdea,
-          brief: aiPreference === 'generate_ai' ? `${brief || ''}\n\n[AI Visual: ${visualPrompt || 'No prompt'}]` : (brief || null),
-          post_type: postType,
-          ai_preference: aiPreference, // ← Added for payload consistency
-          media_urls: safeMediaUrls, // ← GUARANTEED ARRAY
-          scheduled_for: scheduledFor,
-          status: 'scheduled',
-        });
+      const { error } = await supabase.from("social_media_posts").insert({
+        content_idea: contentIdea,
+        brief:
+          aiPreference === "generate_ai"
+            ? `${brief || ""}\n\n[AI Visual: ${visualPrompt || "No prompt"}]`
+            : brief || null,
+        post_type: postType,
+        ai_preference: aiPreference, // ← Added for payload consistency
+        media_urls: safeMediaUrls, // ← GUARANTEED ARRAY
+        scheduled_for: scheduledFor,
+        status: "scheduled",
+      });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('📅 Post scheduled successfully!');
-      queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
+      toast.success("📅 Post scheduled successfully!");
+      queryClient.invalidateQueries({ queryKey: ["social-media-scheduled"] });
     },
     onError: (error) => {
-      console.error('Schedule post error:', error);
-      toast.error('Failed to schedule post');
+      console.error("Schedule post error:", error);
+      toast.error("Failed to schedule post");
     },
   });
 
   // Approve and schedule a draft
   const approveDraftMutation = useMutation({
-    mutationFn: async ({ postId, scheduledFor, caption }: { postId: string; scheduledFor: string; caption?: string }) => {
+    mutationFn: async ({
+      postId,
+      scheduledFor,
+      caption,
+    }: {
+      postId: string;
+      scheduledFor: string;
+      caption?: string;
+    }) => {
       const updateData: Record<string, unknown> = {
-        status: 'scheduled',
+        status: "scheduled",
         scheduled_for: scheduledFor,
       };
-      
+
       if (caption !== undefined) {
         updateData.generated_caption = caption;
       }
 
-      const { error } = await supabase
-        .from('social_media_posts')
-        .update(updateData)
-        .eq('id', postId);
+      const { error } = await supabase.from("social_media_posts").update(updateData).eq("id", postId);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('✅ Draft approved and scheduled!');
-      queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
-      queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
+      toast.success("✅ Draft approved and scheduled!");
+      queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["social-media-scheduled"] });
     },
     onError: (error) => {
-      console.error('Approve draft error:', error);
-      toast.error('Failed to approve draft');
+      console.error("Approve draft error:", error);
+      toast.error("Failed to approve draft");
     },
   });
 
@@ -407,76 +435,92 @@ export function useSocialMediaPosts() {
   const updateCaptionMutation = useMutation({
     mutationFn: async ({ postId, caption }: { postId: string; caption: string }) => {
       const { error } = await supabase
-        .from('social_media_posts')
+        .from("social_media_posts")
         .update({ generated_caption: caption })
-        .eq('id', postId);
+        .eq("id", postId);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
+      queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
     },
     onError: (error) => {
-      console.error('Update caption error:', error);
-      toast.error('Failed to update caption');
+      console.error("Update caption error:", error);
+      toast.error("Failed to update caption");
     },
   });
 
-  // Post Now mutation - securely proxy to n8n via Edge Function
+  // Post Now mutation - immediately publish to socials via n8n
   const postNowMutation = useMutation({
     mutationFn: async (postId: string) => {
-      console.log("🚀 POST NOW - Calling post-now edge function for:", postId);
+      console.log("🚀 POST NOW - Triggering instant publish for:", postId);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
+      // Get the post data first
+      const { data: post, error: fetchError } = await supabase
+        .from("social_media_posts")
+        .select("*")
+        .eq("id", postId)
+        .single();
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/post-now`, {
+      if (fetchError) throw fetchError;
+      if (!post) throw new Error("Post not found");
+
+      // Trigger the n8n webhook for instant posting
+      const response = await fetch("https://kyle2000.app.n8n.cloud/webhook-test/post-now-instant", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ post_id: postId }),
+        body: JSON.stringify({
+          post_id: postId,
+          content_idea: post.content_idea,
+          generated_caption: post.generated_caption,
+          media_urls: post.media_urls,
+          post_type: post.post_type,
+        }),
       });
 
-      const result = await response.json();
-      console.log("📡 post-now response:", response.status, result);
-
       if (!response.ok) {
-        throw new Error(result.error || `Failed: ${response.status}`);
+        const errorText = await response.text();
+        console.error("N8N Post Now error:", errorText);
+        throw new Error(`Failed to publish: ${response.status}`);
       }
 
-      return result.post;
+      // Update status to published
+      const { error: updateError } = await supabase
+        .from("social_media_posts")
+        .update({ status: "published" })
+        .eq("id", postId);
+
+      if (updateError) throw updateError;
+
+      return post;
     },
     onSuccess: () => {
-      toast.success('✅ Sent to posting pipeline');
-      queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
-      queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
+      toast.success("🎉 Published to socials!");
+      queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["social-media-scheduled"] });
     },
     onError: (error) => {
-      console.error('Post now error:', error);
-      toast.error('Failed to send. Try again.');
+      console.error("Post now error:", error);
+      toast.error("Failed to publish post");
     },
   });
 
   // Delete post mutation
   const deletePostMutation = useMutation({
     mutationFn: async (postId: string) => {
-      const { error } = await supabase
-        .from('social_media_posts')
-        .delete()
-        .eq('id', postId);
+      const { error } = await supabase.from("social_media_posts").delete().eq("id", postId);
 
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Post deleted');
-      queryClient.invalidateQueries({ queryKey: ['social-media-drafts'] });
-      queryClient.invalidateQueries({ queryKey: ['social-media-scheduled'] });
+      toast.success("Post deleted");
+      queryClient.invalidateQueries({ queryKey: ["social-media-drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["social-media-scheduled"] });
     },
     onError: () => {
-      toast.error('Failed to delete post');
+      toast.error("Failed to delete post");
     },
   });
 
