@@ -1,54 +1,107 @@
 
-# Update `update-social-post` Edge Function to Accept `media_urls`
+# Post Now: Secure Edge Function Proxy
 
-## Problem
-The edge function ignores `media_urls` from n8n payloads, so drafted posts never get their media persisted.
+## Overview
 
-## Solution
-Single file change: `supabase/functions/update-social-post/index.ts`
+Create a new `post-now` Edge Function that securely proxies "Post Now" requests to n8n, replacing the current insecure direct client-to-n8n call. The function requires JWT authentication, builds a rich payload server-side, and sets status to `posting_queued` (not `published`).
 
-### Changes
+---
 
-1. **Update `UpdatePostPayload` interface** -- add `media_urls?: string[] | string` to accept all incoming formats.
+## Secret Required
 
-2. **Add `parseMediaUrls` helper** (inline in same file) that normalizes any of the three input formats into a clean `string[]`:
-   - If already an array: trim each entry, filter empties.
-   - If a string starting with `[`: try `JSON.parse`, then trim/filter.
-   - If a plain string: split on `,`, trim each, filter empties.
-   - If parsing fails: throw with a descriptive message (caught and returned as 400).
+**N8N_POST_NOW_WEBHOOK_URL** must be added with value:
+`https://kyle2000.app.n8n.cloud/webhook-test/post-now-instant`
 
-3. **Widen `updateData` type** from `Record<string, string>` to `Record<string, string | string[]>` so the array can be stored directly (the column is `text[]` in Postgres, Supabase JS client handles array binding natively).
+This will be requested via the secrets tool during implementation.
 
-4. **Add `media_urls` to updateData** when present in payload, after parsing.
+---
 
-5. **Update the "no fields" check message** to mention `media_urls` as an accepted field.
+## File Changes
 
-6. **Add logging** -- log which format was detected (array / csv / json-string) and the resulting count, plus the incoming payload keys. No secrets logged.
+### 1. NEW: `supabase/functions/post-now/index.ts`
 
-7. **Consistent response shape** -- responses already use `{ success, post }` or `{ error }`. Keep this pattern; rename `post` to `data` in the success path for consistency with the requirements (or keep `post` for backward compat -- will keep `post` since existing consumers may depend on it, and add `data` as an alias).
+Complete edge function that:
 
-### Validation Logic
+- **CORS**: Standard headers + OPTIONS handler
+- **Auth**: Validates JWT via `getClaims()` -- rejects 401 if missing/invalid
+- **Input**: Accepts `{ post_id }`, validates non-empty string
+- **Data**: Loads full post from `social_media_posts` using service role client
+- **Media normalization**: Handles array, CSV, and JSON-string formats
+- **Payload**: Builds the exact required shape:
 
+```json
+{
+  "event": "post_now",
+  "source": "lovable_command_center",
+  "timestamp": "<ISO>",
+  "idempotency_key": "postnow_<id>",
+  "post": {
+    "id", "status", "caption", "media_urls",
+    "title", "post_type",
+    "platforms": ["instagram", "facebook"],
+    "account": { "location_name": "Street Eatz Waterford", "brand": "Street Eatz" },
+    "meta": { "created_by": "<userId>", "app_env": "prod", "ui_path": "command-center/social/content-queue" }
+  }
+}
 ```
-if media_urls is provided:
-  if Array.isArray -> use directly, trim+filter
-  if typeof string:
-    if starts with "[" -> JSON.parse, validate is array, trim+filter
-    else -> split(","), trim+filter
-  else -> return 400 "media_urls must be array or string"
+
+- **Retry**: 1 auto-retry after 800ms for network/5xx errors; 4xx fails immediately
+- **Status updates**:
+  - Success (2xx from n8n): `status = "posting_queued"`
+  - Failure: `status = "post_failed"`
+- **Response**: `{ success: true, post }` on success, `{ error, status }` on failure (502)
+
+### 2. UPDATE: `supabase/config.toml`
+
+Add at end:
+
+```toml
+[functions.post-now]
+verify_jwt = false
 ```
 
-### What n8n Should Send
-- **Preferred**: actual JSON array `"media_urls": ["url1", "url2"]`
-- **Also works**: CSV string `"media_urls": "url1,url2"` or JSON-stringified array
+(JWT is validated in-code via `getClaims()` per project convention, since signing-keys system doesn't support `verify_jwt = true`)
 
-### File Modified
-| File | Change |
-|------|--------|
-| `supabase/functions/update-social-post/index.ts` | Add media_urls parsing, validation, persistence |
+### 3. UPDATE: `src/hooks/useSocialMediaPosts.ts`
 
-### No Breaking Changes
-- Existing payloads with only `post_id`/`status`/`generated_caption` work identically
-- Response shape preserved (`{ success: true, post: data }` / `{ error: "..." }`)
-- CORS headers unchanged
-- No database migration needed (column already exists as `text[]`)
+Replace the `postNowMutation` (lines 425-480) to:
+
+- Get the current auth session token
+- Call `/functions/v1/post-now` with `{ post_id }` and the `Authorization` header
+- Remove all direct n8n fetch calls and client-side DB status updates (the edge function handles both)
+- Update toasts:
+  - onSuccess: "Sent to posting pipeline"
+  - onError: "Failed to send. Try again."
+
+### 4. No changes needed to `SocialMediaManager.tsx`
+
+The existing `DraftCard` component already has:
+- Per-card `isPublishing` local state (line 659)
+- `handlePostNow` that sets publishing state and calls `onPostNow` (lines 678-685)
+- "Publishing to Socials..." loading UI (lines 757-762)
+- Disabled button during posting (line 772)
+
+All of this works unchanged since it calls the same `postNow` function from the hook.
+
+---
+
+## Security Summary
+
+| Concern | Solution |
+|---------|----------|
+| n8n URL exposed in client | Moved to server-side Deno secret |
+| Unauthenticated access | JWT validated via `getClaims()` in edge function |
+| Status correctness | `posting_queued` on webhook success, NOT `published` |
+| Retry resilience | 1 retry for 5xx/network, immediate fail for 4xx |
+
+---
+
+## Files Modified
+
+| # | File | Action |
+|---|------|--------|
+| 1 | `supabase/functions/post-now/index.ts` | Create new |
+| 2 | `supabase/config.toml` | Add function entry |
+| 3 | `src/hooks/useSocialMediaPosts.ts` | Replace postNowMutation |
+
+No database migrations needed.
