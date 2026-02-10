@@ -1,351 +1,207 @@
 
-# Add "Make it a Flatbread (+€1)" Bread Swap Feature
+# Staff POS iPad Optimization: 3-Part Update
 
-## Overview
+## Summary
 
-Add a new paid add-on option "Make it a Flatbread (+€1)" to the "Make It Epic" section for Burgers and Specials categories only. This replaces the standard bun with a flatbread and adds €1 per unit to the order.
+Three targeted updates to the Staff POS used on iPad: (1) enlarge all touch targets via a centralized CSS system, (2) add a "Delivery" view filter with Just Eat/Delivery sub-options, (3) increase receipt/order summary text sizes. There is no HTML/thermal print receipt system in the codebase -- receipts exist only as on-screen order summaries in the checkout modals and KDS, so "receipt text" changes apply to those components.
 
 ---
 
-## Technical Analysis
+## Part 1: Staff POS Touch Target Scale System
 
-### Current Architecture
+### Approach
 
-The app already has a well-established modifier system:
+Add CSS custom properties under a `.staff-pos` wrapper class in `src/index.css`. All staff-facing pages (`StaffDashboard`, `StaffPOS`, `StaffPOSQuick`, `CommandCenter`) will apply this wrapper at their root element. This keeps the scale system centralized and does not affect customer-facing UI.
 
-1. **SelectedModifier Interface** (`src/types/database.ts` line 96-101):
-```typescript
-interface SelectedModifier {
-  id: string;
-  name: string;
-  price_adjustment: number;
-  modifier_type?: 'loaded_fries_small' | 'drink' | 'sauce' | 'addon' | 'extra';
+### CSS Variables (added to `src/index.css`)
+
+```css
+/* Staff POS Scale System -- iPad touch optimization */
+.staff-pos {
+  --pos-btn-min-h: 52px;
+  --pos-btn-padding: 14px 20px;
+  --pos-btn-font: 15px;
+  --pos-icon-size: 20px;
+  --pos-card-padding: 16px;
+  --pos-input-height: 52px;
+  --pos-gap: 12px;
 }
 ```
 
-2. **"Make It Epic" Section** exists in both:
-   - `src/components/customer/ProductSheet.tsx` (lines 416-537)
-   - `src/components/staff/StaffProductSheet.tsx` (lines 385-495)
+### Files Changed
 
-3. **STANDALONE_ADDONS Pattern** - Already established for checkboxes like Beef Patty, Bacon, Cheese, etc. (lines 61-68 in ProductSheet.tsx)
+| File | What Changes |
+|------|-------------|
+| `src/index.css` | Add `.staff-pos` class with CSS variables and descendant selectors |
+| `src/pages/StaffDashboard.tsx` | Add `staff-pos` class to root div |
+| `src/pages/StaffPOS.tsx` | Add `staff-pos` class to root div |
+| `src/pages/StaffPOSQuick.tsx` | Add `staff-pos` class to root div |
+| `src/pages/CommandCenter.tsx` | Add `staff-pos` class to root div |
+| `src/components/staff/StaffPOSContent.tsx` | Increase product card height from h-24 to h-28, edit/quantity button sizes from w-7/h-7 to w-9/h-9, icon sizes from w-3 to w-4, category tabs from h-12 to h-14 |
+| `src/components/staff/StaffProductSheet.tsx` | Increase checkbox/toggle row padding from p-2.5 to p-3.5, quantity buttons from h-9/w-9 to h-11/w-11, "Add to Order" button from h-12 to h-14, ingredient +/- buttons from w-7/h-7 to w-9/h-9 |
+| `src/components/staff/KitchenDisplaySystem.tsx` | Increase KDS action buttons from `size="sm"` to larger padding, kanban column header padding |
+| `src/components/staff/OperationsContent.tsx` | Increase stock toggle areas, edit button, search input heights |
+| `src/components/checkout/StaffCheckoutModal.tsx` (both files) | Increase payment buttons, quick-amount buttons from h-12 to h-14, tab triggers |
+| `src/components/staff/StaffPaymentModal.tsx` | Increase payment buttons from h-12 to h-14, quick-amount buttons |
+| `src/components/staff/QuickPayModal.tsx` | Increase confirm/cancel buttons |
+| `src/components/staff/PickupOrderCard.tsx` | Increase "Take Payment" button |
 
-4. **Category Gating** - Already implemented: `showMakeItEpic` excludes Fries, Drinks, and Sauces (line 203)
+### Before/After Summary
 
-5. **Pricing** - Uses `price_adjustment` in cents-compatible way, prices stored as euros (€)
-
----
-
-## Implementation Plan
-
-### Part 1: Update Type Definition
-
-**File: `src/types/database.ts`**
-
-Add new modifier type for bread swaps:
-
-```typescript
-modifier_type?: 'loaded_fries_small' | 'drink' | 'sauce' | 'addon' | 'extra' | 'bread_swap';
-```
-
----
-
-### Part 2: Add Flatbread Option to Customer ProductSheet
-
-**File: `src/components/customer/ProductSheet.tsx`**
-
-**A) Add Bread Swap Constant (after KIDS_MENU_ADDONS, around line 74):**
-
-```typescript
-// Bread swap option - only for Burgers and Specials
-const BREAD_SWAP_FLATBREAD = {
-  code: 'BREAD_SWAP_FLATBREAD',
-  id: 'bread-swap-flatbread',
-  label: 'Make it a Flatbread',
-  kitchenLabel: 'FLATBREAD',
-  category: 'bread',
-  type: 'swap',
-  price: 1.00,
-};
-```
-
-**B) Add State for Bread Swap (around line 91):**
-
-```typescript
-const [flatbreadSelected, setFlatbreadSelected] = useState(false);
-```
-
-**C) Add Category Check (around line 203):**
-
-```typescript
-// Show flatbread option only for Burgers and Specials
-const showFlatbreadOption = product.category === 'Burgers' || product.category === 'Specials';
-```
-
-**D) Handle Edit Mode - Restore Flatbread State (in useEffect around line 118-130):**
-
-Add logic to detect existing `bread_swap` modifier and set `flatbreadSelected`:
-
-```typescript
-} else if (mod.modifier_type === 'bread_swap') {
-  // Restore flatbread selection in edit mode
-  setFlatbreadSelected(true);
-```
-
-**E) Reset Flatbread on Product Change (around line 173):**
-
-```typescript
-setFlatbreadSelected(false);
-```
-
-**F) Build Flatbread Modifier (in buildAllModifiers function around line 312):**
-
-```typescript
-// Add flatbread bread swap if selected
-if (flatbreadSelected) {
-  allMods.push({
-    id: BREAD_SWAP_FLATBREAD.id,
-    name: BREAD_SWAP_FLATBREAD.label,
-    price_adjustment: BREAD_SWAP_FLATBREAD.price,
-    modifier_type: 'bread_swap',
-  });
-}
-```
-
-**G) Include Flatbread in Price Calculation (around line 324):**
-
-```typescript
-const flatbreadPrice = flatbreadSelected ? BREAD_SWAP_FLATBREAD.price : 0;
-
-const totalPrice = (product.price + currentAddonsTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice + flatbreadPrice) * quantity;
-```
-
-**H) Add UI Toggle in "Make It Epic" Section (after existing add-ons, around line 455):**
-
-Insert a new visually distinct bread swap section:
-
-```tsx
-{/* Bread Swap Option - Only for Burgers & Specials */}
-{showFlatbreadOption && (
-  <div className="mt-4 pt-4 border-t border-white/10">
-    <label
-      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-        flatbreadSelected
-          ? 'border-amber-500 bg-amber-500/15 shadow-sm shadow-amber-500/20'
-          : 'border-white/10 bg-white/5 hover:border-amber-500/40'
-      }`}
-    >
-      <div className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-3">
-          <Checkbox
-            checked={flatbreadSelected}
-            onCheckedChange={(checked) => setFlatbreadSelected(checked === true)}
-            className="border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
-          />
-          <span className="text-foreground font-medium">Make it a Flatbread</span>
-        </div>
-        <span className="text-xs text-muted-foreground ml-9">Replaces the standard bun</span>
-      </div>
-      <span className="text-amber-400 font-bold">+€1.00</span>
-    </label>
-  </div>
-)}
-```
+| Element | Before | After |
+|---------|--------|-------|
+| Category tabs | h-12 (48px) | h-14 (56px) |
+| Product grid cards | h-24 (96px) | h-28 (112px) |
+| Cart quantity +/- buttons | w-7 h-7 (28px) | w-9 h-9 (36px) |
+| Cart edit button | p-1.5 | p-2.5, min w-9/h-9 |
+| KDS action buttons | size="sm" (32px) | h-12, larger padding |
+| Checkout quick amounts | h-12 | h-14 |
+| Product sheet checkboxes | p-2.5 row | p-3.5 row |
+| Product sheet qty buttons | h-9 w-9 | h-11 w-11 |
+| "Add to Order" / "Checkout" | h-12 / h-14 | h-14 / h-16 |
 
 ---
 
-### Part 3: Add Flatbread Option to Staff ProductSheet
+## Part 2: Delivery View Filter
 
-**File: `src/components/staff/StaffProductSheet.tsx`**
+### Data Analysis
 
-Apply identical changes:
-- Add `BREAD_SWAP_FLATBREAD` constant
-- Add `flatbreadSelected` state
-- Add `showFlatbreadOption` category check
-- Handle edit mode restoration
-- Add to `buildAllModifiers()`
-- Include in price calculation
-- Add UI toggle in "Make It Epic" section
+The current `orders` table has no `order_channel` or `order_source` column in the database. The `order_source` field is only sent in webhook payloads (not stored in DB). To support filtering by delivery channel, we need to add an `order_channel` column.
 
----
+### Database Migration
 
-### Part 4: Update Cart Display
+Add a text column `order_channel` to the `orders` table with a default of `'in_store'`:
 
-**File: `src/pages/Cart.tsx`**
+```sql
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS order_channel text DEFAULT 'in_store';
 
-Update the modifier badge rendering to give `bread_swap` modifiers a distinct visual treatment (amber/bold styling):
-
-In the modifiers section (around line 199-207), update to:
-
-```tsx
-{item.selectedModifiers.map((m) => {
-  // Special styling for bread swap modifiers
-  const isBreadSwap = m.modifier_type === 'bread_swap';
-  
-  return (
-    <span 
-      key={m.id} 
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-        isBreadSwap 
-          ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
-          : 'bg-green-500/20 text-green-400 border border-green-500/30'
-      }`}
-    >
-      {isBreadSwap ? m.name : `+ ${m.name}`}
-      {m.price_adjustment > 0 && ` (+€${m.price_adjustment.toFixed(2)})`}
-    </span>
-  );
-})}
+-- Index for fast filtering
+CREATE INDEX IF NOT EXISTS idx_orders_order_channel
+  ON public.orders (order_channel);
 ```
 
----
+Supported values: `in_store`, `collection`, `delivery`, `justeat`
 
-### Part 5: Update Kitchen Display System
+### UI Implementation
 
-**File: `src/components/staff/KitchenDisplaySystem.tsx`**
+Add a "View" dropdown menu to the StaffPOSContent (POS tab) and/or the KDS header. This will be a simple filter segmented control or dropdown:
 
-The KDS already parses modifiers from the `selected_modifiers` JSONB field and displays them. The `bread_swap` type will be included in `regularModifiers` and displayed. 
+**Location**: In `StaffPOSContent.tsx` -- add a "View" dropdown at the top of the cart panel, or in the KDS header area in `KitchenDisplaySystem.tsx`.
 
-For enhanced visibility, update the modifier rendering in the `parseModifiers` function or display logic (around line 339-346) to give bread swaps prominent amber styling:
+**UX Flow** (2 taps max):
+1. Tap "View: All Orders" button in the KDS header
+2. A dropdown/popover opens with options: "All Orders", "In-Store", "Collection", "Delivery", "Just Eat"
+3. Selecting one filters the KDS kanban columns
 
-```tsx
-{parsed.regularModifiers.map((mod, i) => {
-  const isBreadSwap = mod.name?.toLowerCase().includes('flatbread');
-  return (
-    <span
-      key={`mod-${i}`}
-      className={`text-xs px-1.5 py-0.5 rounded font-bold ${
-        isBreadSwap
-          ? 'bg-amber-500/40 text-amber-200'
-          : 'bg-secondary text-muted-foreground'
-      }`}
-    >
-      {isBreadSwap ? `BREAD: ${mod.name.toUpperCase()}` : mod.name}
-      {mod.price_adjustment && mod.price_adjustment > 0 && ` (+€${mod.price_adjustment.toFixed(2)})`}
-    </span>
-  );
-})}
-```
+**Implementation**:
 
----
+| File | What Changes |
+|------|-------------|
+| `src/types/database.ts` | Add `OrderChannel` type: `'in_store' \| 'collection' \| 'delivery' \| 'justeat'` |
+| `src/hooks/useKitchenOrders.ts` | Add optional `orderChannel` filter parameter to the query; update `KitchenOrder` interface |
+| `src/components/staff/KitchenDisplaySystem.tsx` | Add order channel filter state and dropdown in the KDS header, filter orders by `order_channel` |
+| `src/hooks/useStaffCheckout.ts` | Include `order_channel: 'in_store'` in staff order inserts |
+| `src/hooks/useCheckout.ts` | Include `order_channel: 'collection'` in customer order inserts (default for web orders) |
 
-### Part 6: Verify Checkout/Webhook Payload
+**How Filtering Maps to Data**:
+- "All Orders": No filter (show everything)
+- "In-Store": `order_channel = 'in_store'` -- POS-created orders
+- "Collection": `order_channel = 'collection'` -- web orders for pickup
+- "Delivery": `order_channel = 'delivery'` -- own delivery orders
+- "Just Eat": `order_channel = 'justeat'` -- Just Eat orders
 
-**File: `src/hooks/useCheckout.ts`**
-
-The existing `submitOrder` function (lines 93-118) already includes all modifiers in the order_items JSONB. The flatbread modifier will be included automatically:
-
-```typescript
-selected_modifiers: {
-  modifiers: regularModifiers.map((m) => ({
-    name: m.name,
-    price_adjustment: m.price_adjustment,
-  })),
-  // ...
-}
-```
-
-For n8n webhooks (`sendToKitchen` around line 192-195), modifiers are already appended:
-
-```typescript
-item.selectedModifiers.forEach((mod) => {
-  if (mod?.name) modifiers.push(mod.name);
-});
-```
-
-**Enhancement**: To include the structured data for external systems, we can update the payload to include full modifier objects:
-
-```typescript
-modifiers: item.selectedModifiers.map(mod => ({
-  name: mod.name,
-  code: mod.id,
-  price: mod.price_adjustment,
-  type: mod.modifier_type || 'unknown'
-})),
-```
+Note: Since Just Eat/Delivery orders don't yet originate from anywhere in the current system, these filters will show "No orders" initially. The infrastructure will be ready for when those order sources are connected via webhook/integration.
 
 ---
 
-## Summary of Changes
+## Part 3: Receipt/Order Summary Text Size Increase
 
-| File | Changes |
-|------|---------|
-| `src/types/database.ts` | Add `'bread_swap'` to `modifier_type` union |
-| `src/components/customer/ProductSheet.tsx` | Add flatbread constant, state, category gating, UI toggle, build modifier, price calc |
-| `src/components/staff/StaffProductSheet.tsx` | Same changes as customer ProductSheet |
-| `src/pages/Cart.tsx` | Enhanced modifier display with amber styling for bread swaps |
-| `src/components/staff/KitchenDisplaySystem.tsx` | Enhanced modifier display for bread swaps |
-| `src/hooks/useCheckout.ts` | (Optional) Enhance webhook payload with full modifier objects |
+### Current State
 
----
+There is **no HTML print template or ESC/POS receipt system** in the codebase. The "receipt" is the on-screen order summary displayed in:
 
-## Modifier Schema (Final)
+1. **KDS Order Cards** (`KitchenDisplaySystem.tsx`) -- the kitchen-facing order view
+2. **Staff Checkout Modal** (`StaffCheckoutModal.tsx` in `staff/`) -- order summary during checkout
+3. **Pickup Order Card** (`PickupOrderCard.tsx`) -- pending pickup orders
+4. **Staff Payment Modal** (`StaffPaymentModal.tsx`) -- payment capture view
 
-```typescript
-{
-  id: 'bread-swap-flatbread',
-  name: 'Make it a Flatbread',
-  price_adjustment: 1.00,
-  modifier_type: 'bread_swap',
-  // Additional metadata (for reference, not stored in modifier):
-  // code: 'BREAD_SWAP_FLATBREAD',
-  // kitchenLabel: 'FLATBREAD',
-  // category: 'bread',
-  // type: 'swap',
-}
-```
+These are the "receipts" staff read during service, so they need to be bigger and more readable on iPad.
 
----
+### Changes
 
-## Category Scoping Logic
+| Element | Before | After |
+|---------|--------|-------|
+| **KDS: Order number** | `text-lg` (18px) | `text-2xl` (24px) |
+| **KDS: Item name** | `font-medium` (default ~16px) | `text-base font-bold` (16px bold) |
+| **KDS: Quantity badge** | `text-sm` (14px) | `text-base` (16px) |
+| **KDS: Modifier tags** | `text-xs` (12px) | `text-sm` (14px) |
+| **KDS: Total** | `text-sm / font-bold` | `text-base / font-bold` |
+| **KDS: Customer name** | `text-sm` | `text-base font-bold` |
+| **KDS: Special notes** | `text-sm` | `text-base` |
+| **Checkout: Order total** | `text-4xl` | `text-5xl` |
+| **Checkout: Item names** | `text-sm` | `text-base` |
+| **Checkout: Modifier tags** | `text-xs` | `text-sm` |
+| **Pickup: Order number** | `text-3xl` | `text-4xl` |
+| **Pickup: Item name** | `font-medium` | `text-base font-bold` |
+| **Payment: Total** | `text-5xl` | `text-6xl` |
 
-```typescript
-// Only Burgers and Specials get the flatbread option
-const showFlatbreadOption = product.category === 'Burgers' || product.category === 'Specials';
-```
+### Files Changed
 
-Uses the existing `ProductCategory` type which includes: `'Burgers' | 'Flatbreads' | 'Fries' | 'Drinks' | 'Specials' | 'Sauces' | 'Kids Menu'`
-
----
-
-## Validation & Edge Cases
-
-1. **Duplicate Prevention**: Only one flatbread modifier can exist per item (single checkbox toggle)
-2. **Edit Mode**: Flatbread state is restored from existing modifiers when editing cart items
-3. **Quantity Scaling**: Price is included in `totalPrice` calculation which is multiplied by quantity
-4. **Type Switching**: Not applicable - flatbread is tied to the product, not selectable between bread types
-5. **Mutual Exclusivity**: Currently only one bread swap option (flatbread). Future bread options would use the same `bread_swap` type and require only one to be selected
+| File | What Changes |
+|------|-------------|
+| `src/components/staff/KitchenDisplaySystem.tsx` | Increase font sizes for order number, items, modifiers, customer name, total, and special notes |
+| `src/components/staff/StaffCheckoutModal.tsx` (staff version) | Increase order summary text sizes |
+| `src/components/staff/PickupOrderCard.tsx` | Increase order number, item, and total sizes |
+| `src/components/staff/StaffPaymentModal.tsx` | Increase total display size |
 
 ---
 
-## Manual QA Checklist
+## Implementation Order
 
-| # | Test Case | Expected Result |
-|---|-----------|-----------------|
-| 1 | Open a Burger product → Look for flatbread option | Should see "Make it a Flatbread (+€1)" toggle in Make It Epic section |
-| 2 | Open a Specials product → Look for flatbread option | Should see flatbread toggle |
-| 3 | Open a Fries product → Look for flatbread option | Should NOT see flatbread toggle |
-| 4 | Open a Kids Menu product → Look for flatbread option | Should NOT see flatbread toggle |
-| 5 | Toggle flatbread ON → Check price | Price should increase by €1 |
-| 6 | Toggle flatbread OFF → Check price | Price should decrease by €1 |
-| 7 | Add item with flatbread to cart → View cart | Should see "Make it a Flatbread (+€1)" badge in amber/bold styling |
-| 8 | Change quantity to 2 → Check total | Flatbread charge should scale (2x €1 = €2 increase) |
-| 9 | Edit item in cart → Check toggle state | Flatbread toggle should be pre-selected |
-| 10 | Complete checkout → Check kitchen display | Should see "BREAD: FLATBREAD (+€1.00)" in order details |
+1. Add `.staff-pos` CSS class and variables to `src/index.css`
+2. Apply `.staff-pos` class to all staff page root elements
+3. Update touch targets in all staff components (Part 1)
+4. Run database migration to add `order_channel` column (Part 2)
+5. Add `OrderChannel` type and update hooks (Part 2)
+6. Add KDS order channel filter dropdown (Part 2)
+7. Increase text sizes in KDS/checkout/receipt components (Part 3)
 
 ---
 
-## Migration Notes
+## Technical Details
 
-**No database migration required.** The flatbread modifier is stored in the existing `selected_modifiers` JSONB column in `order_items`. The structure is:
+### Files Modified (Complete List)
 
-```json
-{
-  "modifiers": [
-    { "name": "Make it a Flatbread", "price_adjustment": 1.0 }
-  ],
-  "removed_ingredients": [],
-  "added_extras": []
-}
-```
+| # | File | Parts |
+|---|------|-------|
+| 1 | `src/index.css` | 1 |
+| 2 | `src/pages/StaffDashboard.tsx` | 1 |
+| 3 | `src/pages/StaffPOS.tsx` | 1 |
+| 4 | `src/pages/StaffPOSQuick.tsx` | 1 |
+| 5 | `src/pages/CommandCenter.tsx` | 1 |
+| 6 | `src/components/staff/StaffPOSContent.tsx` | 1 |
+| 7 | `src/components/staff/StaffProductSheet.tsx` | 1 |
+| 8 | `src/components/staff/KitchenDisplaySystem.tsx` | 1, 2, 3 |
+| 9 | `src/components/staff/OperationsContent.tsx` | 1 |
+| 10 | `src/components/checkout/StaffCheckoutModal.tsx` | 1 |
+| 11 | `src/components/staff/StaffCheckoutModal.tsx` | 1, 3 |
+| 12 | `src/components/staff/StaffPaymentModal.tsx` | 1, 3 |
+| 13 | `src/components/staff/QuickPayModal.tsx` | 1 |
+| 14 | `src/components/staff/PickupOrderCard.tsx` | 1, 3 |
+| 15 | `src/components/staff/PaymentStatusBadge.tsx` | 1 |
+| 16 | `src/types/database.ts` | 2 |
+| 17 | `src/hooks/useKitchenOrders.ts` | 2 |
+| 18 | `src/hooks/useStaffCheckout.ts` | 2 |
+| 19 | `src/hooks/useCheckout.ts` | 2 |
 
-The new `modifier_type: 'bread_swap'` is only used client-side for UI rendering and is not persisted to the database (matching existing patterns for other modifier types).
+### Database Migration
+
+One migration adding `order_channel` column + index to `orders` table.
+
+### No Breaking Changes
+
+- Customer-facing UI is completely untouched (no `.staff-pos` class applied)
+- Existing orders default to `'in_store'` via column default
+- All filter changes are additive (default view shows all orders)
+- No existing columns are modified or removed
