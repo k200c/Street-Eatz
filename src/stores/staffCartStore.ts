@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { CartItem, Product, SelectedModifier, RemovedIngredient } from '@/types/database';
+import { getModifierTotal } from '@/lib/pricingRules';
 
 /**
  * Staff-specific cart store that is completely isolated from the customer cart.
@@ -44,7 +45,7 @@ export const useStaffCartStore = create<StaffCartStore>()((set, get) => ({
   items: loadStaffCart(),
 
   addItem: (product, quantity, modifiers, removedIngredients) => {
-    const modifiersTotal = modifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+    const modifiersTotal = modifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
     const totalPrice = (product.price + modifiersTotal) * quantity;
 
     const newItem: CartItem = {
@@ -63,7 +64,7 @@ export const useStaffCartStore = create<StaffCartStore>()((set, get) => ({
   },
 
   updateItem: (index, product, quantity, modifiers, removedIngredients) => {
-    const modifiersTotal = modifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+    const modifiersTotal = modifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
     const totalPrice = (product.price + modifiersTotal) * quantity;
 
     const updatedItem: CartItem = {
@@ -94,7 +95,7 @@ export const useStaffCartStore = create<StaffCartStore>()((set, get) => ({
       const newItems = state.items.map((item, i) => {
         if (i !== index) return item;
         const modifiersTotal = item.selectedModifiers.reduce(
-          (sum, m) => sum + m.price_adjustment,
+          (sum, m) => sum + getModifierTotal(m),
           0
         );
         return {

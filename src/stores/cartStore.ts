@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { CartItem, Product, SelectedModifier, RemovedIngredient } from '@/types/database';
+import { getModifierTotal } from '@/lib/pricingRules';
 import { supabase } from '@/integrations/supabase/client';
 
 // Generate a unique guest session ID
@@ -119,7 +120,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
 
       const items: CartItem[] = (data || []).map((item: any) => {
         const modifiers = (item.selected_modifiers || []) as SelectedModifier[];
-        const modifiersTotal = modifiers.reduce((sum, m) => sum + (m.price_adjustment || 0), 0);
+        const modifiersTotal = modifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
         
         return {
           product: item.products as Product,
@@ -164,7 +165,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
 
   addItem: async (product, quantity, modifiers, removedIngredients) => {
     const { userId } = get();
-    const modifiersTotal = modifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+    const modifiersTotal = modifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
     const totalPrice = (product.price + modifiersTotal) * quantity;
 
     const newItem: CartItem = {
@@ -216,7 +217,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
     
     if (!existingItem) return;
 
-    const modifiersTotal = modifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+    const modifiersTotal = modifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
     const totalPrice = (product.price + modifiersTotal) * quantity;
 
     const updatedItem: CartItem = {
@@ -321,7 +322,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
       const newItems = state.items.map((item, i) => {
         if (i !== index) return item;
         const modifiersTotal = item.selectedModifiers.reduce(
-          (sum, m) => sum + m.price_adjustment,
+          (sum, m) => sum + getModifierTotal(m),
           0
         );
         return {

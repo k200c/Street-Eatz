@@ -16,8 +16,8 @@ export const EXTRA_PRICING = {
   sauceKeywords: ['aioli', 'cheese sauce'],
   saucePrice: 1.00,
   
-  // Default price for other extras (currently free)
-  defaultExtraPrice: 0,
+  // Default price for other extras
+  defaultExtraPrice: 0.50,
   
   // Removals are always free
   removalPrice: 0,
@@ -48,6 +48,14 @@ export function getExtraPrice(ingredientName: string): number {
   
   // Other extras are free (or use defaultExtraPrice if needed)
   return EXTRA_PRICING.defaultExtraPrice;
+}
+
+/**
+ * Calculate total price contribution for a modifier, accounting for quantity.
+ * Backward-compatible: modifiers without `quantity` default to 1.
+ */
+export function getModifierTotal(mod: { price_adjustment: number; quantity?: number }): number {
+  return mod.price_adjustment * (mod.quantity || 1);
 }
 
 /**

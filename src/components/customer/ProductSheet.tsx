@@ -11,7 +11,7 @@ import { ProductIngredientWithDetails } from '@/hooks/useProductIngredients';
 import { useLoadedFries, useDrinks, useSauces } from '@/hooks/useProductsByCategory';
 import { useProductAllergens } from '@/hooks/useProductAllergens';
 import { useCartStore } from '@/stores/cartStore';
-import { getExtraPrice } from '@/lib/pricingRules';
+import { getExtraPrice, getModifierTotal } from '@/lib/pricingRules';
 import { toast } from 'sonner';
 import { AllergenBadges } from './AllergenBadges';
 import { AllergenModal } from '@/components/ui/allergen-modal';
@@ -35,7 +35,6 @@ interface ProductSheetProps {
   modifierGroups?: ModifierGroupWithModifiers[];
   ingredients?: ProductIngredientWithDetails[];
   onClose: () => void;
-  // Edit mode props
   editMode?: boolean;
   editIndex?: number;
   initialItem?: {
@@ -45,21 +44,17 @@ interface ProductSheetProps {
   };
 }
 
-// Track ingredient customization state: 'included' (default), 'removed', or 'extra'
 type IngredientState = 'included' | 'removed' | 'extra';
 
-// Pricing for loaded fries based on category
 const LOADED_FRIES_STANDARD_PRICE = 6.50;
-const LOADED_FRIES_SPECIALS_PRICE = 3.50; // Specials already include chips, this is an upgrade
+const LOADED_FRIES_SPECIALS_PRICE = 3.50;
 
-// Get loaded fries price based on product category
 const getLoadedFriesPrice = (category: ProductCategory): number => {
   return category === 'Specials' ? LOADED_FRIES_SPECIALS_PRICE : LOADED_FRIES_STANDARD_PRICE;
 };
 
-// Standalone add-on items with fixed prices (for standard categories)
+// Standalone add-on items (Beef Patty handled separately as stepper)
 const STANDALONE_ADDONS = [
-  { id: 'beef-patty', name: 'Beef Patty', price: 2.50 },
   { id: 'bacon', name: 'Bacon', price: 2.00 },
   { id: 'extra-chicken', name: 'Extra Chicken', price: 2.00 },
   { id: 'cheese', name: 'Cheese', price: 1.00 },
@@ -67,13 +62,14 @@ const STANDALONE_ADDONS = [
   { id: 'handcut-chips', name: 'Handcut Chips', price: 3.50 },
 ];
 
-// Kids Menu specific add-ons
+// Beef Patty config for stepper
+const BEEF_PATTY = { id: 'beef-patty', name: 'Beef Patty', price: 2.50, maxQty: 4 };
+
 const KIDS_MENU_ADDONS = [
   { id: 'add-chips', name: 'Add Chips', price: 2.00 },
   { id: 'capri-sun', name: 'Capri Sun', price: 1.50 },
 ];
 
-// Bread swap option - only for Burgers and Specials
 const BREAD_SWAP_FLATBREAD = {
   id: 'bread-swap-flatbread',
   name: 'Make it a Flatbread',
@@ -94,6 +90,7 @@ export function ProductSheet({
   const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([]);
   const [ingredientStates, setIngredientStates] = useState<Record<string, IngredientState>>({});
   const [standaloneAddons, setStandaloneAddons] = useState<Set<string>>(new Set());
+  const [beefPattyCount, setBeefPattyCount] = useState(0);
   const [selectedLoadedFries, setSelectedLoadedFries] = useState<string | null>(null);
   const [selectedDrink, setSelectedDrink] = useState<string | null>(null);
   const [selectedSauce, setSelectedSauce] = useState<string | null>(null);
@@ -102,37 +99,31 @@ export function ProductSheet({
   const addItem = useCartStore((state) => state.addItem);
   const updateItem = useCartStore((state) => state.updateItem);
 
-  // Fetch dynamic products for dropdowns
   const { data: loadedFriesProducts } = useLoadedFries();
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
-  
-  // Fetch allergen data for this product
   const { data: allergenData } = useProductAllergens(product?.id || null);
 
-  // Reset state when product changes or initialize for edit mode
   useEffect(() => {
     if (product) {
       if (editMode && initialItem) {
-        // Edit mode: pre-populate from existing item
         setQuantity(initialItem.quantity);
         
-        // Extract standalone addons from modifiers
         const addonIds = new Set<string>();
-        let loadedFries: string | null = null;
+        let loadedFriesVal: string | null = null;
         let drink: string | null = null;
         let sauce: string | null = null;
         const otherMods: SelectedModifier[] = [];
-        
         let hasFlatbread = false;
+        let pattyCount = 0;
         
         initialItem.selectedModifiers.forEach(mod => {
-          // Check if it's a standalone addon
-          const isStandaloneAddon = [...STANDALONE_ADDONS, ...KIDS_MENU_ADDONS].some(a => a.id === mod.id || a.name === mod.name);
-          if (isStandaloneAddon) {
+          if (mod.id === BEEF_PATTY.id || mod.name === BEEF_PATTY.name) {
+            pattyCount = mod.quantity || 1;
+          } else if ([...STANDALONE_ADDONS, ...KIDS_MENU_ADDONS].some(a => a.id === mod.id || a.name === mod.name)) {
             addonIds.add(mod.id);
           } else if (mod.modifier_type === 'loaded_fries_small') {
-            loadedFries = mod.id;
+            loadedFriesVal = mod.id;
           } else if (mod.modifier_type === 'drink') {
             drink = mod.id;
           } else if (mod.modifier_type === 'sauce') {
@@ -144,15 +135,14 @@ export function ProductSheet({
           }
         });
         
+        setBeefPattyCount(pattyCount);
         setFlatbreadSelected(hasFlatbread);
-        
         setStandaloneAddons(addonIds);
-        setSelectedLoadedFries(loadedFries);
+        setSelectedLoadedFries(loadedFriesVal);
         setSelectedDrink(drink);
         setSelectedSauce(sauce);
         setSelectedModifiers(otherMods);
         
-        // Set ingredient states from removed ingredients and extras
         const ingStates: Record<string, IngredientState> = {};
         ingredients?.forEach((ing) => {
           if (ing.is_default) {
@@ -160,7 +150,6 @@ export function ProductSheet({
           }
         });
         
-        // Mark removed ingredients
         initialItem.removedIngredients.forEach(ri => {
           const found = ingredients?.find(ing => ing.id === ri.id || ing.name === ri.name);
           if (found) {
@@ -168,7 +157,6 @@ export function ProductSheet({
           }
         });
         
-        // Mark extras from modifiers
         initialItem.selectedModifiers.forEach(mod => {
           if (mod.modifier_type === 'extra') {
             const found = ingredients?.find(ing => 
@@ -182,15 +170,14 @@ export function ProductSheet({
         
         setIngredientStates(ingStates);
       } else {
-        // Normal mode: reset all
         setQuantity(1);
         setSelectedModifiers([]);
         setStandaloneAddons(new Set());
+        setBeefPattyCount(0);
         setSelectedLoadedFries(null);
         setSelectedDrink(null);
         setSelectedSauce(null);
         setFlatbreadSelected(false);
-        // Initialize all default ingredients as 'included'
         const initStates: Record<string, IngredientState> = {};
         ingredients?.forEach((ing) => {
           if (ing.is_default) {
@@ -205,24 +192,19 @@ export function ProductSheet({
   if (!product) return null;
 
   const imageUrl = product.image_url || categoryImages[product.category] || heroBurger;
-  
-  // Determine if this is a Kids Menu item
   const isKidsMenu = product.category === 'Kids Menu';
-  
-  // Get the appropriate add-ons based on category
   const currentAddons = isKidsMenu ? KIDS_MENU_ADDONS : STANDALONE_ADDONS;
-  
-  // Get loaded fries price based on category
   const loadedFriesPrice = getLoadedFriesPrice(product.category);
 
-  // Visibility: Show "Make It Epic" for everything EXCEPT Fries, Drinks, and Sauces
+  // Show "Make It Epic" for everything EXCEPT Fries, Drinks, and Sauces
   const showMakeItEpic = product.category !== 'Fries' && product.category !== 'Drinks' && product.category !== 'Sauces';
-  
-  // For Kids Menu, don't show the dropdowns (loaded fries, drinks, sauces)
+  // Fries get their own Make It Epic with just drinks
+  const showFriesMakeItEpic = product.category === 'Fries';
   const showDropdowns = !isKidsMenu;
-  
-  // Show flatbread option only for Burgers and Specials
   const showFlatbreadOption = product.category === 'Burgers' || product.category === 'Specials';
+  // Show beef patty stepper for non-Kids, non-Fries, non-Drinks, non-Sauces
+  const showBeefPattyStepper = showMakeItEpic && !isKidsMenu;
+
   const toggleStandaloneAddon = (addonId: string) => {
     setStandaloneAddons(prev => {
       const next = new Set(prev);
@@ -255,7 +237,6 @@ export function ProductSheet({
     });
   };
 
-  // Get removed and extra ingredients for cart
   const getRemovedIngredients = (): RemovedIngredient[] => {
     return (ingredients || [])
       .filter((ing) => ingredientStates[ing.id] === 'removed')
@@ -267,18 +248,16 @@ export function ProductSheet({
       .filter((ing) => ingredientStates[ing.id] === 'extra')
       .map((ing) => ({ 
         id: ing.id, 
-        // For addable-only ingredients (fries add-ons), don't prefix with "Extra"
         name: ing.is_addable && !ing.is_default ? ing.name : `Extra ${ing.name}`,
         price_adjustment: getExtraPrice(ing.name),
         modifier_type: 'extra' as const,
       }));
   };
 
-  // Build all modifiers for cart
   const buildAllModifiers = (): SelectedModifier[] => {
     const allMods: SelectedModifier[] = [...selectedModifiers, ...getExtraIngredients()];
 
-    // Add standalone add-ons (use the appropriate list based on category)
+    // Add standalone add-ons
     currentAddons.forEach(addon => {
       if (standaloneAddons.has(addon.id)) {
         allMods.push({
@@ -290,7 +269,18 @@ export function ProductSheet({
       }
     });
 
-    // Add loaded fries selection with category-based price (not for Kids Menu)
+    // Add beef patty with quantity
+    if (beefPattyCount > 0) {
+      allMods.push({
+        id: BEEF_PATTY.id,
+        name: BEEF_PATTY.name,
+        price_adjustment: BEEF_PATTY.price,
+        modifier_type: 'addon',
+        quantity: beefPattyCount,
+      });
+    }
+
+    // Add loaded fries selection
     if (selectedLoadedFries && loadedFriesProducts && !isKidsMenu) {
       const fry = loadedFriesProducts.find(p => p.id === selectedLoadedFries);
       if (fry) {
@@ -303,7 +293,7 @@ export function ProductSheet({
       }
     }
 
-    // Add drink selection (not for Kids Menu)
+    // Add drink selection (for non-Kids)
     if (selectedDrink && drinksProducts && !isKidsMenu) {
       const drink = drinksProducts.find(p => p.id === selectedDrink);
       if (drink) {
@@ -316,7 +306,7 @@ export function ProductSheet({
       }
     }
 
-    // Add sauce selection (not for Kids Menu)
+    // Add sauce selection (for non-Kids)
     if (selectedSauce && saucesProducts && !isKidsMenu) {
       const sauce = saucesProducts.find(p => p.id === selectedSauce);
       if (sauce) {
@@ -329,7 +319,7 @@ export function ProductSheet({
       }
     }
 
-    // Add flatbread bread swap if selected
+    // Add flatbread bread swap
     if (flatbreadSelected) {
       allMods.push({
         id: BREAD_SWAP_FLATBREAD.id,
@@ -344,14 +334,15 @@ export function ProductSheet({
 
   // Calculate total price
   const currentAddonsTotal = currentAddons.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + a.price, 0);
+  const beefPattyTotal = beefPattyCount * BEEF_PATTY.price;
   const extrasTotal = getExtraIngredients().reduce((sum, e) => sum + e.price_adjustment, 0);
-  const modifiersTotal = selectedModifiers.reduce((sum, m) => sum + m.price_adjustment, 0);
+  const modifiersTotal = selectedModifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
   const selectedLoadedFriesPrice = (selectedLoadedFries && !isKidsMenu) ? loadedFriesPrice : 0;
   const drinkPrice = (!isKidsMenu && drinksProducts?.find(p => p.id === selectedDrink)?.price) || 0;
   const saucePrice = (!isKidsMenu && saucesProducts?.find(p => p.id === selectedSauce)?.price) || 0;
   const flatbreadPrice = flatbreadSelected ? BREAD_SWAP_FLATBREAD.price : 0;
   
-  const totalPrice = (product.price + currentAddonsTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice + flatbreadPrice) * quantity;
+  const totalPrice = (product.price + currentAddonsTotal + beefPattyTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice + flatbreadPrice) * quantity;
 
   const handleAddToOrder = async () => {
     const removedIngredients = getRemovedIngredients();
@@ -376,11 +367,8 @@ export function ProductSheet({
   const removableIngredients = defaultIngredients.filter((ing) => ing.is_removable !== false);
   const hasIngredients = defaultIngredients.length > 0;
   const hasAddableIngredients = addableOnlyIngredients.length > 0;
-  
-  // Show "Customize Your Fries" section for Fries category with addable ingredients
   const showFriesCustomization = product.category === 'Fries' && hasAddableIngredients;
 
-  // Count customizations
   const removedCount = Object.values(ingredientStates).filter(s => s === 'removed').length;
   const extraCount = Object.values(ingredientStates).filter(s => s === 'extra').length;
 
@@ -390,7 +378,6 @@ export function ProductSheet({
         side="bottom"
         className="h-[100dvh] sm:h-[90vh] sm:rounded-t-3xl bg-gradient-to-b from-[#1A1A1A] to-[#0A0A0A] border-t border-white/10 p-0 overflow-hidden"
       >
-        {/* Close Button - safe-area aware */}
         <button
           onClick={onClose}
           className="absolute right-4 z-10 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
@@ -399,7 +386,6 @@ export function ProductSheet({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Scrollable Content */}
         <div className="h-full overflow-y-auto pb-36" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           {/* Product Image */}
           <div className="relative h-56 sm:h-64">
@@ -409,8 +395,6 @@ export function ProductSheet({
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
-            
-            {/* Base Price Badge */}
             <div className="absolute bottom-4 left-4">
               <span className="price-badge text-lg">
                 €{product.price.toFixed(2)}
@@ -446,7 +430,6 @@ export function ProductSheet({
             {/* SECTION 1: Make it Epic (Premium Upsell Section) */}
             {showMakeItEpic && (
               <div className="mb-8 p-5 rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 relative overflow-hidden">
-                {/* Decorative flame */}
                 <div className="absolute top-3 right-3 text-primary/30">
                   <Flame className="w-12 h-12" />
                 </div>
@@ -455,6 +438,39 @@ export function ProductSheet({
                   <Flame className="w-5 h-5" />
                   Make it Epic
                 </h4>
+
+                {/* Beef Patty Stepper (0-4) - only for non-Kids */}
+                {showBeefPattyStepper && (
+                  <div className={`flex items-center justify-between p-3 rounded-xl border mb-3 transition-all ${
+                    beefPattyCount > 0
+                      ? 'border-primary bg-primary/15 shadow-sm shadow-primary/20'
+                      : 'border-white/10 bg-white/5'
+                  }`}>
+                    <span className="text-foreground font-medium">{BEEF_PATTY.name}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setBeefPattyCount(Math.max(0, beefPattyCount - 1))}
+                          disabled={beefPattyCount === 0}
+                          className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors disabled:opacity-30"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="w-6 text-center font-bold text-foreground">{beefPattyCount}</span>
+                        <button
+                          onClick={() => setBeefPattyCount(Math.min(BEEF_PATTY.maxQty, beefPattyCount + 1))}
+                          disabled={beefPattyCount >= BEEF_PATTY.maxQty}
+                          className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-30"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <span className="text-primary font-bold min-w-[70px] text-right">
+                        {beefPattyCount > 0 ? `+€${(beefPattyCount * BEEF_PATTY.price).toFixed(2)}` : `€${BEEF_PATTY.price.toFixed(2)}/ea`}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Add-on Checkboxes (Kids Menu or Standard) */}
                 <div className="space-y-3 mb-6">
@@ -632,6 +648,42 @@ export function ProductSheet({
               </div>
             )}
 
+            {/* FRIES MAKE IT EPIC - Drink upsell for Fries category */}
+            {showFriesMakeItEpic && drinksProducts && drinksProducts.length > 0 && (
+              <div className="mb-8 p-5 rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 relative overflow-hidden">
+                <div className="absolute top-3 right-3 text-primary/30">
+                  <Flame className="w-12 h-12" />
+                </div>
+                
+                <h4 className="font-heading text-lg uppercase tracking-wider text-primary flex items-center gap-2 mb-5">
+                  <Flame className="w-5 h-5" />
+                  Make it Epic
+                </h4>
+
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground font-medium">
+                    Add a Drink
+                  </label>
+                  <Select 
+                    value={selectedDrink || 'none'} 
+                    onValueChange={(v) => setSelectedDrink(v === 'none' ? null : v)}
+                  >
+                    <SelectTrigger className="w-full bg-white/5 border-white/10 hover:border-primary/40">
+                      <SelectValue placeholder="No Drink" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border z-50">
+                      <SelectItem value="none">No Drink (€0.00)</SelectItem>
+                      {drinksProducts.map(drink => (
+                        <SelectItem key={drink.id} value={drink.id}>
+                          {drink.name} (+€{drink.price.toFixed(2)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {/* SECTION 2: Customize Your Order (Ingredients) */}
             {hasIngredients && (
               <div className="mb-8">
@@ -674,7 +726,6 @@ export function ProductSheet({
                             : 'border-white/10 bg-transparent'
                         }`}
                       >
-                        {/* Ingredient Name & Price */}
                         <div className="flex-1">
                           <span className={`font-medium ${
                             isRemoved 
@@ -685,7 +736,6 @@ export function ProductSheet({
                           }`}>
                             {isRemoved && 'No '}{isExtra && 'Extra '}{ingredient.name}
                           </span>
-                          {/* Show price for extras */}
                           {isExtra && getExtraPrice(ingredient.name) > 0 && (
                             <span className="ml-2 text-sm text-green-400 font-semibold">
                               +€{getExtraPrice(ingredient.name).toFixed(2)}
@@ -693,9 +743,7 @@ export function ProductSheet({
                           )}
                         </div>
                         
-                        {/* +/- Button Controls */}
                         <div className="flex items-center gap-1">
-                          {/* Minus Button (Remove) */}
                           {isRemovable && (
                             <button
                               onClick={() => handleRemoveIngredient(ingredient.id)}
@@ -709,7 +757,6 @@ export function ProductSheet({
                             </button>
                           )}
                           
-                          {/* Plus Button (Extra) - only show if is_addable */}
                           {isAddable && (
                             <button
                               onClick={() => handleAddExtra(ingredient.id)}
@@ -726,6 +773,13 @@ export function ProductSheet({
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Pricing Legend */}
+                <div className="mt-3 flex gap-3 text-[11px] text-muted-foreground">
+                  <span>🥩 Meat +€2.50</span>
+                  <span>🧀 Cheese +€1.00</span>
+                  <span>Others +€0.50</span>
                 </div>
               </div>
             )}
