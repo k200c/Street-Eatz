@@ -338,6 +338,8 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
                         {/* Regular Modifiers - with special styling for flatbread */}
                         {parsed.regularModifiers.map((mod, i) => {
                           const isBreadSwap = mod.name?.toLowerCase().includes('flatbread');
+                          const qty = (mod as any).quantity || 1;
+                          const displayName = qty > 1 ? `${mod.name} x${qty}` : mod.name;
                           return (
                             <span
                               key={`mod-${i}`}
@@ -347,8 +349,8 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
                                   : 'bg-secondary text-muted-foreground'
                               }`}
                             >
-                              {isBreadSwap ? `BREAD: ${mod.name.toUpperCase()}` : mod.name}
-                              {mod.price_adjustment && mod.price_adjustment > 0 && ` (+€${mod.price_adjustment.toFixed(2)})`}
+                              {isBreadSwap ? `BREAD: ${displayName.toUpperCase()}` : displayName}
+                              {mod.price_adjustment && mod.price_adjustment > 0 && ` (+€${(mod.price_adjustment * qty).toFixed(2)})`}
                             </span>
                           );
                         })}

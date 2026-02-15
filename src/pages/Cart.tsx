@@ -199,6 +199,9 @@ export default function Cart() {
                       {/* Added Extras - Green badges, Bread swaps - Amber badges */}
                       {item.selectedModifiers.map((m) => {
                         const isBreadSwap = m.modifier_type === 'bread_swap';
+                        const qty = m.quantity || 1;
+                        const totalAdj = m.price_adjustment * qty;
+                        const displayName = qty > 1 ? `${m.name} x${qty}` : m.name;
                         return (
                           <span 
                             key={m.id} 
@@ -208,8 +211,8 @@ export default function Cart() {
                                 : 'bg-green-500/20 text-green-400 border border-green-500/30'
                             }`}
                           >
-                            {isBreadSwap ? m.name : `+ ${m.name}`}
-                            {m.price_adjustment > 0 && ` (+€${m.price_adjustment.toFixed(2)})`}
+                            {isBreadSwap ? displayName : `+ ${displayName}`}
+                            {totalAdj > 0 && ` (+€${totalAdj.toFixed(2)})`}
                           </span>
                         );
                       })}

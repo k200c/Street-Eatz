@@ -98,6 +98,7 @@ export interface SelectedModifier {
   name: string;
   price_adjustment: number;
   modifier_type?: 'loaded_fries_small' | 'drink' | 'sauce' | 'addon' | 'extra' | 'bread_swap';
+  quantity?: number;
 }
 
 export interface MarketingPost {
