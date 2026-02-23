@@ -1,173 +1,156 @@
 
+# Voice Order System: Edge Function + Kitchen VOICE Badge
 
-# Modifier System Upgrades: Pricing, Patty Stepper, Fries Drinks, Kids +/-
+## Overview
 
-## Summary
-
-Four changes to the product customization system, all sharing a single pricing brain (`pricingRules.ts`), consistent across Customer and Staff interfaces.
-
----
-
-## Change 1: Default Extra Price = EUR 0.50
-
-**Current behavior**: `defaultExtraPrice` in `src/lib/pricingRules.ts` line 20 is `0` -- all non-meat, non-cheese, non-sauce extras are free.
-
-**New behavior**: Change to `0.50`. This single-line change propagates everywhere because both `ProductSheet` and `StaffProductSheet` already call `getExtraPrice()` for display and `getExtraIngredients()` for cart totals.
-
-### Files changed
-
-| File | Change |
-|------|--------|
-| `src/lib/pricingRules.ts` | `defaultExtraPrice: 0` becomes `defaultExtraPrice: 0.50` |
-| `src/components/staff/StaffProductSheet.tsx` | Update pricing legend from "Others FREE" to "Others +EUR0.50" (line 705) |
-| `src/components/customer/ProductSheet.tsx` | Add same pricing legend below the Customize section (currently missing on customer side) |
-
-**Backward compatibility**: Existing cart items stored in Supabase/localStorage already have `price_adjustment` baked in at the time of adding. Old items with `0.00` extras will still render and total correctly -- the pricing rule only applies at add/edit time.
+Create a new `create-voice-order` Edge Function that accepts spoken item names from a voice agent, resolves them to real products via fuzzy matching, computes totals server-side, and inserts into the existing `orders` + `order_items` tables. Add an `order_channel` column to mark voice orders, and display a "VOICE" badge in the Kitchen Display.
 
 ---
 
-## Change 2: Beef Patty Stepper (0-4)
+## Database Migration
 
-**Current behavior**: Beef Patty is a checkbox in `STANDALONE_ADDONS` -- toggle on/off, always 1 unit at EUR 2.50.
+Add a nullable `order_channel` text column to the `orders` table with default `'web'`:
 
-**New behavior**: Replace the checkbox with a quantity stepper (0 to 4). Each patty costs EUR 2.50. Display as "Beef Patty x3 (+EUR7.50)" in cart/KDS.
-
-### Approach: Add optional `quantity` field to `SelectedModifier`
-
-This is the cleanest approach that preserves backward compatibility (old items without `quantity` default to 1).
-
-### Files changed
-
-| File | Change |
-|------|--------|
-| `src/types/database.ts` | Add `quantity?: number` to `SelectedModifier` interface |
-| `src/lib/pricingRules.ts` | Add helper `getModifierTotal(mod)` that returns `price_adjustment * (quantity or 1)` |
-| `src/components/customer/ProductSheet.tsx` | (a) Add `beefPattyCount` state (0-4). (b) Replace Beef Patty checkbox row with a stepper UI. (c) Update `buildAllModifiers` to push one entry with `quantity`. (d) Update `currentAddonsTotal` calc to use `getModifierTotal`. (e) In edit-mode init, read `quantity` from existing modifier. |
-| `src/components/staff/StaffProductSheet.tsx` | Same changes as customer ProductSheet |
-| `src/stores/cartStore.ts` | Update `modifiersTotal` calc in `loadCartFromSupabase`, `addItem`, `updateItem`, `updateQuantity` to use `getModifierTotal` |
-| `src/stores/staffCartStore.ts` | Same calc update |
-| `src/pages/Cart.tsx` | Update modifier badge display: if `quantity > 1`, show "Beef Patty x3 (+EUR7.50)" |
-| `src/components/staff/KitchenDisplaySystem.tsx` | When rendering modifiers, show quantity if > 1 |
-
-### UI for stepper (both ProductSheet components)
-
-```
-Beef Patty          [ - ]  2  [ + ]     +EUR5.00
+```sql
+ALTER TABLE public.orders ADD COLUMN order_channel text DEFAULT 'web';
 ```
 
-- Min 0, max 4
-- When count is 0, row appears unselected (muted styling)
-- When count >= 1, row highlighted like other selected addons
-- Price shown dynamically: `count * 2.50`
+This is backward-compatible: all existing orders get `'web'`, voice orders will be inserted with `'voice'`. No RLS changes needed (existing policies already cover inserts via service role).
 
-### Data model
+---
 
-A cart item with 3 beef patties stores:
+## File Changes
 
+### 1. NEW: `supabase/functions/create-voice-order/index.ts`
+
+Edge Function that:
+
+**Input payload:**
 ```json
 {
-  "id": "beef-patty",
-  "name": "Beef Patty",
-  "price_adjustment": 2.50,
-  "modifier_type": "addon",
-  "quantity": 3
+  "customer_name": "John",
+  "customer_phone": "0851234567",
+  "payment_method": "cash",
+  "items": ["Applewood double smashed cheeseburger", "fries", "Coke"],
+  "special_notes": "No onions on the burger",
+  "call_id": "call_abc123",
+  "transcript": "I'd like a burger, fries and a coke please"
 }
 ```
 
-The total contribution is `2.50 * 3 = 7.50`. The helper `getModifierTotal` centralizes this calc.
+Items can also be `[{ "spoken_name": "fries", "qty": 2 }]` format.
 
----
+**Processing steps:**
+1. CORS + OPTIONS handling
+2. Validate required fields (customer_name, customer_phone, payment_method, items)
+3. Normalize phone to +353 format
+4. Normalize payment_method (debit/credit/contactless/tap to card; notes/coins to cash)
+5. For each item:
+   - Trim, collapse spaces, lowercase
+   - Apply alias map: fries/chips to "handcut chips", coke/coca cola to "coke", coke zero to "coke zero", fanta to "fanta orange", water to "water"
+   - Exact case-insensitive match on products.name
+   - Fallback: ILIKE contains match
+   - If 0 matches: 404 error
+   - If multiple matches: 409 with top 3 candidates
+   - Reject if is_available=false OR is_sold_out=true
+6. Compute total = sum(price * qty), rounded to 2 decimals
+7. Insert into `orders` with `order_channel = 'voice'`, `special_notes` includes call_id/transcript
+8. Insert into `order_items`
+9. Return `{ success, order_id, display_id, total, source: "voice" }`
 
-## Change 3: Fries "Make It Epic" -- Add Drinks
+**Error responses:**
+- 400: missing/invalid fields
+- 404: item not found
+- 409: ambiguous match (returns candidates) or product unavailable
+- 500: unexpected errors
 
-**Current behavior**: Fries are excluded from Make It Epic (`showMakeItEpic = category !== 'Fries' && ...`). Fries only show "Customize Your Fries" for sauce add-ons.
+**Security:** No JWT required (voice agent is external). Uses service role key server-side only.
 
-**New behavior**: Add a "Make It Epic" section for Fries that contains a Drink dropdown (same as the one in Burgers/Specials Make It Epic). No loaded fries or other addons -- just the drink upsell.
+### 2. UPDATE: `supabase/config.toml`
 
-### Files changed
+Add:
+```toml
+[functions.create-voice-order]
+verify_jwt = false
+```
 
-| File | Change |
-|------|--------|
-| `src/components/customer/ProductSheet.tsx` | (a) Add `showFriesMakeItEpic = product.category === 'Fries'`. (b) Render a new "Make It Epic" section for Fries (between the fries customization section and the ingredient section) with the existing drinks dropdown. (c) Allow `selectedDrink` to work for Fries (currently blocked by `!isKidsMenu` check, which already passes for Fries). |
-| `src/components/staff/StaffProductSheet.tsx` | Same changes |
+### 3. UPDATE: `src/components/staff/KitchenDisplaySystem.tsx`
 
-The drink dropdown already exists and `drinksProducts` is already fetched. The only work is:
-1. Add a new conditional section for Fries
-2. Include the drink in `buildAllModifiers` for Fries (currently gated by `!isKidsMenu` which already allows Fries)
-3. Include drinkPrice in totalPrice calc for Fries (already works since `!isKidsMenu` is true for Fries)
-
-### UI
-
-For a Fries product, after "Customize Your Fries" sauces section:
+Add a VOICE badge in the OrderCard header (next to the order number) when `order.order_channel === 'voice'`:
 
 ```
---- Make It Epic (Flame icon) ---
-Add a Drink
-[ Dropdown: No Drink / Coke +EUR2.00 / Fanta +EUR2.00 / ... ]
+<span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-600 text-white font-bold uppercase">
+  VOICE
+</span>
 ```
 
-Same visual styling as the existing Make It Epic section (gradient background, flame icon).
+The badge appears between the order number and the payment status badge. Purple color distinguishes it from payment badges.
+
+Since the `order_channel` column is new and the Supabase types file auto-generates, and KitchenOrder extends `Tables<'orders'>`, the field will be available after migration. We cast via `(order as any).order_channel` to avoid waiting for type regeneration.
 
 ---
 
-## Change 4: Kids Menu +/- Customization Controls
+## Alias Map (hardcoded in edge function)
 
-**Current behavior**: Kids Menu items already show the "Customize Your Order" section with +/- buttons for default ingredients (same as Burgers). The ingredient `is_removable` and `is_addable` flags from the DB control which buttons appear.
-
-**What needs to happen**: This largely already works. With Change 1 (EUR 0.50 default extras), kids extras will now correctly charge EUR 0.50 for non-meat/non-cheese items.
-
-The main gap: ensure the pricing legend is shown for Kids Menu items too, and that the UI labels are clear.
-
-### Files changed
-
-| File | Change |
-|------|--------|
-| `src/components/customer/ProductSheet.tsx` | Add pricing legend below the Kids Menu customize section (same as staff side) |
-| `src/components/staff/StaffProductSheet.tsx` | Already has legend -- update "Others FREE" to "Others +EUR0.50" (covered in Change 1) |
-
-### Database prerequisite
-
-Kids Menu products must have ingredients configured in `product_ingredients` with `is_removable = true` and `is_addable = true` for the +/- controls to appear. If they don't already exist, they need to be added. This is a data concern, not a code concern -- the code already handles it.
+| Voice term | Resolves to |
+|-----------|-------------|
+| fries, chips | Handcut Chips |
+| coke, coca cola, coca-cola | Coke |
+| coke zero, diet coke | Coke Zero |
+| fanta, fanta orange | Fanta Orange |
+| water, still water | Water |
+| capri sun, caprisun | Capri Sun |
 
 ---
 
-## Shared Helper Addition: `getModifierTotal`
+## Example curl
 
-Added to `src/lib/pricingRules.ts`:
+**Success:**
+```bash
+curl -X POST https://ftzinsesuiuqcjfpbaur.supabase.co/functions/v1/create-voice-order \
+  -H "Content-Type: application/json" \
+  -H "apikey: <anon_key>" \
+  -d '{
+    "customer_name": "John",
+    "customer_phone": "0851234567",
+    "payment_method": "cash",
+    "items": ["applewood double smash cheeseburger", "fries", "coke"]
+  }'
+```
 
-```typescript
-export function getModifierTotal(mod: { price_adjustment: number; quantity?: number }): number {
-  return mod.price_adjustment * (mod.quantity || 1);
+Response:
+```json
+{
+  "success": true,
+  "order_id": "uuid",
+  "display_id": 92,
+  "total": 21.30,
+  "source": "voice"
 }
 ```
 
-Used in:
-- Both cart stores for total calculation
-- Both ProductSheet components for live price display
-- Cart page for display
+**Ambiguous (409):**
+```json
+{
+  "error": "Ambiguous match for 'burger'",
+  "spoken_name": "burger",
+  "candidates": [
+    { "id": "...", "name": "The Urban Legend", "price": 10.50 },
+    { "id": "...", "name": "Island Spice Burger", "price": 10.50 },
+    { "id": "...", "name": "The Mother Clucker", "price": 10.50 }
+  ]
+}
+```
 
 ---
 
-## Complete File Change Summary
+## Complete File Summary
 
-| # | File | Changes |
-|---|------|---------|
-| 1 | `src/lib/pricingRules.ts` | `defaultExtraPrice: 0.50`, add `getModifierTotal()` helper |
-| 2 | `src/types/database.ts` | Add `quantity?: number` to `SelectedModifier` |
-| 3 | `src/components/customer/ProductSheet.tsx` | Beef Patty stepper, Fries Make It Epic drink section, pricing legend |
-| 4 | `src/components/staff/StaffProductSheet.tsx` | Same as customer (mirrored changes) |
-| 5 | `src/stores/cartStore.ts` | Use `getModifierTotal` in price calcs |
-| 6 | `src/stores/staffCartStore.ts` | Use `getModifierTotal` in price calcs |
-| 7 | `src/pages/Cart.tsx` | Show quantity on modifier badges ("Beef Patty x3") |
+| # | File | Action |
+|---|------|--------|
+| 1 | `orders` table | Migration: add `order_channel` text column |
+| 2 | `supabase/functions/create-voice-order/index.ts` | Create new |
+| 3 | `supabase/config.toml` | Add function entry |
+| 4 | `src/components/staff/KitchenDisplaySystem.tsx` | Add VOICE badge in OrderCard |
 
-No database migrations needed -- the `quantity` field is stored in JSONB (`selected_modifiers`) which accepts any shape.
-
----
-
-## Backward Compatibility
-
-- Old cart items without `quantity` on modifiers: `getModifierTotal` defaults to `quantity = 1`, so totals are unchanged
-- Old items with `price_adjustment: 0` extras: these remain at 0 in the stored data; the EUR 0.50 rule only applies when adding/editing
-- KDS rendering: modifiers without `quantity` display as before; those with `quantity > 1` show "x3" suffix
-- No changes to order creation payload or database schema
-
+No other files need changes. The KDS hook (`useKitchenOrders`) already fetches all order columns via `select('*')`, so `order_channel` flows through automatically.
