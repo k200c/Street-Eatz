@@ -563,6 +563,7 @@ export type Database = {
           category: Database["public"]["Enums"]["product_category"]
           created_at: string | null
           description: string | null
+          fries_large_price: number | null
           id: string
           image_url: string | null
           is_available: boolean | null
@@ -577,6 +578,7 @@ export type Database = {
           category: Database["public"]["Enums"]["product_category"]
           created_at?: string | null
           description?: string | null
+          fries_large_price?: number | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null
@@ -591,6 +593,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["product_category"]
           created_at?: string | null
           description?: string | null
+          fries_large_price?: number | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null

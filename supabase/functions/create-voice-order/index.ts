@@ -29,12 +29,12 @@ const ALIAS_MAP: Record<string, string> = {
   "extra jerk chicken": "extra jerk chicken",
   // Fries size aliases
   "small fries": "small truffle parmesan fries",
-  "large fries": "large truffle parmesan fries",
+  "large fries": "small truffle parmesan fries",
   "small sloppy fries": "small sloppy fries",
-  "large sloppy fries": "sloppy jose fries",
+  "large sloppy fries": "small sloppy fries",
   "sloppy fries": "small sloppy fries",
   "truffle fries": "small truffle parmesan fries",
-  "large truffle fries": "large truffle parmesan fries",
+  "large truffle fries": "small truffle parmesan fries",
 };
 
 // Payment method normalization

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,11 +8,10 @@ import { Minus, Plus, X, Flame } from 'lucide-react';
 import { Product, Modifier, SelectedModifier, RemovedIngredient, ProductCategory } from '@/types/database';
 import { ModifierGroupWithModifiers } from '@/hooks/useProductModifiers';
 import { ProductIngredientWithDetails } from '@/hooks/useProductIngredients';
-import { useLoadedFries, useDrinks, useSauces, useProductsByCategory } from '@/hooks/useProductsByCategory';
+import { useLoadedFries, useDrinks, useSauces } from '@/hooks/useProductsByCategory';
 import { useProductAllergens } from '@/hooks/useProductAllergens';
 import { useCartStore } from '@/stores/cartStore';
-import { getExtraPrice, getModifierTotal, getLoadedFriesPrice, getSaucePrice } from '@/lib/pricingRules';
-import { getFriesVariantPair, isSmallVariant } from '@/lib/productVariants';
+import { getExtraPrice, getModifierTotal, getLoadedFriesPrice, getSaucePrice, hasFriesLargeOption, getFriesLargeUpgradeDelta } from '@/lib/pricingRules';
 import { toast } from 'sonner';
 import { AllergenBadges } from './AllergenBadges';
 import { AllergenModal } from '@/components/ui/allergen-modal';
@@ -89,7 +88,7 @@ export function ProductSheet({
   const [selectedDrink, setSelectedDrink] = useState<string | null>(null);
   const [selectedSauce, setSelectedSauce] = useState<string | null>(null);
   const [flatbreadSelected, setFlatbreadSelected] = useState(false);
-  const [selectedSize, setSelectedSize] = useState<'small' | 'large'>('small');
+  const [makeLargeSelected, setMakeLargeSelected] = useState(false);
   
   const addItem = useCartStore((state) => state.addItem);
   const updateItem = useCartStore((state) => state.updateItem);
@@ -98,23 +97,11 @@ export function ProductSheet({
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
   const { data: allergenData } = useProductAllergens(product?.id || null);
-  const { data: allFriesProducts } = useProductsByCategory(product?.category === 'Fries' ? 'Fries' : null);
-
-  // Fries size variant logic
-  const friesVariantPair = useMemo(() => product ? getFriesVariantPair(product.id) : null, [product?.id]);
-  
-  const activeProduct = useMemo(() => {
-    if (!product || !friesVariantPair || !allFriesProducts) return product;
-    const targetId = selectedSize === 'small' ? friesVariantPair.smallId : friesVariantPair.largeId;
-    return allFriesProducts.find(p => p.id === targetId) || product;
-  }, [product, friesVariantPair, allFriesProducts, selectedSize]);
 
   useEffect(() => {
     if (product) {
-      // Set initial fries size based on which variant was clicked
-      if (getFriesVariantPair(product.id)) {
-        setSelectedSize(isSmallVariant(product.id) ? 'small' : 'large');
-      }
+      // Set initial "Make it Large" state
+      setMakeLargeSelected(false);
 
       if (editMode && initialItem) {
         setQuantity(initialItem.quantity);
@@ -126,6 +113,7 @@ export function ProductSheet({
         const otherMods: SelectedModifier[] = [];
         let hasFlatbread = false;
         let pattyCount = 0;
+        let hasLarge = false;
         
         initialItem.selectedModifiers.forEach(mod => {
           if (mod.id === BEEF_PATTY.id || mod.name === BEEF_PATTY.name) {
@@ -140,12 +128,15 @@ export function ProductSheet({
             sauce = mod.id;
           } else if (mod.modifier_type === 'bread_swap') {
             hasFlatbread = true;
+          } else if (mod.id === 'make-it-large') {
+            hasLarge = true;
           } else {
             otherMods.push(mod);
           }
         });
         
         setBeefPattyCount(pattyCount);
+        setMakeLargeSelected(hasLarge);
         setFlatbreadSelected(hasFlatbread);
         setStandaloneAddons(addonIds);
         setSelectedLoadedFries(loadedFriesVal);
@@ -199,21 +190,21 @@ export function ProductSheet({
     }
   }, [product?.id, ingredients, editMode, initialItem]);
 
-  if (!product || !activeProduct) return null;
+  if (!product) return null;
 
-  const imageUrl = activeProduct.image_url || categoryImages[activeProduct.category] || heroBurger;
-  const isKidsMenu = activeProduct.category === 'Kids Menu';
+  const imageUrl = product.image_url || categoryImages[product.category] || heroBurger;
+  const isKidsMenu = product.category === 'Kids Menu';
   const currentAddons = isKidsMenu ? KIDS_MENU_ADDONS : STANDALONE_ADDONS;
-  const loadedFriesPrice = getLoadedFriesPrice(activeProduct.category);
+  const loadedFriesPrice = getLoadedFriesPrice(product.category);
 
   // Show "Make It Epic" for everything EXCEPT Fries, Drinks, and Sauces
-  const showMakeItEpic = activeProduct.category !== 'Fries' && activeProduct.category !== 'Drinks' && activeProduct.category !== 'Sauces';
-  // Fries get their own Make It Epic with just drinks
-  const showFriesMakeItEpic = activeProduct.category === 'Fries';
+  const showMakeItEpic = product.category !== 'Fries' && product.category !== 'Drinks' && product.category !== 'Sauces';
+  // Fries get their own Make It Epic with just drinks + "Make it Large"
+  const showFriesMakeItEpic = product.category === 'Fries';
   const showDropdowns = !isKidsMenu;
-  const showFlatbreadOption = activeProduct.category === 'Burgers' || activeProduct.category === 'Specials';
+  const showFlatbreadOption = product.category === 'Burgers' || product.category === 'Specials';
   // Show beef patty stepper for non-Kids, non-Fries, non-Drinks, non-Sauces, non-Flatbreads
-  const showBeefPattyStepper = showMakeItEpic && !isKidsMenu && activeProduct.category !== 'Flatbreads';
+  const showBeefPattyStepper = showMakeItEpic && !isKidsMenu && product.category !== 'Flatbreads';
 
   const toggleStandaloneAddon = (addonId: string) => {
     setStandaloneAddons(prev => {
@@ -323,7 +314,7 @@ export function ProductSheet({
         allMods.push({
           id: sauce.id,
           name: `Sauce: ${sauce.name}`,
-          price_adjustment: getSaucePrice(sauce.name, activeProduct.category),
+          price_adjustment: getSaucePrice(sauce.name, product.category),
           modifier_type: 'sauce',
         });
       }
@@ -339,6 +330,16 @@ export function ProductSheet({
       });
     }
 
+    // Add "Make it Large" for fries
+    if (makeLargeSelected && hasFriesLargeOption(product)) {
+      allMods.push({
+        id: 'make-it-large',
+        name: 'Make it Large',
+        price_adjustment: getFriesLargeUpgradeDelta(product),
+        modifier_type: 'addon',
+      });
+    }
+
     return allMods;
   };
 
@@ -350,24 +351,25 @@ export function ProductSheet({
   const selectedLoadedFriesPrice = (selectedLoadedFries && !isKidsMenu) ? loadedFriesPrice : 0;
   const drinkPrice = (!isKidsMenu && drinksProducts?.find(p => p.id === selectedDrink)?.price) || 0;
   const selectedSauceProduct = saucesProducts?.find(p => p.id === selectedSauce);
-  const saucePrice = selectedSauceProduct ? getSaucePrice(selectedSauceProduct.name, activeProduct.category) : 0;
+  const saucePrice = selectedSauceProduct ? getSaucePrice(selectedSauceProduct.name, product.category) : 0;
   const flatbreadPrice = flatbreadSelected ? BREAD_SWAP_FLATBREAD.price : 0;
+  const makeLargeTotal = makeLargeSelected ? getFriesLargeUpgradeDelta(product) : 0;
   
-  const totalPrice = (activeProduct.price + currentAddonsTotal + beefPattyTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice + flatbreadPrice) * quantity;
+  const totalPrice = (product.price + currentAddonsTotal + beefPattyTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice + flatbreadPrice + makeLargeTotal) * quantity;
 
   const handleAddToOrder = async () => {
     const removedIngredients = getRemovedIngredients();
     const allModifiers = buildAllModifiers();
     
     if (editMode && editIndex !== undefined) {
-      await updateItem(editIndex, activeProduct, quantity, allModifiers, removedIngredients);
+      await updateItem(editIndex, product, quantity, allModifiers, removedIngredients);
       toast.success('Updated Cart', {
-        description: `${activeProduct.name} updated`,
+        description: `${product.name} updated`,
       });
     } else {
-      await addItem(activeProduct, quantity, allModifiers, removedIngredients);
+      await addItem(product, quantity, allModifiers, removedIngredients);
       toast.success('Added to Cart', {
-        description: `${quantity}x ${activeProduct.name} added to your order`,
+        description: `${quantity}x ${product.name} added to your order`,
       });
     }
     onClose();
@@ -378,7 +380,7 @@ export function ProductSheet({
   const removableIngredients = defaultIngredients.filter((ing) => ing.is_removable !== false);
   const hasIngredients = defaultIngredients.length > 0;
   const hasAddableIngredients = addableOnlyIngredients.length > 0;
-  const showFriesCustomization = activeProduct.category === 'Fries' && hasAddableIngredients;
+  const showFriesCustomization = product.category === 'Fries' && hasAddableIngredients;
 
   const removedCount = Object.values(ingredientStates).filter(s => s === 'removed').length;
   const extraCount = Object.values(ingredientStates).filter(s => s === 'extra').length;
@@ -402,51 +404,26 @@ export function ProductSheet({
           <div className="relative h-56 sm:h-64">
             <img
               src={imageUrl}
-              alt={activeProduct.name}
+              alt={product.name}
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
             <div className="absolute bottom-4 left-4">
               <span className="price-badge text-lg">
-                €{activeProduct.price.toFixed(2)}
+                €{product.price.toFixed(2)}
               </span>
             </div>
           </div>
 
           {/* Product Info */}
           <div className="p-6">
-            {/* Fries Size Toggle */}
-            {friesVariantPair && (
-              <div className="flex rounded-xl overflow-hidden border border-white/10 mb-4">
-                <button
-                  onClick={() => setSelectedSize('small')}
-                  className={`flex-1 py-3 text-sm font-heading font-bold uppercase tracking-wider transition-all ${
-                    selectedSize === 'small'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-white/5 text-muted-foreground hover:bg-white/10'
-                  }`}
-                >
-                  Small
-                </button>
-                <button
-                  onClick={() => setSelectedSize('large')}
-                  className={`flex-1 py-3 text-sm font-heading font-bold uppercase tracking-wider transition-all ${
-                    selectedSize === 'large'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-white/5 text-muted-foreground hover:bg-white/10'
-                  }`}
-                >
-                  Large
-                </button>
-              </div>
-            )}
 
             <SheetHeader className="text-left mb-4">
               <SheetTitle className="font-heading text-2xl text-foreground">
-                {activeProduct.name}
+                {product.name}
               </SheetTitle>
-              {activeProduct.description && (
-                <p className="text-muted-foreground mt-2">{activeProduct.description}</p>
+              {product.description && (
+                <p className="text-muted-foreground mt-2">{product.description}</p>
               )}
             </SheetHeader>
             
@@ -545,7 +522,7 @@ export function ProductSheet({
                     {loadedFriesProducts && loadedFriesProducts.length > 0 && (
                       <div className="space-y-2 mb-4">
                         <label className="text-sm text-muted-foreground font-medium">
-                          {activeProduct.category === 'Specials' ? 'Upgrade to Loaded Fries' : 'Add Small Loaded Fries'}
+                          {product.category === 'Specials' ? 'Upgrade to Loaded Fries' : 'Add Small Loaded Fries'}
                         </label>
                         <Select 
                           value={selectedLoadedFries || 'none'} 
@@ -608,7 +585,7 @@ export function ProductSheet({
                             <SelectItem value="none">No Sauce (€0.00)</SelectItem>
                             {saucesProducts.map(sauce => (
                               <SelectItem key={sauce.id} value={sauce.id}>
-                                {sauce.name} (+€{getSaucePrice(sauce.name, activeProduct.category).toFixed(2)})
+                                {sauce.name} (+€{getSaucePrice(sauce.name, product.category).toFixed(2)})
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -685,8 +662,8 @@ export function ProductSheet({
               </div>
             )}
 
-            {/* FRIES MAKE IT EPIC - Drink upsell for Fries category */}
-            {showFriesMakeItEpic && drinksProducts && drinksProducts.length > 0 && (
+            {/* FRIES MAKE IT EPIC - "Make it Large" + Drink upsell for Fries category */}
+            {showFriesMakeItEpic && (
               <div className="mb-8 p-5 rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 relative overflow-hidden">
                 <div className="absolute top-3 right-3 text-primary/30">
                   <Flame className="w-12 h-12" />
@@ -696,6 +673,21 @@ export function ProductSheet({
                   <Flame className="w-5 h-5" />
                   Make it Epic
                 </h4>
+
+                {/* Make it Large checkbox */}
+                {hasFriesLargeOption(product) && (
+                  <label className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all mb-4 ${
+                    makeLargeSelected ? 'border-primary bg-primary/15' : 'border-white/10 bg-white/5'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <Checkbox checked={makeLargeSelected} onCheckedChange={(v) => setMakeLargeSelected(v === true)} />
+                      <span className="text-foreground font-medium">Make it Large</span>
+                    </div>
+                    <span className="text-primary font-bold">
+                      +€{getFriesLargeUpgradeDelta(product).toFixed(2)}
+                    </span>
+                  </label>
+                )}
 
                 <div className="space-y-2">
                   <label className="text-sm text-muted-foreground font-medium">
