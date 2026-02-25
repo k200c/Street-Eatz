@@ -26,6 +26,7 @@ export interface Product {
   is_sold_out: boolean;
   is_featured: boolean;
   stock_count: number;
+  fries_large_price?: number | null;
   created_at: string;
   updated_at: string;
 }

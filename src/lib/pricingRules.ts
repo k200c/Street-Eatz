@@ -81,6 +81,31 @@ export function getLoadedFriesPrice(category: string): number {
   return category === 'Specials' ? LOADED_FRIES_SPECIALS_PRICE : LOADED_FRIES_STANDARD_PRICE;
 }
 
+// ── Fries sizing ("Make it Large") ───────────────────────────────
+
+/**
+ * Whether a product supports the "Make it Large" upsell.
+ * Requires Fries category AND a valid fries_large_price.
+ */
+export function hasFriesLargeOption(product: { fries_large_price?: number | null; category: string }): boolean {
+  return product.category === 'Fries' && product.fries_large_price != null && product.fries_large_price > 0;
+}
+
+/**
+ * Returns the large price if available, null otherwise.
+ */
+export function getFriesLargePrice(product: { fries_large_price?: number | null }): number | null {
+  return product.fries_large_price ?? null;
+}
+
+/**
+ * Returns upgrade delta (large - small) rounded to 2 decimals.
+ */
+export function getFriesLargeUpgradeDelta(product: { fries_large_price?: number | null; price: number }): number {
+  if (!product.fries_large_price) return 0;
+  return Math.round((product.fries_large_price - product.price) * 100) / 100;
+}
+
 // ── Sauce dropdown pricing ──────────────────────────────────────
 
 /**

@@ -39,6 +39,7 @@ const formSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   category: z.enum(['Burgers', 'Flatbreads', 'Fries', 'Drinks', 'Specials']),
   price: z.number().min(0.01, 'Price must be greater than 0'),
+  fries_large_price: z.number().optional().nullable(),
   description: z.string().max(500).optional(),
   is_available: z.boolean(),
 });
@@ -118,10 +119,11 @@ export function AddProductDialog({ onProductAdded }: AddProductDialogProps) {
         name: values.name.trim(),
         category: values.category,
         price: values.price,
+        fries_large_price: values.category === 'Fries' ? (values.fries_large_price || null) : null,
         description: values.description?.trim() || null,
         is_available: values.is_available,
         image_url: imageUrl,
-      });
+      } as any);
 
       if (error) {
         console.error('❌ DB Error:', error);
@@ -228,6 +230,30 @@ export function AddProductDialog({ onProductAdded }: AddProductDialogProps) {
                 </FormItem>
               )}
             />
+
+            {/* Large Price for Fries */}
+            {form.watch('category') === 'Fries' && (
+              <FormField
+                control={form.control}
+                name="fries_large_price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Large Price (€)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Leave empty if no large option"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Description */}
             <FormField

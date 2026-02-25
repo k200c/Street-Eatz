@@ -1,0 +1,1 @@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS fries_large_price numeric DEFAULT NULL;
