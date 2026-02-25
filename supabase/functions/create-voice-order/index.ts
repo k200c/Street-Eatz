@@ -23,6 +23,18 @@ const ALIAS_MAP: Record<string, string> = {
   "still water": "water",
   "capri sun": "capri sun",
   caprisun: "capri sun",
+  // Jerk chicken aliases
+  "jerk chicken": "extra jerk chicken",
+  "extra chicken": "extra jerk chicken",
+  "extra jerk chicken": "extra jerk chicken",
+  // Fries size aliases
+  "small fries": "small truffle parmesan fries",
+  "large fries": "large truffle parmesan fries",
+  "small sloppy fries": "small sloppy fries",
+  "large sloppy fries": "sloppy jose fries",
+  "sloppy fries": "small sloppy fries",
+  "truffle fries": "small truffle parmesan fries",
+  "large truffle fries": "large truffle parmesan fries",
 };
 
 // Payment method normalization

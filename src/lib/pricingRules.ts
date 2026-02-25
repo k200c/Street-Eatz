@@ -12,9 +12,9 @@ export const EXTRA_PRICING = {
   cheeseKeywords: ['cheese', 'cheddar', 'american', 'applewood', 'mozzarella', 'gouda', 'swiss', 'brie', 'smoked applewood'],
   cheesePrice: 1.00,
   
-  // Sauce add-ons - €1.00 extra (for fries customization)
+  // Sauce add-ons - €1.50 extra (for ingredient extras, not dropdown)
   sauceKeywords: ['aioli', 'cheese sauce'],
-  saucePrice: 1.00,
+  saucePrice: 1.50,
   
   // Default price for other extras
   defaultExtraPrice: 0.50,
@@ -41,7 +41,7 @@ export function getExtraPrice(ingredientName: string): number {
     return EXTRA_PRICING.cheesePrice;
   }
   
-  // Check for sauce add-ons - €1.00 (for fries customization)
+  // Check for sauce add-ons - €1.50
   if (EXTRA_PRICING.sauceKeywords.some(keyword => lowerName.includes(keyword))) {
     return EXTRA_PRICING.saucePrice;
   }
@@ -66,4 +66,32 @@ export function getModifierTotal(mod: { price_adjustment: number; quantity?: num
 export function formatExtraPrice(price: number): string {
   if (price <= 0) return 'FREE';
   return `+€${price.toFixed(2)}`;
+}
+
+// ── Loaded Fries pricing (Make It Epic) ──────────────────────────
+
+export const LOADED_FRIES_STANDARD_PRICE = 6.50;
+export const LOADED_FRIES_SPECIALS_PRICE = 3.50;
+
+/**
+ * Category-based loaded fries pricing for "Make It Epic" upsell.
+ * Specials get €3.50, all other categories get €6.50.
+ */
+export function getLoadedFriesPrice(category: string): number {
+  return category === 'Specials' ? LOADED_FRIES_SPECIALS_PRICE : LOADED_FRIES_STANDARD_PRICE;
+}
+
+// ── Sauce dropdown pricing ──────────────────────────────────────
+
+/**
+ * Centralized sauce pricing for Make It Epic dropdown.
+ * - Kids Menu: all sauces are FREE
+ * - Ketchup / Mayo: €0.50
+ * - All other sauces: €1.50
+ */
+export function getSaucePrice(sauceName: string, productCategory: string): number {
+  if (productCategory === 'Kids Menu') return 0;
+  const lower = sauceName.toLowerCase();
+  if (lower.includes('ketchup') || lower.includes('mayo')) return 0.50;
+  return 1.50;
 }

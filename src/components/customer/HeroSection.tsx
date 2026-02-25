@@ -59,7 +59,7 @@ export function HeroSection() {
           {/* Logo - static after entrance */}
           <img
             src={streetEatzLogo}
-            alt="Street Eatz Logo"
+            alt="StreetEatz Logo"
             className="w-32 sm:w-48 md:w-56 lg:w-64 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(255,107,0,0.5)]"
           />
         </motion.div>
@@ -79,7 +79,7 @@ export function HeroSection() {
               ease: [0.25, 0.46, 0.45, 0.94],
             }}
           >
-            GOURMET
+            StreetEatz Waterford
           </motion.h1>
           
           <motion.h2
@@ -92,7 +92,7 @@ export function HeroSection() {
               ease: [0.25, 0.46, 0.45, 0.94],
             }}
           >
-            STREET FOOD
+            GOURMET STREET FOOD
           </motion.h2>
         </div>
 
