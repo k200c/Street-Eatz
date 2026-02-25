@@ -47,7 +47,7 @@ export function HeroCarousel({ products, onProductClick }: HeroCarouselProps) {
       <div className="relative h-72 bg-gradient-to-br from-secondary to-background rounded-2xl overflow-hidden">
         <img
           src={heroBurger}
-          alt="Street Eats"
+          alt="StreetEatz"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
@@ -56,7 +56,7 @@ export function HeroCarousel({ products, onProductClick }: HeroCarouselProps) {
             <Flame className="w-5 h-5 text-primary" />
             <span className="text-primary font-semibold text-sm uppercase tracking-wider">Featured</span>
           </div>
-          <h2 className="font-heading text-3xl text-foreground mb-1">Street Eats</h2>
+          <h2 className="font-heading text-3xl text-foreground mb-1">StreetEatz</h2>
           <p className="text-muted-foreground text-sm">Gourmet food truck experience</p>
         </div>
       </div>
