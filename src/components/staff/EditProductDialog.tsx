@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Product } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Upload, X } from 'lucide-react';
 import { ProductIngredientManager } from './ProductIngredientManager';
 
 interface EditProductDialogProps {
@@ -26,6 +26,10 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
   const [isAvailable, setIsAvailable] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
 
   // Sync form with product data when dialog opens
   useEffect(() => {
@@ -35,8 +39,41 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
       setDescription(product.description || '');
       setIsAvailable(product.is_available ?? true);
       setIsFeatured(product.is_featured ?? false);
+      setCurrentImageUrl(product.image_url || null);
+      setImageFile(null);
+      setImagePreview(null);
+      setRemoveImage(false);
     }
   }, [product, open]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      setRemoveImage(false);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `products/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('menu-images')
+      .upload(filePath, file);
+
+    if (uploadError) throw new Error('Failed to upload image');
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('menu-images')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  };
 
   const handleSave = async () => {
     if (!product || !name.trim()) {
@@ -53,16 +90,30 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
     setIsSaving(true);
 
     try {
+      let imageUrl: string | null | undefined = undefined; // undefined = no change
+
+      if (imageFile) {
+        imageUrl = await uploadImage(imageFile);
+      } else if (removeImage) {
+        imageUrl = null;
+      }
+
+      const updateData: Record<string, any> = {
+        name: name.trim(),
+        price: priceValue,
+        description: description.trim() || null,
+        is_available: isAvailable,
+        is_featured: isFeatured,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (imageUrl !== undefined) {
+        updateData.image_url = imageUrl;
+      }
+
       const { error } = await supabase
         .from('products')
-        .update({
-          name: name.trim(),
-          price: priceValue,
-          description: description.trim() || null,
-          is_available: isAvailable,
-          is_featured: isFeatured,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', product.id);
 
       if (error) throw error;
@@ -140,7 +191,59 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
               </p>
             </div>
 
-            {/* Ingredient Manager */}
+            {/* Product Image */}
+            <div className="space-y-2">
+              <Label>Product Image</Label>
+              <div className="flex items-center gap-4">
+                {imagePreview || (!removeImage && currentImageUrl) ? (
+                  <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-border">
+                    <img
+                      src={imagePreview || currentImageUrl!}
+                      alt="Product"
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageFile(null);
+                        setImagePreview(null);
+                        setRemoveImage(true);
+                      }}
+                      className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-20 h-20 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-secondary/20 transition-colors">
+                    <Upload className="w-6 h-6 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground mt-1">Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+                {(imagePreview || (!removeImage && currentImageUrl)) && (
+                  <label className="cursor-pointer">
+                    <Button type="button" variant="outline" size="sm" className="gap-1.5" asChild>
+                      <span>
+                        <Upload className="w-3.5 h-3.5" />
+                        Change
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="hidden"
+                        />
+                      </span>
+                    </Button>
+                  </label>
+                )}
+              </div>
+            </div>
             {product && (
               <ProductIngredientManager productId={product.id} />
             )}
