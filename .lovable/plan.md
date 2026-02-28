@@ -1,47 +1,96 @@
 
 
-# Plan: Delivery Modal + Bacon Price Fix + Capri Sun Verification
+# Plan: Per-Ingredient Add-on Pricing
 
-## Part 1 — Delivery Options Modal
+## 1. Database Migration
 
-**New file: `src/components/customer/DeliveryOptionsModal.tsx`**
-- Dialog with two large CTA buttons: Just Eat (orange) and Deliveroo (purple)
-- Both open in new tabs with `target="_blank"` and `rel="noopener noreferrer"`
-- Dark theme, mobile-first, 52px min button height, fade+scale animation
-- Subtitle: "Choose your preferred delivery partner"
-- ExternalLink icons on both buttons
+Add three columns to `public.ingredients`:
 
-**Edit: `src/components/customer/HeroSection.tsx`**
-- Replace direct `window.open` on the Delivery button with `setIsDeliveryModalOpen(true)`
-- Import and render `DeliveryOptionsModal`
-- Change button label from "DELIVERY (Just Eat)" to "DELIVERY"
+```sql
+ALTER TABLE public.ingredients
+  ADD COLUMN ingredient_type text NOT NULL DEFAULT 'other',
+  ADD COLUMN addon_price numeric(10,2) NOT NULL DEFAULT 0.50,
+  ADD COLUMN addon_price_kids numeric(10,2) NOT NULL DEFAULT 0.50;
 
-## Part 2 — Bacon Price = €2.00 Everywhere
+CREATE INDEX idx_ingredients_name ON public.ingredients(name);
 
-**Edit: `src/lib/pricingRules.ts`**
-- Add a bacon-specific check **before** the general meat check in `getExtraPrice()`:
-  ```typescript
-  // Bacon is always €2.00 (overrides general meat price)
-  if (lowerName.includes('bacon')) return 2.00;
-  ```
-- This ensures ingredient extras priced via `getExtraPrice` charge €2.00 for bacon instead of €2.50
+-- Seed pricing rules
+UPDATE public.ingredients SET ingredient_type = 'meat', addon_price = 2.50, addon_price_kids = 2.50 WHERE name ILIKE '%bacon%';
+UPDATE public.ingredients SET ingredient_type = 'cheese', addon_price = 2.00, addon_price_kids = 2.00 WHERE name ILIKE '%halloumi%';
+UPDATE public.ingredients SET ingredient_type = 'sauce', addon_price = 1.50, addon_price_kids = 0.00
+  WHERE name ILIKE '%sauce%' OR name ILIKE '%mayo%' OR name ILIKE '%aioli%' OR name ILIKE '%relish%';
+```
 
-**Already correct:**
-- `STANDALONE_ADDONS` in both ProductSheet and StaffProductSheet already has Bacon at €2.00
-- Only the `getExtraPrice` path (ingredient-based extras) was wrong at €2.50
+## 2. Update `src/types/database.ts`
 
-## Part 3 — Capri Sun (Kids Only)
+Add `ingredient_type`, `addon_price`, `addon_price_kids` to the `Ingredient` interface.
 
-**Already correct — no changes needed.**
-- Capri Sun is in `KIDS_MENU_ADDONS`, which only renders when `product.category === 'Kids Menu'`
-- The drinks dropdown fetches from the DB `Drinks` category, which does not include Capri Sun
-- Capri Sun never appears for adult items
+## 3. Update `src/hooks/useProductIngredients.ts`
+
+Include `ingredient_type`, `addon_price`, `addon_price_kids` in the select query so they flow to ProductSheet components.
+
+## 4. Update `src/hooks/useIngredients.ts`
+
+Include the new columns in the `Ingredient` interface and all queries/mutations.
+
+## 5. Replace `getExtraPrice()` in `src/lib/pricingRules.ts`
+
+Replace the keyword-based `getExtraPrice` with a new `getIngredientAddonPrice`:
+
+```typescript
+export function getIngredientAddonPrice(
+  ingredient: { addon_price?: number | null; addon_price_kids?: number | null },
+  productCategory: string
+): number {
+  if (productCategory === 'Kids Menu') {
+    return ingredient.addon_price_kids ?? 0.50;
+  }
+  return ingredient.addon_price ?? 0.50;
+}
+```
+
+Keep `getExtraPrice` as a deprecated fallback but it will no longer be called.
+
+## 6. Update `src/components/customer/ProductSheet.tsx`
+
+- In `getExtraIngredients()` (line ~247-256): replace `getExtraPrice(ing.name)` with `getIngredientAddonPrice(ing, product.category)`
+- In the ingredient display UI: show `+€X.XX` using the ingredient's actual price
+- Update `extrasTotal` calculation accordingly
+
+## 7. Update `src/components/staff/StaffProductSheet.tsx`
+
+Same changes as ProductSheet — replace `getExtraPrice(ing.name)` with `getIngredientAddonPrice(ing, product.category)`.
+
+## 8. Create `src/components/staff/IngredientPriceManager.tsx`
+
+New collapsible component with:
+- Search input to filter ingredients by name
+- Table/list showing: name (editable input), ingredient_type (dropdown: meat/cheese/sauce/other), addon_price (number input), addon_price_kids (number input)
+- Sorted by ingredient_type then name
+- Debounced save on change (500ms) via `supabase.from('ingredients').update()`
+- Toast on error
+- Uses `useAllIngredients()` from `useIngredients.ts`
+
+## 9. Add IngredientPriceManager to Operations Quick Stock
+
+In `src/components/staff/OperationsContent.tsx`: render `<IngredientPriceManager />` below the product list inside the Quick Stock card.
+
+## 10. Add IngredientPriceManager to Command Center Quick Stock
+
+In `src/pages/CommandCenter.tsx`: render `<IngredientPriceManager />` below the `QuickStockManager` component.
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `src/components/customer/DeliveryOptionsModal.tsx` | New — modal with Just Eat + Deliveroo buttons |
-| `src/components/customer/HeroSection.tsx` | Swap direct link for modal trigger |
-| `src/lib/pricingRules.ts` | Add bacon-specific €2.00 override before meat check |
+| Migration SQL | Add 3 columns + index + seed data |
+| `src/types/database.ts` | Add fields to Ingredient interface |
+| `src/hooks/useProductIngredients.ts` | Include new columns in select |
+| `src/hooks/useIngredients.ts` | Include new columns in interfaces and queries |
+| `src/lib/pricingRules.ts` | Add `getIngredientAddonPrice()`, deprecate `getExtraPrice()` |
+| `src/components/customer/ProductSheet.tsx` | Use `getIngredientAddonPrice` instead of `getExtraPrice` |
+| `src/components/staff/StaffProductSheet.tsx` | Same |
+| `src/components/staff/IngredientPriceManager.tsx` | New — editable ingredient pricing table |
+| `src/components/staff/OperationsContent.tsx` | Add IngredientPriceManager |
+| `src/pages/CommandCenter.tsx` | Add IngredientPriceManager |
 
