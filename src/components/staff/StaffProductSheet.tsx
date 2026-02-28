@@ -10,7 +10,8 @@ import { useProductModifiers } from '@/hooks/useProductModifiers';
 import { useProductIngredients } from '@/hooks/useProductIngredients';
 import { useLoadedFries, useDrinks, useSauces } from '@/hooks/useProductsByCategory';
 import { useStaffCartStore } from '@/stores/staffCartStore';
-import { getIngredientAddonPrice, getModifierTotal, getLoadedFriesPrice, getSaucePrice, hasFriesLargeOption, getFriesLargeUpgradeDelta } from '@/lib/pricingRules';
+import { getIngredientAddonPrice, getModifierTotal, getLoadedFriesPrice, hasFriesLargeOption, getFriesLargeUpgradeDelta } from '@/lib/pricingRules';
+import { useIngredientPriceLookup } from '@/hooks/useIngredientPriceLookup';
 import { toast } from 'sonner';
 
 import heroBurger from '@/assets/hero-burger.jpg';
@@ -41,21 +42,21 @@ interface StaffProductSheetProps {
 
 type IngredientState = 'included' | 'removed' | 'extra';
 
-// Standalone add-on items (Beef Patty handled separately as stepper)
+// Standalone add-on items — prices resolved at render time via useIngredientPriceLookup
 const STANDALONE_ADDONS = [
-  { id: 'bacon', name: 'Bacon', price: 2.00 },
-  { id: 'extra-chicken', name: 'Extra Jerk Chicken', price: 2.00 },
-  { id: 'cheese', name: 'Cheese', price: 1.00 },
-  { id: 'smoked-applewood', name: 'Smoked Applewood Cheese', price: 1.50 },
-  { id: 'handcut-chips', name: 'Handcut Chips', price: 3.50 },
+  { id: 'bacon', name: 'Bacon' },
+  { id: 'extra-chicken', name: 'Extra Jerk Chicken' },
+  { id: 'cheese', name: 'Cheese' },
+  { id: 'smoked-applewood', name: 'Smoked Applewood Cheese' },
+  { id: 'handcut-chips', name: 'Handcut Chips' },
 ];
 
-// Beef Patty config for stepper
-const BEEF_PATTY = { id: 'beef-patty', name: 'Beef Patty', price: 2.50, maxQty: 4 };
+// Beef Patty config for stepper — price resolved via lookupPrice
+const BEEF_PATTY = { id: 'beef-patty', name: 'Beef Patty', maxQty: 4 };
 
 const KIDS_MENU_ADDONS = [
-  { id: 'add-chips', name: 'Add Chips', price: 2.00 },
-  { id: 'capri-sun', name: 'Capri Sun', price: 1.50 },
+  { id: 'add-chips', name: 'Add Chips' },
+  { id: 'capri-sun', name: 'Capri Sun' },
 ];
 
 const BREAD_SWAP_FLATBREAD = {
@@ -91,6 +92,7 @@ export function StaffProductSheet({
   const { data: loadedFriesProducts } = useLoadedFries();
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
+  const { lookupPrice } = useIngredientPriceLookup();
 
   useEffect(() => {
     if (product) {
@@ -254,7 +256,7 @@ export function StaffProductSheet({
         allMods.push({
           id: addon.id,
           name: addon.name,
-          price_adjustment: addon.price,
+          price_adjustment: lookupPrice(addon.name, product.category),
           modifier_type: 'addon',
         });
       }
@@ -265,7 +267,7 @@ export function StaffProductSheet({
       allMods.push({
         id: BEEF_PATTY.id,
         name: BEEF_PATTY.name,
-        price_adjustment: BEEF_PATTY.price,
+        price_adjustment: lookupPrice(BEEF_PATTY.name, product.category),
         modifier_type: 'addon',
         quantity: beefPattyCount,
       });
@@ -301,7 +303,7 @@ export function StaffProductSheet({
         allMods.push({
           id: sauce.id,
           name: `Sauce: ${sauce.name}`,
-          price_adjustment: getSaucePrice(sauce.name, product.category),
+          price_adjustment: lookupPrice(sauce.name, product.category),
           modifier_type: 'sauce',
         });
       }
@@ -329,14 +331,14 @@ export function StaffProductSheet({
     return allMods;
   };
 
-  const currentAddonsTotal = currentAddons.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + a.price, 0);
-  const beefPattyTotal = beefPattyCount * BEEF_PATTY.price;
+  const currentAddonsTotal = currentAddons.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + lookupPrice(a.name, product.category), 0);
+  const beefPattyTotal = beefPattyCount * lookupPrice(BEEF_PATTY.name, product.category);
   const extrasTotal = getExtraIngredients().reduce((sum, e) => sum + e.price_adjustment, 0);
   const modifiersTotal = selectedModifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
   const loadedFriesCalcPrice = (selectedLoadedFries && !isKidsMenu) ? loadedFriesPrice : 0;
   const drinkPrice = (!isKidsMenu && drinksProducts?.find(p => p.id === selectedDrink)?.price) || 0;
   const selectedSauceProduct = saucesProducts?.find(p => p.id === selectedSauce);
-  const saucePrice = selectedSauceProduct ? getSaucePrice(selectedSauceProduct.name, product.category) : 0;
+  const saucePrice = selectedSauceProduct ? lookupPrice(selectedSauceProduct.name, product.category) : 0;
   const flatbreadPrice = flatbreadSelected ? BREAD_SWAP_FLATBREAD.price : 0;
   const makeLargeTotal = makeLargeSelected ? getFriesLargeUpgradeDelta(product) : 0;
   
@@ -450,7 +452,7 @@ export function StaffProductSheet({
                         </button>
                       </div>
                       <span className="text-primary font-bold text-sm min-w-[60px] text-right">
-                        {beefPattyCount > 0 ? `+€${(beefPattyCount * BEEF_PATTY.price).toFixed(2)}` : `€${BEEF_PATTY.price.toFixed(2)}/ea`}
+                        {beefPattyCount > 0 ? `+€${(beefPattyCount * lookupPrice(BEEF_PATTY.name, product.category)).toFixed(2)}` : `€${lookupPrice(BEEF_PATTY.name, product.category).toFixed(2)}/ea`}
                       </span>
                     </div>
                   </div>
@@ -478,7 +480,7 @@ export function StaffProductSheet({
                           <span className="text-sm text-foreground font-medium">{addon.name}</span>
                         </div>
                         <span className="text-primary font-bold text-sm">
-                          +€{addon.price.toFixed(2)}
+                          +€{lookupPrice(addon.name, product.category).toFixed(2)}
                         </span>
                       </label>
                     );
@@ -554,7 +556,7 @@ export function StaffProductSheet({
                         <SelectItem value="none">No Sauce (€0.00)</SelectItem>
                         {saucesProducts.map(sauce => (
                           <SelectItem key={sauce.id} value={sauce.id}>
-                            {sauce.name} (+€{getSaucePrice(sauce.name, product.category).toFixed(2)})
+                            {sauce.name} (+€{lookupPrice(sauce.name, product.category).toFixed(2)})
                           </SelectItem>
                         ))}
                       </SelectContent>
