@@ -48,16 +48,17 @@ interface ProductSheetProps {
 type IngredientState = 'included' | 'removed' | 'extra';
 
 // Standalone add-on items — prices resolved at render time via useIngredientPriceLookup
+// dbName maps to the exact ingredient name in the database for accurate price lookup
 const STANDALONE_ADDONS = [
-  { id: 'bacon', name: 'Bacon' },
-  { id: 'extra-chicken', name: 'Extra Jerk Chicken' },
-  { id: 'cheese', name: 'Cheese' },
-  { id: 'smoked-applewood', name: 'Smoked Applewood Cheese' },
-  { id: 'handcut-chips', name: 'Handcut Chips' },
+  { id: 'bacon', name: 'Bacon', dbName: 'Bacon' },
+  { id: 'extra-chicken', name: 'Extra Jerk Chicken', dbName: 'Jamaican jerk chicken' },
+  { id: 'cheese', name: 'Cheese', dbName: 'Cheese' },
+  { id: 'smoked-applewood', name: 'Smoked Applewood Cheese', dbName: 'Smoked applewood cheese' },
+  { id: 'handcut-chips', name: 'Hand-Cut Chips', dbName: 'Hand-cut chips' },
 ];
 
 // Beef Patty config for stepper — price resolved via lookupPrice
-const BEEF_PATTY = { id: 'beef-patty', name: 'Beef Patty', maxQty: 4 };
+const BEEF_PATTY = { id: 'beef-patty', name: 'Beef Patty', dbName: 'Dry-aged beef patties', maxQty: 4 };
 
 const KIDS_MENU_ADDONS = [
   { id: 'add-chips', name: 'Add Chips' },
