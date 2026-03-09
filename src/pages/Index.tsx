@@ -7,7 +7,7 @@ import { FloatingCartButton } from "@/components/customer/FloatingCartButton";
 
 function AboutSection() {
   return (
-    <section id="about" className="py-16 px-4">
+    <section id="about" className="py-10 sm:py-16 px-4">
       <div className="max-w-3xl mx-auto">
         <h2 className="font-heading text-3xl md:text-4xl text-foreground mb-6 text-center">
           ABOUT STREETEATZ
@@ -61,7 +61,7 @@ function AboutSection() {
 
 export default function Index() {
   return (
-    <div className="min-h-screen relative flex flex-col pb-24">
+    <div className="min-h-screen relative flex flex-col pb-16">
       <Navbar />
       <HeroSection />
       <MenuSection />
