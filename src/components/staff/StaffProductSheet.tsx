@@ -453,7 +453,7 @@ export function StaffProductSheet({
                         </button>
                       </div>
                       <span className="text-primary font-bold text-sm min-w-[60px] text-right">
-                        {beefPattyCount > 0 ? `+€${(beefPattyCount * lookupPrice(BEEF_PATTY.name, product.category)).toFixed(2)}` : `€${lookupPrice(BEEF_PATTY.name, product.category).toFixed(2)}/ea`}
+                        {beefPattyCount > 0 ? `+€${(beefPattyCount * lookupPrice(BEEF_PATTY.dbName, product.category)).toFixed(2)}` : `€${lookupPrice(BEEF_PATTY.dbName, product.category).toFixed(2)}/ea`}
                       </span>
                     </div>
                   </div>
