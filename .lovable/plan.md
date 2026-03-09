@@ -1,45 +1,52 @@
 
 
-# Plan: Enhance Ingredient Price Manager with Batch Save, Dirty Tracking & Cache Sync
+# Plan: Unify Make It Epic Pricing with DB-Driven Ingredient Prices
 
-## What's Actually Wrong
+## Problem
 
-The current `IngredientPriceManager` **does persist** changes via debounced auto-save on blur, but has these gaps:
-
-1. **No explicit Save/Reset UI** — staff can't see what's changed or batch-save
-2. **No dirty state tracking** — no visual indicator of unsaved changes
-3. **No validation feedback** — negative/invalid prices silently ignored
-4. **Stale cache after save** — `useAllIngredients` has 5-min `staleTime`, so other components (ProductSheet, StaffProductSheet) won't reflect price changes until cache expires
-5. **No cross-query invalidation** — saving doesn't invalidate `product-ingredients` queries used by customization UIs
+`STANDALONE_ADDONS` in both `ProductSheet.tsx` and `StaffProductSheet.tsx` has hardcoded prices (Bacon €2.00, Cheese €1.00, etc.) that don't match the DB (Bacon is €2.50 in `ingredients` table). The sauce dropdown uses `getSaucePrice()` keyword-based logic instead of DB prices.
 
 ## Changes
 
-### 1. Refactor `IngredientPriceManager.tsx` — Add batch save with dirty tracking
+### 1. Create a shared hook: `src/hooks/useIngredientPriceLookup.ts`
 
-- Replace auto-save-on-blur with controlled state: track `editedValues` map of `{[id]: {addon_price, addon_price_kids, name, ingredient_type}}`
-- Track dirty rows via comparison to original data
-- Add "Save Changes" button (disabled when no dirty rows) and "Reset" button
-- Show dirty count badge ("3 unsaved changes")
-- Validate prices on save: must be numeric, >= 0, normalized to 2 decimals
-- On save: batch update only changed rows, show spinner, success/error toast
-- After save: invalidate `all-ingredients`, `product-ingredients`, and `products` queries via `useQueryClient`
-- Keep the existing collapsible UI structure and dark theme
+Fetches all ingredients and returns a lookup function `getAddonPrice(name, category)` that finds the ingredient by name and calls `getIngredientAddonPrice()`. Falls back to €0.50 if not found.
 
-### 2. Update `useIngredients.ts` — Reduce staleTime
+### 2. Refactor `STANDALONE_ADDONS` to not include prices
 
-- Change `useAllIngredients` staleTime from 5 minutes to 30 seconds so price changes propagate faster across components
+Convert to price-less config arrays (just `id` and `name`). Resolve prices at render time via the lookup hook. Both `ProductSheet.tsx` and `StaffProductSheet.tsx` get the same treatment.
 
-### 3. No other files need changes
+Bacon → DB returns €2.50. Cheese → DB returns whatever is set. Sauces in dropdown → use ingredient lookup by name instead of `getSaucePrice()`.
 
-- `useIngredientPriceLookup` already correctly uses `useAllIngredients` 
-- `ProductSheet` and `StaffProductSheet` already use `lookupPrice()` from the hook
-- `pricingRules.ts` already has `getIngredientAddonPrice()` as the single helper
-- No hardcoded prices remain in Make It Epic sections
+### 3. Update `ProductSheet.tsx`
+
+- Import and call `useIngredientPriceLookup()`
+- Remove hardcoded `price` from `STANDALONE_ADDONS` and `KIDS_MENU_ADDONS`
+- Resolve addon prices dynamically: `const addonPrice = lookupPrice(addon.name, product.category)`
+- Update `buildAllModifiers()` to use looked-up prices
+- Update `currentAddonsTotal` calculation to use looked-up prices
+- Replace `getSaucePrice()` in sauce dropdown with ingredient lookup
+
+### 4. Update `StaffProductSheet.tsx`
+
+Same changes as ProductSheet.
+
+### 5. Clean up `pricingRules.ts`
+
+- Remove `getSaucePrice()` function (replaced by DB lookup)
+- Mark `getExtraPrice()` as deprecated with a comment (already not called anywhere)
+- Remove `EXTRA_PRICING` constant (no longer used)
+
+### 6. No database changes needed
+
+The `ingredients` table already has correct pricing. Bacon = €2.50, sauces = €1.50, kids sauces = €0.00.
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `src/components/staff/IngredientPriceManager.tsx` | Add batch save/reset, dirty tracking, validation, query invalidation |
-| `src/hooks/useIngredients.ts` | Reduce staleTime to 30s for faster propagation |
+| `src/hooks/useIngredientPriceLookup.ts` | New — shared hook for name-based ingredient price lookup |
+| `src/components/customer/ProductSheet.tsx` | Use DB prices for STANDALONE_ADDONS and sauce dropdown |
+| `src/components/staff/StaffProductSheet.tsx` | Same |
+| `src/lib/pricingRules.ts` | Remove `getSaucePrice()`, clean up legacy code |
 
