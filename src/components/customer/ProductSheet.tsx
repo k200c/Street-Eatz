@@ -48,20 +48,21 @@ interface ProductSheetProps {
 type IngredientState = 'included' | 'removed' | 'extra';
 
 // Standalone add-on items — prices resolved at render time via useIngredientPriceLookup
+// dbName maps to the exact ingredient name in the database for accurate price lookup
 const STANDALONE_ADDONS = [
-  { id: 'bacon', name: 'Bacon' },
-  { id: 'extra-chicken', name: 'Extra Jerk Chicken' },
-  { id: 'cheese', name: 'Cheese' },
-  { id: 'smoked-applewood', name: 'Smoked Applewood Cheese' },
-  { id: 'handcut-chips', name: 'Handcut Chips' },
+  { id: 'bacon', name: 'Bacon', dbName: 'Bacon' },
+  { id: 'extra-chicken', name: 'Extra Jerk Chicken', dbName: 'Jamaican jerk chicken' },
+  { id: 'cheese', name: 'Cheese', dbName: 'Cheese' },
+  { id: 'smoked-applewood', name: 'Smoked Applewood Cheese', dbName: 'Smoked applewood cheese' },
+  { id: 'handcut-chips', name: 'Hand-Cut Chips', dbName: 'Hand-cut chips' },
 ];
 
 // Beef Patty config for stepper — price resolved via lookupPrice
-const BEEF_PATTY = { id: 'beef-patty', name: 'Beef Patty', maxQty: 4 };
+const BEEF_PATTY = { id: 'beef-patty', name: 'Beef Patty', dbName: 'Dry-aged beef patties', maxQty: 4 };
 
 const KIDS_MENU_ADDONS = [
-  { id: 'add-chips', name: 'Add Chips' },
-  { id: 'capri-sun', name: 'Capri Sun' },
+  { id: 'add-chips', name: 'Add Chips', dbName: 'Chips' },
+  { id: 'capri-sun', name: 'Capri Sun', dbName: 'Capri Sun' },
 ];
 
 const BREAD_SWAP_FLATBREAD = {
@@ -266,7 +267,7 @@ export function ProductSheet({
         allMods.push({
           id: addon.id,
           name: addon.name,
-          price_adjustment: lookupPrice(addon.name, product.category),
+          price_adjustment: lookupPrice(addon.dbName || addon.name, product.category),
           modifier_type: 'addon',
         });
       }
@@ -277,7 +278,7 @@ export function ProductSheet({
       allMods.push({
         id: BEEF_PATTY.id,
         name: BEEF_PATTY.name,
-        price_adjustment: lookupPrice(BEEF_PATTY.name, product.category),
+        price_adjustment: lookupPrice(BEEF_PATTY.dbName, product.category),
         modifier_type: 'addon',
         quantity: beefPattyCount,
       });
@@ -346,8 +347,8 @@ export function ProductSheet({
   };
 
   // Calculate total price
-  const currentAddonsTotal = currentAddons.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + lookupPrice(a.name, product.category), 0);
-  const beefPattyTotal = beefPattyCount * lookupPrice(BEEF_PATTY.name, product.category);
+  const currentAddonsTotal = currentAddons.filter(a => standaloneAddons.has(a.id)).reduce((sum, a) => sum + lookupPrice(a.dbName || a.name, product.category), 0);
+  const beefPattyTotal = beefPattyCount * lookupPrice(BEEF_PATTY.dbName, product.category);
   const extrasTotal = getExtraIngredients().reduce((sum, e) => sum + e.price_adjustment, 0);
   const modifiersTotal = selectedModifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
   const selectedLoadedFriesPrice = (selectedLoadedFries && !isKidsMenu) ? loadedFriesPrice : 0;
@@ -482,7 +483,7 @@ export function ProductSheet({
                         </button>
                       </div>
                       <span className="text-primary font-bold min-w-[70px] text-right">
-                        {beefPattyCount > 0 ? `+€${(beefPattyCount * lookupPrice(BEEF_PATTY.name, product.category)).toFixed(2)}` : `€${lookupPrice(BEEF_PATTY.name, product.category).toFixed(2)}/ea`}
+                        {beefPattyCount > 0 ? `+€${(beefPattyCount * lookupPrice(BEEF_PATTY.dbName, product.category)).toFixed(2)}` : `€${lookupPrice(BEEF_PATTY.dbName, product.category).toFixed(2)}/ea`}
                       </span>
                     </div>
                   </div>
@@ -510,7 +511,7 @@ export function ProductSheet({
                           <span className="text-foreground font-medium">{addon.name}</span>
                         </div>
                         <span className="text-primary font-bold">
-                          +€{lookupPrice(addon.name, product.category).toFixed(2)}
+                          +€{lookupPrice(addon.dbName || addon.name, product.category).toFixed(2)}
                         </span>
                       </label>
                     );
