@@ -89,9 +89,9 @@
     box-sizing: border-box;
   }
 
-  html, body {
+  html, body, #root {
     overflow-x: hidden;
-    max-width: 100vw;
+    max-width: 100%;
     width: 100%;
   }
 
@@ -100,6 +100,7 @@
     font-family: 'Inter', sans-serif;
     background: linear-gradient(180deg, hsl(var(--background-top)) 0%, hsl(var(--background-bottom)) 100%);
     min-height: 100vh;
+    min-height: 100dvh;
   }
 
   h1, h2, h3, h4, h5, h6 {
