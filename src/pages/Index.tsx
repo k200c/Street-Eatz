@@ -61,7 +61,7 @@ function AboutSection() {
 
 export default function Index() {
   return (
-    <div className="min-h-screen relative flex flex-col pb-24">
+    <div className="min-h-screen relative flex flex-col pb-16">
       <Navbar />
       <HeroSection />
       <MenuSection />
