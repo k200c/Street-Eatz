@@ -1,52 +1,127 @@
+# Mobile-First PWA Polish Plan
 
+## What's Wrong
 
-# Plan: Unify Make It Epic Pricing with DB-Driven Ingredient Prices
-
-## Problem
-
-`STANDALONE_ADDONS` in both `ProductSheet.tsx` and `StaffProductSheet.tsx` has hardcoded prices (Bacon €2.00, Cheese €1.00, etc.) that don't match the DB (Bacon is €2.50 in `ingredients` table). The sauce dropdown uses `getSaucePrice()` keyword-based logic instead of DB prices.
+1. **Hero is ~50vh minimum on mobile** — too tall. Logo (w-32), two large headings, tagline, and 3 stacked buttons push the menu far below the fold.
+2. **CTA buttons stack vertically with py-4/py-6** — consuming ~180px+ of vertical space on mobile.
+3. **FooterInfoBar uses py-3 + h-12** — slightly wasteful; the fixed bottom bar plus FloatingCartButton at `bottom-20` creates stacking issues.
+4. **100vh used for body min-height** — breaks on iOS Safari with dynamic toolbar.
+5. **No dvh fallback** — missing modern viewport unit support.
+6. **Safe-area utilities are minimal** — only `safe-area-pb` and `safe-area-bottom` exist; no top/left/right padding utilities.
+7. **Category sticky bar uses `top-16**` — doesn't account for safe-area-inset-top, causing overlap under notch.
+8. **Scroll indicator at `bottom-16**` on mobile wastes space and overlaps the FooterInfoBar.
 
 ## Changes
 
-### 1. Create a shared hook: `src/hooks/useIngredientPriceLookup.ts`
+### 1. `src/index.css` — Viewport & safe-area hardening
 
-Fetches all ingredients and returns a lookup function `getAddonPrice(name, category)` that finds the ingredient by name and calls `getIngredientAddonPrice()`. Falls back to €0.50 if not found.
+- Add `min-height: 100dvh` with `100vh` fallback on body
+- Add safe-area utility classes: `.safe-area-pt`, `.safe-area-pl`, `.safe-area-pr`
+- Add a reusable `.app-container` class for consistent max-width + centering + overflow prevention
 
-### 2. Refactor `STANDALONE_ADDONS` to not include prices
+### 2. `src/components/customer/HeroSection.tsx` — Compact mobile hero
 
-Convert to price-less config arrays (just `id` and `name`). Resolve prices at render time via the lookup hook. Both `ProductSheet.tsx` and `StaffProductSheet.tsx` get the same treatment.
+- Reduce `min-h-[50vh]` → `min-h-[40vh]` on mobile (keep `md:min-h-screen` for desktop)
+- Shrink logo: `w-24` on mobile (from `w-32`)
+- Reduce `mb-6` on logo container → `mb-3`
+- Use `clamp()` for headings: h1 from `text-4xl` → `text-[clamp(1.75rem,6vw,3rem)]`, h2 similarly
+- Tighten text stack: `space-y-0.5` and `mb-3` on mobile
+- Reduce tagline margin: `mb-4` (from `mb-6`)
+- Make CTA buttons horizontal on mobile too: `flex-row flex-wrap justify-center gap-2`
+- Shrink button padding: `px-4 py-2.5` on mobile (from `px-6 py-4`), text `text-xs`
+- Remove bounce chevron on mobile (hidden below `sm:`)
 
-Bacon → DB returns €2.50. Cheese → DB returns whatever is set. Sauces in dropdown → use ingredient lookup by name instead of `getSaucePrice()`.
+### 3. `src/components/layout/FooterInfoBar.tsx` — Compress bottom bar
 
-### 3. Update `ProductSheet.tsx`
+- Reduce height: `h-10` (from `h-12`), `py-2` (from `py-3`)
+- Smaller text on mobile: `text-xs`
+- Tighten icon sizes on mobile
 
-- Import and call `useIngredientPriceLookup()`
-- Remove hardcoded `price` from `STANDALONE_ADDONS` and `KIDS_MENU_ADDONS`
-- Resolve addon prices dynamically: `const addonPrice = lookupPrice(addon.name, product.category)`
-- Update `buildAllModifiers()` to use looked-up prices
-- Update `currentAddonsTotal` calculation to use looked-up prices
-- Replace `getSaucePrice()` in sauce dropdown with ingredient lookup
+### 4. `src/components/customer/FloatingCartButton.tsx` — Safe-area aware
 
-### 4. Update `StaffProductSheet.tsx`
+- Change `bottom-20` to `bottom-14` to account for compressed footer bar
+- Add safe-area-bottom offset via inline style
 
-Same changes as ProductSheet.
+### 5. `src/components/customer/MenuSection.tsx` — Sticky bar fix
 
-### 5. Clean up `pricingRules.ts`
+- Change sticky `top-16` to use `top-[var(--header-offset)]` so it respects safe-area
+- Reduce `py-6` → `py-3` on mobile for the section top padding
 
-- Remove `getSaucePrice()` function (replaced by DB lookup)
-- Mark `getExtraPrice()` as deprecated with a comment (already not called anywhere)
-- Remove `EXTRA_PRICING` constant (no longer used)
+### 6. `src/pages/Index.tsx` — Tighten page spacing
 
-### 6. No database changes needed
+- Reduce `pb-24` → `pb-16` to tighten bottom space
+- About section: reduce `py-16` → `py-10` on mobile
 
-The `ingredients` table already has correct pricing. Bacon = €2.50, sauces = €1.50, kids sauces = €0.00.
+### 7. `index.html` — Add missing PWA meta
+
+- Add `<meta name="mobile-web-app-capable" content="yes" />` (already has apple version)  
+  
+Before implementation, extend this plan with the following non-negotiable additions:
+  ### Additional Required Fixes
+  #### A. Global overflow protection
+  Prevent accidental horizontal scrolling across the app:
+  - set `html, body, #root { width: 100%; overflow-x: hidden; }`
+  - ensure major layout wrappers use `max-w-full`
+  - audit category rails, buttons, hero wrappers, and bottom bars for overflow-causing widths or transforms
+  #### B. Centralize safe-area and sticky offsets
+  In `src/index.css`, define reusable CSS variables:
+  - `--safe-top: env(safe-area-inset-top, 0px)`
+  - `--safe-bottom: env(safe-area-inset-bottom, 0px)`
+  - `--safe-left: env(safe-area-inset-left, 0px)`
+  - `--safe-right: env(safe-area-inset-right, 0px)`
+  - `--header-offset` based on actual header height + safe top inset
+  Use these variables consistently in:
+  - header/nav
+  - sticky category bar
+  - FooterInfoBar
+  - FloatingCartButton
+  - drawers/modals/sheets if applicable
+  #### C. Header audit
+  Refine the mobile header itself:
+  - slightly reduce mobile header height/padding
+  - ensure safe-area top is respected
+  - ensure header icons remain minimum 44x44 tap targets
+  - confirm sticky/fixed header does not overlap hero or categories
+  #### D. Category chip rail polish
+  Improve the horizontal category selector:
+  - `overflow-x-auto`
+  - hidden scrollbar
+  - `whitespace-nowrap`
+  - `shrink-0` pills
+  - left/right padding so chips don’t touch screen edges
+  - iOS smooth scrolling support
+  - optional snap behavior if it feels natural
+  #### E. PWA shell audit
+  Verify the PWA foundation:
+  - manifest `display`, `background_color`, `theme_color`
+  - proper icons and Apple touch icon
+  - include maskable icon if available
+  - ensure browser chrome/app chrome colors match the StreetEatz theme
+  #### F. Acceptance criteria
+  Do not mark complete until confirmed on:
+  - iPhone Safari
+  - installed iPhone PWA
+  - Android Chrome
+  - installed Android PWA
+  - 320–360px small mobile width
+  - desktop responsive mode
+  Confirm:
+  - no horizontal page scroll
+  - no overlap with notch/home indicator
+  - hero is noticeably more compact above the fold
+  - CTA stack feels tighter
+  - category rail scrolls cleanly
+  - floating cart and footer bar no longer clash
 
 ## Files Changed
 
-| File | Change |
-|------|--------|
-| `src/hooks/useIngredientPriceLookup.ts` | New — shared hook for name-based ingredient price lookup |
-| `src/components/customer/ProductSheet.tsx` | Use DB prices for STANDALONE_ADDONS and sauce dropdown |
-| `src/components/staff/StaffProductSheet.tsx` | Same |
-| `src/lib/pricingRules.ts` | Remove `getSaucePrice()`, clean up legacy code |
 
+| File                                             | Change                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `index.html`                                     | Add mobile-web-app-capable meta                                                        |
+| `src/index.css`                                  | dvh fallback, safe-area utilities, app-container                                       |
+| `src/components/customer/HeroSection.tsx`        | Compact hero: smaller logo, clamp headings, horizontal buttons, hide chevron on mobile |
+| `src/components/layout/FooterInfoBar.tsx`        | Compress to h-10, smaller text                                                         |
+| `src/components/customer/FloatingCartButton.tsx` | Adjust bottom offset for compressed footer                                             |
+| `src/components/customer/MenuSection.tsx`        | Fix sticky top to use header-offset, tighten section padding                           |
+| `src/pages/Index.tsx`                            | Reduce bottom padding and about section spacing                                        |
