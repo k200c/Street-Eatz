@@ -278,7 +278,7 @@ export function ProductSheet({
       allMods.push({
         id: BEEF_PATTY.id,
         name: BEEF_PATTY.name,
-        price_adjustment: lookupPrice(BEEF_PATTY.name, product.category),
+        price_adjustment: lookupPrice(BEEF_PATTY.dbName, product.category),
         modifier_type: 'addon',
         quantity: beefPattyCount,
       });
