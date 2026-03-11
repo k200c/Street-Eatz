@@ -427,18 +427,25 @@ export function StaffProductSheet({
                 </h4>
 
                 {/* Beef Patty Stepper (0-4) */}
-                {showBeefPattyStepper && (
+                {showBeefPattyStepper && (() => {
+                  const pattyOos = !isInStock(BEEF_PATTY.dbName);
+                  return (
                   <div className={`flex items-center justify-between p-3.5 rounded-lg border mb-2 transition-all ${
-                    beefPattyCount > 0
+                    pattyOos
+                      ? 'border-border/30 bg-secondary/10 opacity-50 cursor-not-allowed'
+                      : beefPattyCount > 0
                       ? 'border-primary bg-primary/15 shadow-sm shadow-primary/20'
                       : 'border-border bg-secondary/30'
                   }`}>
-                    <span className="text-sm text-foreground font-medium">{BEEF_PATTY.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-foreground font-medium">{BEEF_PATTY.name}</span>
+                      {pattyOos && <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">OOS</Badge>}
+                    </div>
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setBeefPattyCount(Math.max(0, beefPattyCount - 1))}
-                          disabled={beefPattyCount === 0}
+                          disabled={beefPattyCount === 0 || pattyOos}
                           className="w-7 h-7 rounded-full bg-background flex items-center justify-center hover:bg-secondary/80 transition-colors disabled:opacity-30"
                         >
                           <Minus className="w-3.5 h-3.5" />
@@ -446,7 +453,7 @@ export function StaffProductSheet({
                         <span className="w-5 text-center font-bold text-foreground text-sm">{beefPattyCount}</span>
                         <button
                           onClick={() => setBeefPattyCount(Math.min(BEEF_PATTY.maxQty, beefPattyCount + 1))}
-                          disabled={beefPattyCount >= BEEF_PATTY.maxQty}
+                          disabled={beefPattyCount >= BEEF_PATTY.maxQty || pattyOos}
                           className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-30"
                         >
                           <Plus className="w-3.5 h-3.5" />
@@ -457,7 +464,8 @@ export function StaffProductSheet({
                       </span>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Standalone Add-on Checkboxes */}
                 <div className="space-y-2 mb-4">
