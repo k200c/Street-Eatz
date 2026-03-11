@@ -154,7 +154,7 @@ export function MenuSection() {
         {/* Animated Section Header */}
         <motion.div 
           ref={headerRef}
-          className="text-center mb-2 sm:mb-4"
+          className="text-center mb-1 sm:mb-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
