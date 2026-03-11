@@ -764,6 +764,7 @@ export function ProductSheet({
                     const isExtra = state === 'extra';
                     const isRemovable = ingredient.is_removable !== false;
                     const isAddable = ingredient.is_addable !== false;
+                    const ingOos = ingredient.in_stock === false;
                     
                     return (
                       <div
@@ -776,7 +777,7 @@ export function ProductSheet({
                             : 'border-white/10 bg-transparent'
                         }`}
                       >
-                        <div className="flex-1">
+                        <div className="flex-1 flex items-center gap-2">
                           <span className={`font-medium ${
                             isRemoved 
                               ? 'text-muted-foreground line-through' 
@@ -787,9 +788,12 @@ export function ProductSheet({
                             {isRemoved && 'No '}{isExtra && 'Extra '}{ingredient.name}
                           </span>
                           {isExtra && getIngredientAddonPrice(ingredient, product.category) > 0 && (
-                            <span className="ml-2 text-sm text-green-400 font-semibold">
+                            <span className="text-sm text-green-400 font-semibold">
                               +€{getIngredientAddonPrice(ingredient, product.category).toFixed(2)}
                             </span>
+                          )}
+                          {ingOos && !isRemoved && (
+                            <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">Out of Stock</Badge>
                           )}
                         </div>
                         
@@ -809,9 +813,12 @@ export function ProductSheet({
                           
                           {isAddable && (
                             <button
-                              onClick={() => handleAddExtra(ingredient.id)}
+                              onClick={() => !ingOos && handleAddExtra(ingredient.id)}
+                              disabled={ingOos}
                               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                                isExtra 
+                                ingOos
+                                  ? 'bg-secondary/50 text-muted-foreground opacity-40 cursor-not-allowed'
+                                  : isExtra 
                                   ? 'bg-green-500 text-white' 
                                   : 'bg-secondary text-secondary-foreground hover:bg-green-500/20 hover:text-green-400'
                               }`}
