@@ -619,25 +619,30 @@ export function StaffProductSheet({
                   {addableOnlyIngredients.map((ingredient) => {
                     const isSelected = ingredientStates[ingredient.id] === 'extra';
                     const price = getIngredientAddonPrice(ingredient, product.category);
+                    const ingOos = ingredient.in_stock === false;
                     
                     return (
                       <label
                         key={ingredient.id}
-                        className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-all ${
-                          isSelected
+                        className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${
+                          ingOos
+                            ? 'border-border/30 bg-secondary/10 opacity-50 cursor-not-allowed'
+                            : isSelected
                             ? 'border-amber-500 bg-amber-500/15 shadow-sm shadow-amber-500/20'
-                            : 'border-border bg-secondary/30 hover:border-amber-500/40'
+                            : 'border-border bg-secondary/30 hover:border-amber-500/40 cursor-pointer'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <Checkbox
                             checked={isSelected}
-                            onCheckedChange={() => handleAddExtra(ingredient.id)}
+                            onCheckedChange={() => !ingOos && handleAddExtra(ingredient.id)}
+                            disabled={ingOos}
                             className="border-amber-500/50 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                           />
                           <span className="text-sm text-foreground font-medium">{ingredient.name}</span>
+                          {ingOos && <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">OOS</Badge>}
                         </div>
-                        <span className="text-amber-400 font-bold text-sm">
+                        <span className={`font-bold text-sm ${ingOos ? 'text-muted-foreground' : 'text-amber-400'}`}>
                           +€{price.toFixed(2)}
                         </span>
                       </label>
