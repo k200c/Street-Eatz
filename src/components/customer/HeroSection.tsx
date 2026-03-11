@@ -84,7 +84,7 @@ export function HeroSection() {
           </motion.h1>
           
           <motion.h2
-            className="font-heading font-extrabold text-foreground tracking-tight"
+            className="font-heading font-extrabold text-foreground tracking-tight hidden sm:block"
             style={{
               fontSize: 'clamp(1.5rem, 5vw, 2.5rem)',
               lineHeight: 1.1,
