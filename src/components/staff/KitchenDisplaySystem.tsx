@@ -147,9 +147,6 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
       let newStatus: OrderStatus;
       
       switch (currentStatus) {
-        case 'pending':
-          newStatus = 'cooking';
-          break;
         case 'cooking':
           newStatus = 'ready';
           break;
