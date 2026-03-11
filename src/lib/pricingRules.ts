@@ -19,13 +19,6 @@ export function getIngredientAddonPrice(
 }
 
 /**
- * @deprecated Use getIngredientAddonPrice instead — kept only as a fallback reference.
- */
-export function getExtraPrice(ingredientName: string): number {
-  return 0.50;
-}
-
-/**
  * Calculate total price contribution for a modifier, accounting for quantity.
  * Backward-compatible: modifiers without `quantity` default to 1.
  */
