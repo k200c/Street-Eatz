@@ -575,7 +575,6 @@ export function KitchenDisplaySystem() {
   };
 
   const totalOrders = 
-    ordersByStatus.pending.length + 
     ordersByStatus.cooking.length + 
     ordersByStatus.ready.length;
 
