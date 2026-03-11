@@ -74,4 +74,4 @@ export function getFriesLargeUpgradeDelta(product: { fries_large_price?: number 
   return Math.round((product.fries_large_price - product.price) * 100) / 100;
 }
 
-// getSaucePrice() removed — sauce pricing now flows through getIngredientAddonPrice() via useIngredientPriceLookup hook.
+
