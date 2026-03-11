@@ -68,7 +68,7 @@ export function HeroSection() {
         </motion.div>
 
         {/* Text — responsive clamp sizing */}
-        <div className="space-y-0.5 sm:space-y-2 mb-3 sm:mb-6">
+        <div className="space-y-0.5 sm:space-y-2 mb-1 sm:mb-6">
           <motion.h1
             className="font-heading font-extrabold text-primary tracking-tight"
             style={{
