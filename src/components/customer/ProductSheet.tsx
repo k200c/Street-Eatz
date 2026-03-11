@@ -99,7 +99,7 @@ export function ProductSheet({
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
   const { data: allergenData } = useProductAllergens(product?.id || null);
-  const { lookupPrice } = useIngredientPriceLookup();
+  const { lookupPrice, isInStock } = useIngredientPriceLookup();
 
   useEffect(() => {
     if (product) {

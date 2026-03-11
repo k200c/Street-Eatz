@@ -93,7 +93,7 @@ export function StaffProductSheet({
   const { data: loadedFriesProducts } = useLoadedFries();
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
-  const { lookupPrice } = useIngredientPriceLookup();
+  const { lookupPrice, isInStock } = useIngredientPriceLookup();
 
   useEffect(() => {
     if (product) {
