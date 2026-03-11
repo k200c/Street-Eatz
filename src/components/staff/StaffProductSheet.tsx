@@ -471,24 +471,29 @@ export function StaffProductSheet({
                 <div className="space-y-2 mb-4">
                   {currentAddons.map((addon) => {
                     const isSelected = standaloneAddons.has(addon.id);
+                    const addonOos = !isInStock(addon.dbName || addon.name);
                     return (
                       <label
                         key={addon.id}
-                        className={`flex items-center justify-between p-3.5 rounded-lg border cursor-pointer transition-all ${
-                          isSelected
+                        className={`flex items-center justify-between p-3.5 rounded-lg border transition-all ${
+                          addonOos
+                            ? 'border-border/30 bg-secondary/10 opacity-50 cursor-not-allowed'
+                            : isSelected
                             ? 'border-primary bg-primary/15 shadow-sm shadow-primary/20'
-                            : 'border-border bg-secondary/30 hover:border-primary/40'
+                            : 'border-border bg-secondary/30 hover:border-primary/40 cursor-pointer'
                         }`}
                       >
                         <div className="flex items-center gap-2">
                           <Checkbox
                             checked={isSelected}
-                            onCheckedChange={() => toggleStandaloneAddon(addon.id)}
+                            onCheckedChange={() => !addonOos && toggleStandaloneAddon(addon.id)}
+                            disabled={addonOos}
                             className="border-primary/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                           />
                           <span className="text-sm text-foreground font-medium">{addon.name}</span>
+                          {addonOos && <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">OOS</Badge>}
                         </div>
-                        <span className="text-primary font-bold text-sm">
+                        <span className={`font-bold text-sm ${addonOos ? 'text-muted-foreground' : 'text-primary'}`}>
                           +€{lookupPrice(addon.dbName || addon.name, product.category).toFixed(2)}
                         </span>
                       </label>
