@@ -121,8 +121,12 @@ export function IngredientPriceManager() {
     }
   }, [ingredients, dirtyIds, edits, queryClient]);
 
-  const getVal = (id: string, field: keyof EditedValues, original: string) => {
-    return edits[id]?.[field] ?? original;
+  const getStrVal = (id: string, field: 'name' | 'ingredient_type' | 'addon_price' | 'addon_price_kids', original: string): string => {
+    return (edits[id]?.[field] as string | undefined) ?? original;
+  };
+
+  const getStockVal = (id: string, original: boolean): boolean => {
+    return edits[id]?.in_stock ?? original;
   };
 
   return (
