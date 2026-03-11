@@ -61,7 +61,7 @@ export function IngredientPriceManager() {
 
   const dirtyCount = dirtyIds.length;
 
-  const updateEdit = useCallback((id: string, field: keyof EditedValues, value: string) => {
+  const updateEdit = useCallback((id: string, field: keyof EditedValues, value: string | boolean) => {
     setEdits(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   }, []);
 
