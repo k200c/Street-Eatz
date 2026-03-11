@@ -53,6 +53,7 @@ export function IngredientPriceManager() {
         if (vals.ingredient_type !== undefined && vals.ingredient_type !== orig.ingredient_type) return true;
         if (vals.addon_price !== undefined && vals.addon_price !== orig.addon_price.toFixed(2)) return true;
         if (vals.addon_price_kids !== undefined && vals.addon_price_kids !== orig.addon_price_kids.toFixed(2)) return true;
+        if (vals.in_stock !== undefined && vals.in_stock !== orig.in_stock) return true;
         return false;
       })
       .map(([id]) => id);
