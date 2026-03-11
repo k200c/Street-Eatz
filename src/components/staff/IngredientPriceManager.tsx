@@ -20,6 +20,7 @@ interface EditedValues {
   ingredient_type?: string;
   addon_price?: string;
   addon_price_kids?: string;
+  in_stock?: boolean;
 }
 
 export function IngredientPriceManager() {
