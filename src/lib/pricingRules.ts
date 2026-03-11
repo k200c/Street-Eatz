@@ -3,12 +3,6 @@
  * Used consistently across both Customer and Staff interfaces
  */
 
-/** @deprecated Legacy constant — no longer used. All pricing flows through getIngredientAddonPrice(). */
-export const EXTRA_PRICING = {
-  defaultExtraPrice: 0.50,
-  removalPrice: 0,
-};
-
 /**
  * Get per-ingredient add-on price from the database.
  * Uses the ingredient's stored addon_price / addon_price_kids columns.
