@@ -1,6 +1,6 @@
 import React, { useState, DragEvent, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChefHat, Clock, Volume2, VolumeX, GripVertical, Play, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag, Filter } from 'lucide-react';
+import { ChefHat, Clock, Volume2, VolumeX, GripVertical, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag, Filter } from 'lucide-react';
 import { useKitchenOrders, KitchenOrder } from '@/hooks/useKitchenOrders';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,14 +27,6 @@ interface ColumnConfig {
 }
 
 const columns: ColumnConfig[] = [
-  { 
-    status: 'pending', 
-    title: 'PENDING', 
-    borderColor: 'border-red-500',
-    bgColor: 'bg-red-500/5',
-    headerBg: 'bg-red-500',
-    headerText: 'text-white'
-  },
   { 
     status: 'cooking', 
     title: 'COOKING', 
@@ -155,9 +147,6 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
       let newStatus: OrderStatus;
       
       switch (currentStatus) {
-        case 'pending':
-          newStatus = 'cooking';
-          break;
         case 'cooking':
           newStatus = 'ready';
           break;
@@ -183,30 +172,6 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
 
     const getActionButtons = () => {
       switch (currentStatus) {
-        case 'pending':
-          return (
-            <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
-                onClick={handleAction}
-                disabled={isUpdating}
-              >
-                <Play className="w-4 h-4 mr-1" />
-                Start Cooking
-              </Button>
-              <Button 
-                size="sm" 
-                variant="outline"
-                className="px-2 border-muted-foreground/30 hover:bg-muted"
-                onClick={handleQuickComplete}
-                disabled={isUpdating}
-                title="Archive - Skip to Completed (No SMS)"
-              >
-                <CheckCircle className="w-4 h-4" />
-              </Button>
-            </div>
-          );
         case 'cooking':
           return (
             <div className="flex gap-2">
@@ -488,7 +453,7 @@ export function KitchenDisplaySystem() {
 
   // Find full order data by ID
   const findOrderById = (orderId: string): KitchenOrder | undefined => {
-    return [...ordersByStatus.pending, ...ordersByStatus.cooking, ...ordersByStatus.ready, ...ordersByStatus.pending_payment]
+    return [...ordersByStatus.cooking, ...ordersByStatus.ready, ...ordersByStatus.pending_payment]
       .find(order => order.id === orderId);
   };
 
@@ -499,7 +464,6 @@ export function KitchenDisplaySystem() {
   };
 
   const filteredOrdersByStatus = {
-    pending: filterOrders(ordersByStatus.pending),
     cooking: filterOrders(ordersByStatus.cooking),
     ready: filterOrders(ordersByStatus.ready),
     pending_payment: ordersByStatus.pending_payment
@@ -611,12 +575,10 @@ export function KitchenDisplaySystem() {
   };
 
   const totalOrders = 
-    ordersByStatus.pending.length + 
     ordersByStatus.cooking.length + 
     ordersByStatus.ready.length;
 
   const unpaidCount = [
-    ...ordersByStatus.pending,
     ...ordersByStatus.cooking,
     ...ordersByStatus.ready
   ].filter(o => o.payment_status !== 'paid').length;
@@ -712,12 +674,12 @@ export function KitchenDisplaySystem() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {columns.map((column) => (
                   <KanbanColumn
                     key={column.status}
                     config={column}
-                    orders={filteredOrdersByStatus[column.status]}
+                    orders={filteredOrdersByStatus[column.status as keyof typeof filteredOrdersByStatus] as KitchenOrder[]}
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onStatusChange={handleStatusChange}
@@ -777,7 +739,7 @@ export function KitchenDisplaySystem() {
           </span>
           {showDebug && (
             <span className="text-yellow-500">
-              P:{debugInfo.byStatus.pending} | C:{debugInfo.byStatus.cooking} | R:{debugInfo.byStatus.ready}
+              C:{debugInfo.byStatus.cooking} (inc. {debugInfo.byStatus.pending} new) | R:{debugInfo.byStatus.ready}
             </span>
           )}
         </div>
