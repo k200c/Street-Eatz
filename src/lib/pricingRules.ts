@@ -3,12 +3,6 @@
  * Used consistently across both Customer and Staff interfaces
  */
 
-/** @deprecated Legacy constant — no longer used. All pricing flows through getIngredientAddonPrice(). */
-export const EXTRA_PRICING = {
-  defaultExtraPrice: 0.50,
-  removalPrice: 0,
-};
-
 /**
  * Get per-ingredient add-on price from the database.
  * Uses the ingredient's stored addon_price / addon_price_kids columns.
@@ -22,13 +16,6 @@ export function getIngredientAddonPrice(
     return ingredient.addon_price_kids ?? 0.50;
   }
   return ingredient.addon_price ?? 0.50;
-}
-
-/**
- * @deprecated Use getIngredientAddonPrice instead — kept only as a fallback reference.
- */
-export function getExtraPrice(ingredientName: string): number {
-  return 0.50;
 }
 
 /**
@@ -87,4 +74,4 @@ export function getFriesLargeUpgradeDelta(product: { fries_large_price?: number 
   return Math.round((product.fries_large_price - product.price) * 100) / 100;
 }
 
-// getSaucePrice() removed — sauce pricing now flows through getIngredientAddonPrice() via useIngredientPriceLookup hook.
+
