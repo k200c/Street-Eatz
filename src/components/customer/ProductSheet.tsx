@@ -457,18 +457,25 @@ export function ProductSheet({
                 </h4>
 
                 {/* Beef Patty Stepper (0-4) - only for non-Kids, non-Flatbreads */}
-                {showBeefPattyStepper && (
+                {showBeefPattyStepper && (() => {
+                  const pattyOos = !isInStock(BEEF_PATTY.dbName);
+                  return (
                   <div className={`flex items-center justify-between p-3 rounded-xl border mb-3 transition-all ${
-                    beefPattyCount > 0
+                    pattyOos
+                      ? 'border-white/5 bg-white/5 opacity-50 cursor-not-allowed'
+                      : beefPattyCount > 0
                       ? 'border-primary bg-primary/15 shadow-sm shadow-primary/20'
                       : 'border-white/10 bg-white/5'
                   }`}>
-                    <span className="text-foreground font-medium">{BEEF_PATTY.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-foreground font-medium">{BEEF_PATTY.name}</span>
+                      {pattyOos && <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">Out of Stock</Badge>}
+                    </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setBeefPattyCount(Math.max(0, beefPattyCount - 1))}
-                          disabled={beefPattyCount === 0}
+                          disabled={beefPattyCount === 0 || pattyOos}
                           className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors disabled:opacity-30"
                         >
                           <Minus className="w-4 h-4" />
@@ -476,7 +483,7 @@ export function ProductSheet({
                         <span className="w-6 text-center font-bold text-foreground">{beefPattyCount}</span>
                         <button
                           onClick={() => setBeefPattyCount(Math.min(BEEF_PATTY.maxQty, beefPattyCount + 1))}
-                          disabled={beefPattyCount >= BEEF_PATTY.maxQty}
+                          disabled={beefPattyCount >= BEEF_PATTY.maxQty || pattyOos}
                           className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-30"
                         >
                           <Plus className="w-4 h-4" />
@@ -487,7 +494,8 @@ export function ProductSheet({
                       </span>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Add-on Checkboxes (Kids Menu or Standard) */}
                 <div className="space-y-3 mb-6">
