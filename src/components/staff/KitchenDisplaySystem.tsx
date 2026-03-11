@@ -739,7 +739,7 @@ export function KitchenDisplaySystem() {
           </span>
           {showDebug && (
             <span className="text-yellow-500">
-              P:{debugInfo.byStatus.pending} | C:{debugInfo.byStatus.cooking} | R:{debugInfo.byStatus.ready}
+              C:{debugInfo.byStatus.cooking} (inc. {debugInfo.byStatus.pending} new) | R:{debugInfo.byStatus.ready}
             </span>
           )}
         </div>
