@@ -464,7 +464,6 @@ export function KitchenDisplaySystem() {
   };
 
   const filteredOrdersByStatus = {
-    pending: filterOrders(ordersByStatus.pending),
     cooking: filterOrders(ordersByStatus.cooking),
     ready: filterOrders(ordersByStatus.ready),
     pending_payment: ordersByStatus.pending_payment
