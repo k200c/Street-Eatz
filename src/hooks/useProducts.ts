@@ -70,6 +70,7 @@ export function useFeaturedProducts() {
         .select('*')
         .eq('is_featured', true)
         .eq('is_available', true)
+        .eq('is_visible', true)
         .eq('is_sold_out', false)
         .order('name');
 
