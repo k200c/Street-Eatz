@@ -1,72 +1,52 @@
 
 
-# Plan: Fix Sauce Pricing + Add Bacon/Cheese to Fries
+# Plan: Unify Make It Epic Pricing with DB-Driven Ingredient Prices
 
-## Root Cause
+## Problem
 
-**Sauce pricing**: `lookupPrice` does case-insensitive matching, but the product names and ingredient names are entirely different strings:
-
-| Product name (sauce dropdown) | Ingredient name (DB) | Match? |
-|---|---|---|
-| Garlic Aioli | Garlic aioli | Yes (case-insensitive) |
-| Burger Sauce | Burger sauce | Yes |
-| **Jerk Mayonnaise** | Jerk mayo | **No** |
-| **Mojo Picon Sauce** | Mojo picón sauce | **No** (accent) |
-| **BBQ Sauce** | Chipotle BBQ sauce | **No** |
-| **Chipotle Mayo** | Chipotle BBQ sauce | **No** |
-
-Failed lookups fall back to €0.50. The fix is an alias map in the lookup hook, plus changing fallback to €0.
-
-**Fries missing Bacon/Cheese**: The Fries "Make It Epic" section (lines 686-734 in ProductSheet, 655-703 in StaffProductSheet) only has "Make it Large" + drink dropdown. No standalone addon checkboxes exist for Fries.
+`STANDALONE_ADDONS` in both `ProductSheet.tsx` and `StaffProductSheet.tsx` has hardcoded prices (Bacon €2.00, Cheese €1.00, etc.) that don't match the DB (Bacon is €2.50 in `ingredients` table). The sauce dropdown uses `getSaucePrice()` keyword-based logic instead of DB prices.
 
 ## Changes
 
-### 1. `src/hooks/useIngredientPriceLookup.ts`
+### 1. Create a shared hook: `src/hooks/useIngredientPriceLookup.ts`
 
-- Add `INGREDIENT_ALIASES` map bridging product→ingredient names
-- Apply alias resolution before case-insensitive search in both `lookupPrice` and `isInStock`
-- Change fallback from `0.50` to `0`
+Fetches all ingredients and returns a lookup function `getAddonPrice(name, category)` that finds the ingredient by name and calls `getIngredientAddonPrice()`. Falls back to €0.50 if not found.
 
-```
-const INGREDIENT_ALIASES: Record<string, string> = {
-  "jerk mayonnaise": "jerk mayo",
-  "mojo picon sauce": "mojo picón sauce",
-  "bbq sauce": "chipotle bbq sauce",
-  "chipotle mayo": "chipotle bbq sauce",
-  "curry mayonnaise": "curry mayo",
-  "hot sauce": "hot sauce",
-  "ranch": "ranch",
-};
-```
+### 2. Refactor `STANDALONE_ADDONS` to not include prices
 
-Lookup flow: `name → lowercase → check alias map → search ingredients`
+Convert to price-less config arrays (just `id` and `name`). Resolve prices at render time via the lookup hook. Both `ProductSheet.tsx` and `StaffProductSheet.tsx` get the same treatment.
 
-### 2. `src/components/customer/ProductSheet.tsx` — Add Bacon/Cheese to Fries Make It Epic
+Bacon → DB returns €2.50. Cheese → DB returns whatever is set. Sauces in dropdown → use ingredient lookup by name instead of `getSaucePrice()`.
 
-Inside the `showFriesMakeItEpic` section (after the drink dropdown, before the closing `</div>`), add a `FRIES_ADDONS` config and render checkbox rows for Bacon and Cheese using the same pattern as `STANDALONE_ADDONS`:
+### 3. Update `ProductSheet.tsx`
 
-```ts
-const FRIES_ADDONS = [
-  { id: 'bacon', name: 'Bacon', dbName: 'Bacon' },
-  { id: 'cheese', name: 'Cheese', dbName: 'Cheese' },
-];
-```
+- Import and call `useIngredientPriceLookup()`
+- Remove hardcoded `price` from `STANDALONE_ADDONS` and `KIDS_MENU_ADDONS`
+- Resolve addon prices dynamically: `const addonPrice = lookupPrice(addon.name, product.category)`
+- Update `buildAllModifiers()` to use looked-up prices
+- Update `currentAddonsTotal` calculation to use looked-up prices
+- Replace `getSaucePrice()` in sauce dropdown with ingredient lookup
 
-Each renders as a checkbox with price from `lookupPrice(addon.dbName, product.category)` and respects `isInStock(addon.dbName)`. Uses existing `standaloneAddons` state set + `toggleStandaloneAddon` handler.
+### 4. Update `StaffProductSheet.tsx`
 
-### 3. `src/components/staff/StaffProductSheet.tsx` — Same Fries addon addition
+Same changes as ProductSheet.
 
-Mirror the exact same `FRIES_ADDONS` checkboxes in the staff Fries Make It Epic section.
+### 5. Clean up `pricingRules.ts`
+
+- Remove `getSaucePrice()` function (replaced by DB lookup)
+- Mark `getExtraPrice()` as deprecated with a comment (already not called anywhere)
+- Remove `EXTRA_PRICING` constant (no longer used)
+
+### 6. No database changes needed
+
+The `ingredients` table already has correct pricing. Bacon = €2.50, sauces = €1.50, kids sauces = €0.00.
 
 ## Files Changed
 
 | File | Change |
-|---|---|
-| `src/hooks/useIngredientPriceLookup.ts` | Add alias map, change fallback to €0 |
-| `src/components/customer/ProductSheet.tsx` | Add Bacon/Cheese checkboxes in Fries Make It Epic |
+|------|--------|
+| `src/hooks/useIngredientPriceLookup.ts` | New — shared hook for name-based ingredient price lookup |
+| `src/components/customer/ProductSheet.tsx` | Use DB prices for STANDALONE_ADDONS and sauce dropdown |
 | `src/components/staff/StaffProductSheet.tsx` | Same |
-
-## No database changes needed
-
-Bacon is €2.00, Cheese is €1.00, all sauces are €1.50 in the ingredients table already.
+| `src/lib/pricingRules.ts` | Remove `getSaucePrice()`, clean up legacy code |
 
