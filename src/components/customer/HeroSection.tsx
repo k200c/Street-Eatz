@@ -52,7 +52,7 @@ export function HeroSection() {
         >
           {/* Pulsing Glow Background */}
           <div
-            className="absolute inset-0 -inset-x-8 -inset-y-8 animate-pulse"
+            className="absolute inset-0 -inset-x-4 -inset-y-4 animate-pulse"
             style={{
               background: 'radial-gradient(ellipse at center, rgba(255, 107, 0, 0.4) 0%, transparent 70%)',
               filter: 'blur(30px)',
