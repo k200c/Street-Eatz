@@ -700,6 +700,37 @@ export function StaffProductSheet({
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Bacon & Cheese addons for Fries */}
+                <div className="mt-3 space-y-1.5">
+                  {[
+                    { id: 'bacon', name: 'Bacon', dbName: 'Bacon' },
+                    { id: 'cheese', name: 'Cheese', dbName: 'Cheese' },
+                  ].map(addon => {
+                    const addonPrice = lookupPrice(addon.dbName, product.category);
+                    const addonOos = !isInStock(addon.dbName);
+                    const isSelected = standaloneAddons.has(addon.id);
+                    return (
+                      <label key={addon.id} className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-all ${
+                        addonOos ? 'opacity-50 cursor-not-allowed' : isSelected ? 'border-primary bg-primary/15' : 'border-border bg-secondary/30'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => !addonOos && toggleStandaloneAddon(addon.id)}
+                            disabled={addonOos}
+                            className="border-primary/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          />
+                          <span className="text-sm text-foreground font-medium">{addon.name}</span>
+                          {addonOos && <Badge variant="outline" className="text-[10px] border-destructive/50 text-destructive">OOS</Badge>}
+                        </div>
+                        <span className={`font-bold text-sm ${addonOos ? 'text-muted-foreground' : 'text-primary'}`}>
+                          +€{addonPrice.toFixed(2)}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
