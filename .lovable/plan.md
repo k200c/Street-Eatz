@@ -1,52 +1,44 @@
 
+Goal: Fix the remaining mobile hero visibility issue without undoing the compact menu improvements or touching nav structure.
 
-# Plan: Unify Make It Epic Pricing with DB-Driven Ingredient Prices
+1) Root cause (from current code + screenshot)
+- `HeroSection` is still constrained on mobile (`min-h-[25vh]`) while using centered vertical composition under a fixed navbar.
+- The navbar overlays top content (expected with fixed nav), but the hero does not explicitly reserve that top offset, so the logo sits too high and appears cropped.
+- Section-level `overflow-hidden` plus a negative glow inset makes top-edge clipping more noticeable.
 
-## Problem
+2) Exact file to edit
+- `src/components/customer/HeroSection.tsx`
 
-`STANDALONE_ADDONS` in both `ProductSheet.tsx` and `StaffProductSheet.tsx` has hardcoded prices (Bacon €2.00, Cheese €1.00, etc.) that don't match the DB (Bacon is €2.50 in `ingredients` table). The sauce dropdown uses `getSaucePrice()` keyword-based logic instead of DB prices.
+3) Exact code changes to apply
+- Keep nav/header unchanged.
+- Update hero mobile composition so it starts below the visible header:
+  - Replace mobile centering with top-aligned layout:
+    - `justify-center` → `justify-start sm:justify-center`
+  - Reserve real top space using header offset:
+    - add mobile top padding using `var(--header-offset)` (e.g. `pt-[calc(var(--header-offset)+0.5rem)] sm:pt-16`)
+  - Use a measured hero height increase (not oversized):
+    - `min-h-[25vh]` → `min-h-[26vh]` (or `24vh` if visual test shows enough)
+  - Keep compact bottom spacing:
+    - `pb-3` (or `pb-4` if needed)
+- Prevent logo clipping without making entire section bleed:
+  - Keep section clipping controlled (`overflow-x-hidden`)
+  - Allow logo container to render glow/logo edges (`overflow-visible` on logo wrapper stays)
+  - Slightly reduce glow inset intensity (e.g. `-inset-y-4` → `-inset-y-2`) so glow doesn’t push into clipped regions
+- Improve logo readability so it looks “full” on small screens:
+  - mobile logo width `w-16` → `w-20`
+  - keep existing larger breakpoints unchanged
 
-## Changes
+4) Why this restores full hero visibility (without making hero too tall)
+- The hero now explicitly accounts for fixed header height on mobile, so logo/title no longer start under the nav.
+- Measured min-height adjustment (+1–2vh) preserves compactness while giving enough breathing room.
+- Clipping is fixed locally at the logo/glow level, avoiding global overflow side effects.
 
-### 1. Create a shared hook: `src/hooks/useIngredientPriceLookup.ts`
+5) Why this stays consistent across Safari + installed PWA
+- `var(--header-offset)` already includes safe-area + nav height, so both browser mode and standalone mode get correct top spacing automatically.
+- No nav redesign, no global shell churn, no menu-density rollback—only hero composition is corrected.
 
-Fetches all ingredients and returns a lookup function `getAddonPrice(name, category)` that finds the ingredient by name and calls `getIngredientAddonPrice()`. Falls back to €0.50 if not found.
-
-### 2. Refactor `STANDALONE_ADDONS` to not include prices
-
-Convert to price-less config arrays (just `id` and `name`). Resolve prices at render time via the lookup hook. Both `ProductSheet.tsx` and `StaffProductSheet.tsx` get the same treatment.
-
-Bacon → DB returns €2.50. Cheese → DB returns whatever is set. Sauces in dropdown → use ingredient lookup by name instead of `getSaucePrice()`.
-
-### 3. Update `ProductSheet.tsx`
-
-- Import and call `useIngredientPriceLookup()`
-- Remove hardcoded `price` from `STANDALONE_ADDONS` and `KIDS_MENU_ADDONS`
-- Resolve addon prices dynamically: `const addonPrice = lookupPrice(addon.name, product.category)`
-- Update `buildAllModifiers()` to use looked-up prices
-- Update `currentAddonsTotal` calculation to use looked-up prices
-- Replace `getSaucePrice()` in sauce dropdown with ingredient lookup
-
-### 4. Update `StaffProductSheet.tsx`
-
-Same changes as ProductSheet.
-
-### 5. Clean up `pricingRules.ts`
-
-- Remove `getSaucePrice()` function (replaced by DB lookup)
-- Mark `getExtraPrice()` as deprecated with a comment (already not called anywhere)
-- Remove `EXTRA_PRICING` constant (no longer used)
-
-### 6. No database changes needed
-
-The `ingredients` table already has correct pricing. Bacon = €2.50, sauces = €1.50, kids sauces = €0.00.
-
-## Files Changed
-
-| File | Change |
-|------|--------|
-| `src/hooks/useIngredientPriceLookup.ts` | New — shared hook for name-based ingredient price lookup |
-| `src/components/customer/ProductSheet.tsx` | Use DB prices for STANDALONE_ADDONS and sauce dropdown |
-| `src/components/staff/StaffProductSheet.tsx` | Same |
-| `src/lib/pricingRules.ts` | Remove `getSaucePrice()`, clean up legacy code |
-
+6) Validation checklist after implementation
+- iPhone Safari: full logo visible at first paint; no top crop.
+- Installed PWA: same hero composition and spacing under header.
+- CTA row still visible without pushing menu too far down.
+- Category rail/menu density remains as improved in prior pass.
