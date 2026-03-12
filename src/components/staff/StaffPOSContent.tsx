@@ -100,10 +100,9 @@ export function StaffPOSContent({ onOrderComplete }: StaffPOSContentProps) {
                 onClick={() => setActiveCategory(cat)}
               >
                 {cat.toUpperCase()}
-                </Button>
-              ))}
-            </div>
-          </ScrollArea>
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Product Grid - High Density */}
