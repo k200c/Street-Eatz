@@ -21,9 +21,11 @@
     --nav-height: 56px;
     --header-offset: calc(var(--nav-height) + var(--safe-top));
 
-    /* Bottom bar system */
-    --bottom-bar-height: 40px;
-    --bottom-offset: calc(var(--bottom-bar-height) + var(--safe-bottom));
+    /* Bottom stacking system */
+    --bottom-nav-height: 56px;
+    --bottom-bar-height: 32px;
+    --bottom-total: calc(var(--bottom-nav-height) + var(--bottom-bar-height));
+    --bottom-offset: calc(var(--bottom-total) + var(--safe-bottom));
 
     /* Street Eatz Dark Theme */
     /* Deep Charcoal Gradient Background */
