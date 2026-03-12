@@ -53,21 +53,6 @@ export default function CommandCenter() {
     }
   };
 
-  const handleProductAvailability = async (productId: string, isAvailable: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({ is_available: isAvailable })
-        .eq('id', productId);
-
-      if (error) throw error;
-      refetchProducts();
-      toast.success(isAvailable ? 'Item is now available' : 'Item marked as sold out');
-    } catch (error) {
-      toast.error('Failed to update product availability');
-    }
-  };
-
   if (loading || settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
