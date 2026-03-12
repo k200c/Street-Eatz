@@ -243,6 +243,7 @@ export default function CommandCenter() {
             >
               <QuickStockManager />
               <IngredientPriceManager />
+            </motion.div>
           </TabsContent>
 
           {/* CRM Tab */}
