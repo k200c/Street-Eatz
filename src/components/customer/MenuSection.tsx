@@ -222,24 +222,16 @@ export function MenuSection() {
 
         {/* Products */}
         {isLoading ? (
-          <div className="space-y-4">
-            {[...Array(4)].map((_, i) => (
-              <motion.div 
-                key={i} 
-                className="street-card p-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <div className="flex gap-4">
-                  <Skeleton className="w-24 h-24 rounded-lg flex-shrink-0 bg-secondary/50" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-5 w-3/4 bg-secondary/50" />
-                    <Skeleton className="h-4 w-full bg-secondary/50" />
-                    <Skeleton className="h-8 w-20 bg-secondary/50" />
-                  </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2 md:gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="street-card overflow-hidden">
+                <Skeleton className="w-full aspect-square bg-secondary/50" />
+                <div className="p-2 space-y-1.5">
+                  <Skeleton className="h-4 w-3/4 bg-secondary/50" />
+                  <Skeleton className="h-3 w-1/2 bg-secondary/50" />
+                  <Skeleton className="h-6 w-16 bg-secondary/50" />
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         ) : isError ? (
