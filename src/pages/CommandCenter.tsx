@@ -27,12 +27,7 @@ export default function CommandCenter() {
   const { isAdmin, loading } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useAppSettings();
   const { devModeEnabled, toggleDevMode, dbStoreOpen } = useStoreStatus();
-  const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useProducts();
   const updateSettings = useUpdateAppSettings();
-
-  // State for edit dialog
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [showEditDialog, setShowEditDialog] = useState(false);
 
   useEffect(() => {
     if (!loading && !isAdmin) {
