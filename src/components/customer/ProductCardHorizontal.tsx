@@ -39,7 +39,8 @@ export function ProductCardHorizontal({
   const [imgError, setImgError] = useState(false);
   const { data: allergensMap } = useAllProductAllergens();
   const fallbackImage = categoryImages[product.category] || heroBurger;
-  const imageUrl = imgError ? fallbackImage : (product.image_url || fallbackImage);
+  const rawImageUrl = imgError ? fallbackImage : (product.image_url || fallbackImage);
+  const imageUrl = getOptimizedImageUrl(rawImageUrl, 400);
   const isSoldOut = product.is_sold_out;
   const allergenNumbers = allergensMap?.get(product.id) || [];
 

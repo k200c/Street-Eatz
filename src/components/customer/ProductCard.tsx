@@ -25,7 +25,8 @@ interface ProductCardProps {
 export function ProductCard({ product, onClick }: ProductCardProps) {
   const [imgError, setImgError] = useState(false);
   const fallbackImage = categoryImages[product.category] || heroBurger;
-  const imageUrl = imgError ? fallbackImage : (product.image_url || fallbackImage);
+  const rawImageUrl = imgError ? fallbackImage : (product.image_url || fallbackImage);
+  const imageUrl = getOptimizedImageUrl(rawImageUrl, 400);
 
   return (
     <div
