@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Product } from '@/types/database';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getOptimizedImageUrl } from '@/lib/imageOptimization';
 
 import heroBurger from '@/assets/hero-burger.jpg';
 import loadedFries from '@/assets/loaded-fries.jpg';
