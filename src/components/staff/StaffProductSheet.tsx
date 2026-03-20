@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getOptimizedImageUrl } from '@/lib/imageOptimization';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -189,7 +190,7 @@ export function StaffProductSheet({
 
   if (!product) return null;
 
-  const imageUrl = product.image_url || categoryImages[product.category] || heroBurger;
+  const imageUrl = getOptimizedImageUrl(product.image_url || categoryImages[product.category] || heroBurger, 600);
   const isKidsMenu = product.category === 'Kids Menu';
   const currentAddons = isKidsMenu ? KIDS_MENU_ADDONS : STANDALONE_ADDONS;
   const loadedFriesPrice = getLoadedFriesPrice(product.category);
