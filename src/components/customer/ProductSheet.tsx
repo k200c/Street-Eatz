@@ -208,7 +208,7 @@ export function ProductSheet({
   const showDropdowns = !isKidsMenu;
   const showFlatbreadOption = product.category === 'Burgers' || product.category === 'Specials';
   // Show beef patty stepper for non-Kids, non-Fries, non-Drinks, non-Sauces, non-Flatbreads
-  const showBeefPattyStepper = showMakeItEpic && !isKidsMenu && product.category !== 'Flatbreads';
+  const showBeefPattyStepper = showMakeItEpic && product.category !== 'Flatbreads';
 
   const toggleStandaloneAddon = (addonId: string) => {
     setStandaloneAddons(prev => {
