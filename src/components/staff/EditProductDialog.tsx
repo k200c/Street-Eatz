@@ -69,13 +69,14 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
   };
 
   const uploadImage = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
+    const optimized = await optimizeImageBeforeUpload(file);
+    const fileExt = optimized.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `products/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('menu-images')
-      .upload(filePath, file);
+      .upload(filePath, optimized);
 
     if (uploadError) throw new Error('Failed to upload image');
 
