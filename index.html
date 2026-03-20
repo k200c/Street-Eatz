@@ -7,6 +7,12 @@
     <meta name="description" content="StreetEatz Waterford — premium smash burgers, flatbreads, and loaded fries from Waterford's favourite food truck. Order online for pickup!" />
     <meta name="author" content="StreetEatz" />
     
+    <!-- Preconnect to critical origins — improves FCP by starting connections early -->
+    <link rel="preconnect" href="https://ftzinsesuiuqcjfpbaur.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://ftzinsesuiuqcjfpbaur.supabase.co" />
+    <link rel="preconnect" href="https://storage.googleapis.com" crossorigin />
+    <link rel="dns-prefetch" href="https://storage.googleapis.com" />
+
     <!-- Theme & Status Bar -->
     <meta name="theme-color" content="#0A0A0A" />
     <meta name="msapplication-TileColor" content="#0A0A0A" />
@@ -44,10 +50,28 @@
     <!-- Prevent phone number detection -->
     <meta name="format-detection" content="telephone=no" />
     
-    <!-- Disable tap highlight on mobile -->
+    <!-- Critical inline styles — enables first paint before CSS bundle loads -->
     <style>
       * { -webkit-tap-highlight-color: transparent; }
       html { touch-action: manipulation; }
+      body { margin: 0; background: #0A0A0A; }
+      #root:empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+      #root:empty::after {
+        content: '';
+        width: 36px;
+        height: 36px;
+        border: 3px solid #333;
+        border-top-color: #F97316;
+        border-radius: 50%;
+        animation: sp .7s linear infinite;
+      }
+      @keyframes sp { to { transform: rotate(360deg); } }
     </style>
   </head>
 
