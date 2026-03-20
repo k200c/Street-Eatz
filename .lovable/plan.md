@@ -1,56 +1,76 @@
 
 
-# Pre-Upload Image Optimization + Fix Broken Rendering
+# Kids Menu Fix: Beef Patty Stepper + Mayo Visibility
 
-## Root Cause
+## Analysis Summary
 
-`getOptimizedImageUrl()` rewrites Supabase `/object/public/` URLs to `/render/image/public/` with `format=webp`. This endpoint returns 400 errors, breaking all Supabase-hosted product images (Drinks, Sauces, Specials, Kids Menu, some Burgers). Google Storage URLs pass through unaffected.
+**Mayo issue — confirmed root cause**: Mayo on Kids burgers has `is_default=false, is_addable=true`. The ingredient list is split into two groups:
+- `defaultIngredients` (`is_default=true`) → renders in "Customize Your Order" section
+- `addableOnlyIngredients` (`is_addable=true, is_default=false`) → renders ONLY in "Customize Your Fries" section (gated by `product.category === 'Fries'`)
 
-## Strategy
+So for Kids Menu burgers, Mayo has **no render path at all**. The user's report that "mayo is visible in ingredients" may have been from a different product or a misunderstanding. The code proves it cannot render for Kids burgers currently.
 
-**Two changes:**
-1. **Fix rendering** — make `getOptimizedImageUrl` a pass-through (no URL rewriting). Images render from their stored URL directly.
-2. **Add pre-upload optimization** — new utility that resizes/compresses images client-side BEFORE uploading to Supabase Storage. This is where performance gains come from, not runtime URL rewriting.
+**Beef patty stepper** — `!isKidsMenu` blocks it. Already diagnosed.
 
-## Files Changed
+**Beef patty price** — `Dry-aged beef patties` needs `addon_price_kids = 2.50`.
 
-### 1. `src/lib/imageOptimization.ts` — Rewrite entirely
+## Changes (4 items)
 
-Remove the broken `/render/image/` URL rewriter. Replace with:
+### 1. Database: Fix `Dry-aged beef patties` price
+```sql
+UPDATE public.ingredients
+SET addon_price_kids = 2.50
+WHERE id = 'c404b4c5-0763-4720-b3cf-ca5cf4a4e7d5'
+  AND name = 'Dry-aged beef patties';
+```
 
-- **`getOptimizedImageUrl(url, width)`** — becomes a simple pass-through returning the URL as-is (keeps all call sites working, zero rendering breakage)
-- **`optimizeImageBeforeUpload(file)`** — new async function:
-  - Validates file type (`image/jpeg`, `image/png`, `image/webp` only)
-  - Rejects files over 10MB with a clear error message
-  - Uses Canvas API to resize to max 1200px width (preserving aspect ratio)
-  - Exports as WebP at quality 0.8 (falls back to JPEG 0.85 if WebP unsupported)
-  - Returns an optimized `File` object ready for upload
-  - Logs original vs optimized size for staff debugging
+### 2. `src/components/customer/ProductSheet.tsx` — 2 changes
 
-### 2. `src/components/staff/EditProductDialog.tsx`
+**Line 211** — Enable beef patty stepper for Kids Menu:
+```
+const showBeefPattyStepper = showMakeItEpic && product.category !== 'Flatbreads';
+```
 
-- In `handleImageChange`: add file type validation, show toast on rejection
-- In `uploadImage`: call `optimizeImageBeforeUpload(file)` before `supabase.storage.upload()`
-- Upload the optimized file; save the returned `publicUrl` unchanged to the database
+**After the Fries Customization section (after line 695)** — Add an "Add Extras" section for non-Fries products that have addable-only ingredients (like Mayo on Kids burgers):
+```tsx
+{!showFriesCustomization && hasAddableIngredients && (
+  <div className="mb-8">
+    <h4 className="font-heading text-sm uppercase tracking-wider text-foreground mb-4">
+      Add Extras
+    </h4>
+    <div className="space-y-2">
+      {addableOnlyIngredients.map((ingredient) => {
+        // Checkbox UI using existing handleAddExtra + ingredientStates
+        // Shows price via getIngredientAddonPrice (€0.00 for Mayo on Kids)
+        // Displays "FREE" for zero-price items, "+€X.XX" for paid
+      })}
+    </div>
+  </div>
+)}
+```
 
-### 3. `src/components/staff/AddProductDialog.tsx`
+This is a generic solution — any future addable-only ingredient on any non-Fries product will automatically appear. Mayo flows into `getExtraIngredients()` → `buildAllModifiers()` → cart → order payload. No hardcoding.
 
-- Same changes as EditProductDialog:
-  - Validate file type/size in `handleImageChange`
-  - Call `optimizeImageBeforeUpload(file)` in `uploadImage` before Supabase upload
-  - Store the raw `publicUrl` from Supabase — no URL rewriting
+### 3. `src/components/staff/StaffProductSheet.tsx` — Same 2 changes
 
-### 4. No changes to rendering components
+**Line 202** — Same beef patty stepper fix.
 
-`ProductCard.tsx`, `ProductCardHorizontal.tsx`, `ProductSheet.tsx`, `StaffProductSheet.tsx` — all call `getOptimizedImageUrl()` which now returns the URL unchanged. All product images (Drinks, Sauces, Specials, Burgers, Flatbreads, Kids Menu) render correctly.
+**After Fries Customization section** — Same "Add Extras" section.
 
-## How Performance Is Preserved
+### 4. No other files changed
 
-| Before (broken) | After (safe) |
-|---|---|
-| Upload raw 4MB PNGs, rewrite URL at render time | Optimize to ~200-400KB WebP before upload |
-| `/render/image/` endpoint returns 400 | No runtime URL transformation |
-| Images break for Supabase-hosted products | All images render from stored URL |
+Cart store, pricing rules, order payload, checkout, hooks, edge functions — all untouched. The existing `buildAllModifiers()` already includes `getExtraIngredients()` output, so mayo will flow through the entire pipeline once it's selectable in the UI.
 
-Pre-upload optimization is strictly better: the optimized file is what gets stored, so every subsequent page load serves the smaller file automatically — no runtime transformation needed.
+## What this fixes
+- Mayo becomes visible and selectable on Kids Cheeseburger and Kids Smashburger Plain
+- Mayo selection flows to cart (as a `selectedModifier` with `price_adjustment: 0`)
+- Mayo appears in cart page summary (Cart.tsx already renders all `selectedModifiers`)
+- Beef patty stepper appears in Make It Epic for Kids burgers at €2.50 each
+- Staff POS has the same fixes
+
+## What is NOT changed
+- Adult burger customization — unchanged
+- Fries customization section — unchanged
+- Cart logic, pricing rules, order payload — unchanged
+- Checkout, payment, edge functions — unchanged
 
