@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getOptimizedImageUrl } from '@/lib/imageOptimization';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
