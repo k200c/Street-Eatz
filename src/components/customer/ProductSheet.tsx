@@ -70,7 +70,7 @@ const BREAD_SWAP_FLATBREAD = {
   id: 'bread-swap-flatbread',
   name: 'Make it a Flatbread',
   kitchenLabel: 'FLATBREAD',
-  price: 1.00,
+  price: 2.00,
 };
 
 export function ProductSheet({ 
