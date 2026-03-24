@@ -1,76 +1,71 @@
 
 
-# Kids Menu Fix: Beef Patty Stepper + Mayo Visibility
+# Production Fixes: Flatbread Pricing, Deliveroo Removal, Banner Display
 
-## Analysis Summary
+## Task 1 — Flatbread Price: €1.00 → €2.00
 
-**Mayo issue — confirmed root cause**: Mayo on Kids burgers has `is_default=false, is_addable=true`. The ingredient list is split into two groups:
-- `defaultIngredients` (`is_default=true`) → renders in "Customize Your Order" section
-- `addableOnlyIngredients` (`is_addable=true, is_default=false`) → renders ONLY in "Customize Your Fries" section (gated by `product.category === 'Fries'`)
+**Root cause**: `BREAD_SWAP_FLATBREAD.price` is hardcoded as `1.00` in two files.
 
-So for Kids Menu burgers, Mayo has **no render path at all**. The user's report that "mayo is visible in ingredients" may have been from a different product or a misunderstanding. The code proves it cannot render for Kids burgers currently.
+**Files**:
+- `src/components/customer/ProductSheet.tsx` line 73: change `price: 1.00` → `price: 2.00`
+- `src/components/staff/StaffProductSheet.tsx` line 68: change `price: 1.00` → `price: 2.00`
 
-**Beef patty stepper** — `!isKidsMenu` blocks it. Already diagnosed.
+Also update the display text on line 646 of ProductSheet (`+€1.00` → `+€2.00`) and the equivalent in StaffProductSheet.
 
-**Beef patty price** — `Dry-aged beef patties` needs `addon_price_kids = 2.50`.
+No cart/payload/pricing logic changes needed — the price flows through `BREAD_SWAP_FLATBREAD.price` into `price_adjustment` automatically.
 
-## Changes (4 items)
+---
 
-### 1. Database: Fix `Dry-aged beef patties` price
-```sql
-UPDATE public.ingredients
-SET addon_price_kids = 2.50
-WHERE id = 'c404b4c5-0763-4720-b3cf-ca5cf4a4e7d5'
-  AND name = 'Dry-aged beef patties';
-```
+## Task 2 — Remove Deliveroo
 
-### 2. `src/components/customer/ProductSheet.tsx` — 2 changes
+**File**: `src/components/customer/DeliveryOptionsModal.tsx`
 
-**Line 211** — Enable beef patty stepper for Kids Menu:
-```
-const showBeefPattyStepper = showMakeItEpic && product.category !== 'Flatbreads';
-```
+- Remove the `DELIVEROO_URL` constant
+- Remove the Deliveroo `<a>` button (lines 35-44)
+- Update the dialog description from "Choose your preferred delivery partner" to "Order via Just Eat for delivery"
+- Since there's now only one option, simplify the modal accordingly
 
-**After the Fries Customization section (after line 695)** — Add an "Add Extras" section for non-Fries products that have addable-only ingredients (like Mayo on Kids burgers):
-```tsx
-{!showFriesCustomization && hasAddableIngredients && (
-  <div className="mb-8">
-    <h4 className="font-heading text-sm uppercase tracking-wider text-foreground mb-4">
-      Add Extras
-    </h4>
-    <div className="space-y-2">
-      {addableOnlyIngredients.map((ingredient) => {
-        // Checkbox UI using existing handleAddExtra + ingredientStates
-        // Shows price via getIngredientAddonPrice (€0.00 for Mayo on Kids)
-        // Displays "FREE" for zero-price items, "+€X.XX" for paid
-      })}
-    </div>
-  </div>
-)}
-```
+---
 
-This is a generic solution — any future addable-only ingredient on any non-Fries product will automatically appear. Mayo flows into `getExtraIngredients()` → `buildAllModifiers()` → cart → order payload. No hardcoding.
+## Task 3 — Marketing Banner Not Showing on Homepage/Menu
 
-### 3. `src/components/staff/StaffProductSheet.tsx` — Same 2 changes
+**Root cause**: The homepage (`Index.tsx`) and menu page (`Menu.tsx`) do NOT use `CustomerLayout`, which is the only component that renders `<MarketingBanner />`. They use their own layout with `<Navbar />` directly.
 
-**Line 202** — Same beef patty stepper fix.
+The database already has the banner enabled with text: *"This App is for collection only! Press Delivery button to access Just Eat"*
 
-**After Fries Customization section** — Same "Add Extras" section.
+**Fix**: Add `<MarketingBanner />` to both `Index.tsx` and `Menu.tsx`, positioned at the very top (before `<Navbar />`). This is the minimal fix — no need to refactor these pages to use `CustomerLayout`.
 
-### 4. No other files changed
+---
 
-Cart store, pricing rules, order payload, checkout, hooks, edge functions — all untouched. The existing `buildAllModifiers()` already includes `getExtraIngredients()` output, so mayo will flow through the entire pipeline once it's selectable in the UI.
+## Task 4 — Collection Only Notice
 
-## What this fixes
-- Mayo becomes visible and selectable on Kids Cheeseburger and Kids Smashburger Plain
-- Mayo selection flows to cart (as a `selectedModifier` with `price_adjustment: 0`)
-- Mayo appears in cart page summary (Cart.tsx already renders all `selectedModifiers`)
-- Beef patty stepper appears in Make It Epic for Kids burgers at €2.50 each
-- Staff POS has the same fixes
+**Already handled**: The marketing banner text in the database is already set to the collection-only message. Once Task 3 is fixed, this displays automatically on all pages.
 
-## What is NOT changed
-- Adult burger customization — unchanged
-- Fries customization section — unchanged
-- Cart logic, pricing rules, order payload — unchanged
-- Checkout, payment, edge functions — unchanged
+No additional banner component needed.
+
+---
+
+## Task 5 — Banner System
+
+The current `MarketingBanner` component already supports:
+- Toggle via `marketing_banner_enabled` in app_settings
+- Custom text via `marketing_banner_text`
+- Dismissible per session
+- Realtime updates
+
+This single banner serves both marketing and operational notices. No structural changes needed.
+
+---
+
+## Summary of Changes
+
+| File | Change |
+|------|--------|
+| `src/components/customer/ProductSheet.tsx` | `price: 1.00` → `2.00`, display `+€1.00` → `+€2.00` |
+| `src/components/staff/StaffProductSheet.tsx` | Same flatbread price fix |
+| `src/components/customer/DeliveryOptionsModal.tsx` | Remove Deliveroo button and URL |
+| `src/pages/Index.tsx` | Add `<MarketingBanner />` before `<Navbar />` |
+| `src/pages/Menu.tsx` | Add `<MarketingBanner />` before `<Navbar />` |
+
+**No changes to**: cart logic, pricing rules, order payload, checkout, edge functions, receipt builder, n8n, database schema.
 
