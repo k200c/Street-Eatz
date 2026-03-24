@@ -170,6 +170,7 @@ export function useStaffCheckout() {
         items: formattedItems,
         timestamp: new Date().toISOString(),
         order_source: "staff",
+        special_notes: customerData.specialNotes || '',
         store_meta: {
           wait_time: waitTime,
         },

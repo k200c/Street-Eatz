@@ -218,6 +218,7 @@ export function useCheckout() {
         items: formattedItems,
         timestamp: new Date().toISOString(),
         order_source: orderSource,
+        special_notes: customerData.specialNotes || '',
         store_meta: {
           wait_time: waitTime,
         },

@@ -365,6 +365,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
             name: customerName.trim(),
             phone: customerPhone.trim(),
             email: customerEmail.trim(),
+            specialNotes: specialNotes.trim(),
           },
           cartSnapshot,
           totalSnapshot,
