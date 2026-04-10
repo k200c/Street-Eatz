@@ -1,69 +1,71 @@
 
 
-# Review SMS Backend — Implementation Plan
+# Fix: `completed_at` Not Set When KDS Marks Order Completed
 
-## Overview
-Add database fields, a trigger, and two Edge Functions to support a delayed Google review SMS system called by n8n.
+## Root Cause
 
-## 1. Database Migration
+In `src/hooks/useKitchenOrders.ts` line 112, the `updateOrderStatus` mutation updates the order with only `{ status }`:
 
-Single migration adding:
-- 4 columns to `public.orders`: `completed_at`, `review_sms_sent`, `review_sms_sent_at`, `review_sms_sid`
-- Partial composite index `idx_orders_review_pending`
-- Trigger function `set_completed_at()` — sets `completed_at = NOW()` only on first transition to `completed` and only if `completed_at IS NULL`
-- Trigger `trg_set_completed_at` on `public.orders` BEFORE UPDATE
-
-Exact SQL as provided in the request — no deviations.
-
-## 2. Edge Function: `get-pending-review-orders`
-
-**File**: `supabase/functions/get-pending-review-orders/index.ts`
-
-- Auth: Bearer token validated against `N8N_WEBHOOK_SECRET`
-- Query: `status = 'completed'`, `review_sms_sent = false`, `completed_at <= now() - 60min`, `customer_phone` not null/empty
-- Limit 100, ordered by `completed_at ASC`
-- Review link from `GOOGLE_REVIEW_LINK` env var with hardcoded fallback
-- Returns `{ ok, count, orders }` structure
-
-## 3. Edge Function: `mark-review-sms-sent`
-
-**File**: `supabase/functions/mark-review-sms-sent/index.ts`
-
-- Auth: same Bearer token pattern
-- Accepts `{ order_id, review_sms_sid?, review_sms_body? }`
-- Reads current `review_sms_sent` state first
-- If already `true`, returns `{ ok: true, already_marked: true }`
-- Otherwise updates `review_sms_sent = true`, `review_sms_sent_at = now()`, `review_sms_sid`
-- Idempotent and retry-safe
-
-## 4. Config
-
-Append to `supabase/config.toml`:
-```toml
-[functions.get-pending-review-orders]
-verify_jwt = false
-
-[functions.mark-review-sms-sent]
-verify_jwt = false
+```ts
+const { data, error } = await supabase
+  .from('orders')
+  .update({ status })  // ← only status, no completed_at
+  .eq('id', orderId)
 ```
+
+There IS a database trigger (`trg_set_completed_at`) that should auto-set `completed_at` on transition to `'completed'`. However, based on the user's report that `completed_at` is not being set reliably, the trigger may not be firing. This could be because:
+- The trigger was added recently and existing completed orders predate it
+- Or the trigger is a `BEFORE UPDATE` trigger that requires `OLD.status IS DISTINCT FROM 'completed'` — which works correctly for new transitions but the frontend update doesn't include `completed_at` as a fallback
+
+**The safest fix**: include `completed_at` explicitly in the frontend update when status is `'completed'`. This is belt-and-suspenders — works regardless of trigger state, and the trigger's `AND NEW.completed_at IS NULL` guard prevents double-setting.
+
+## Fix
+
+**File**: `src/hooks/useKitchenOrders.ts`
+
+**Change**: Line 112 — when `status === 'completed'`, include `completed_at` in the update payload.
+
+```ts
+// Line 110-115, change from:
+const { data, error } = await supabase
+  .from('orders')
+  .update({ status })
+  .eq('id', orderId)
+  .select('id, status, customer_name, customer_phone')
+  .maybeSingle();
+
+// To:
+const updatePayload: Record<string, unknown> = { status };
+if (status === 'completed') {
+  updatePayload.completed_at = new Date().toISOString();
+}
+const { data, error } = await supabase
+  .from('orders')
+  .update(updatePayload)
+  .eq('id', orderId)
+  .select('id, status, customer_name, customer_phone')
+  .maybeSingle();
+```
+
+## Why This Is Safe
+
+- Only affects the `completed` transition — `cooking` and `ready` updates are unchanged
+- The DB trigger has a guard (`AND NEW.completed_at IS NULL`) so it won't conflict — if frontend sets it, trigger skips; if frontend somehow doesn't, trigger catches it
+- No schema changes, no new files, no UI changes
+- Payment logic, KDS grouping, webhook logic — all untouched
+- The Quick Complete path also goes through `updateOrderStatus`, so it's covered too
 
 ## Files Changed
 
-| File | Action |
+| File | Change |
 |------|--------|
-| Migration SQL | New — schema changes + trigger |
-| `supabase/functions/get-pending-review-orders/index.ts` | New |
-| `supabase/functions/mark-review-sms-sent/index.ts` | New |
-| `supabase/config.toml` | Append 2 blocks |
+| `src/hooks/useKitchenOrders.ts` | Include `completed_at` in update payload when status is `'completed'` |
 
-## What Is NOT Changed
-- Existing order flows, KDS, payment, frontend — untouched
-- Existing edge functions — untouched
-- No field removals or renames
+## Test Checklist
 
-## Idempotency Guarantees
-- `get-pending-review-orders` filters on `review_sms_sent = false` — already-processed orders never returned
-- `mark-review-sms-sent` checks state before updating — safe to retry
-- `completed_at` trigger only fires on first transition, guards against overwrite
-- Partial index ensures fast query performance
+1. Mark a cooking order → ready (verify no `completed_at` set)
+2. Mark a ready order → completed (verify `completed_at` is populated)
+3. Use Quick Complete on a cooking order (verify `completed_at` is populated)
+4. Check the DB: `SELECT id, status, completed_at FROM orders WHERE status = 'completed' ORDER BY created_at DESC LIMIT 5`
+5. Wait 60+ minutes (or temporarily lower the threshold) and verify `get-pending-review-orders` returns the order
 
