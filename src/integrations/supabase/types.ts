@@ -396,6 +396,7 @@ export type Database = {
         Row: {
           cash_tendered: number | null
           change_due: number | null
+          completed_at: string | null
           created_at: string | null
           customer_name: string | null
           customer_phone: string | null
@@ -404,6 +405,9 @@ export type Database = {
           order_channel: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_status: string | null
+          review_sms_sent: boolean
+          review_sms_sent_at: string | null
+          review_sms_sid: string | null
           special_notes: string | null
           status: Database["public"]["Enums"]["order_status"] | null
           total: number
@@ -415,6 +419,7 @@ export type Database = {
         Insert: {
           cash_tendered?: number | null
           change_due?: number | null
+          completed_at?: string | null
           created_at?: string | null
           customer_name?: string | null
           customer_phone?: string | null
@@ -423,6 +428,9 @@ export type Database = {
           order_channel?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: string | null
+          review_sms_sent?: boolean
+          review_sms_sent_at?: string | null
+          review_sms_sid?: string | null
           special_notes?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           total: number
@@ -434,6 +442,7 @@ export type Database = {
         Update: {
           cash_tendered?: number | null
           change_due?: number | null
+          completed_at?: string | null
           created_at?: string | null
           customer_name?: string | null
           customer_phone?: string | null
@@ -442,6 +451,9 @@ export type Database = {
           order_channel?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: string | null
+          review_sms_sent?: boolean
+          review_sms_sent_at?: string | null
+          review_sms_sid?: string | null
           special_notes?: string | null
           status?: Database["public"]["Enums"]["order_status"] | null
           total?: number
