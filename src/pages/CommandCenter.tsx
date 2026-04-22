@@ -211,6 +211,58 @@ export default function CommandCenter() {
               </Card>
             </motion.div>
 
+            {/* Card Payment Provider Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
+            >
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <CreditCard className="w-5 h-5 text-primary" />
+                    Card Payment Provider
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Active provider for card transactions</p>
+                      <p className="text-2xl font-bold text-primary">
+                        {activeProvider === 'mypos' ? 'MyPOS' : 'Viva'}
+                      </p>
+                    </div>
+                    <div className="inline-flex rounded-md border border-border bg-background p-1">
+                      <button
+                        type="button"
+                        onClick={() => handleProviderChange('viva')}
+                        disabled={updateSettings.isPending || activeProvider === 'viva'}
+                        className={`px-4 py-2 text-sm font-bold rounded transition-colors ${
+                          activeProvider === 'viva'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        VIVA
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleProviderChange('mypos')}
+                        disabled={updateSettings.isPending || activeProvider === 'mypos'}
+                        className={`px-4 py-2 text-sm font-bold rounded transition-colors ${
+                          activeProvider === 'mypos'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        MyPOS
+                      </button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
             {/* Dev Mode Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
