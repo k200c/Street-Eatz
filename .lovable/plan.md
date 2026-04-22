@@ -1,71 +1,191 @@
+# Card Payment Provider Toggle (Viva ↔ MyPOS)
 
+Surgical, additive enhancement. No refactor. No regression to existing Viva, terminal, or cash flows.
 
-# Fix: `completed_at` Not Set When KDS Marks Order Completed
+## Scope
 
-## Root Cause
+Add a Command Center toggle that picks the active card provider (`viva` | `mypos`) and inject `payment_provider` into every payment payload sent to the `street-eatz-payment` n8n webhook. Default = `viva`.
 
-In `src/hooks/useKitchenOrders.ts` line 112, the `updateOrderStatus` mutation updates the order with only `{ status }`:
+## 1. Database (smallest possible)
 
-```ts
-const { data, error } = await supabase
-  .from('orders')
-  .update({ status })  // ← only status, no completed_at
-  .eq('id', orderId)
+Add **one column** to the existing `app_settings` singleton (id=1):
+
+```sql
+ALTER TABLE public.app_settings
+  ADD COLUMN IF NOT EXISTS card_payment_provider text NOT NULL DEFAULT 'viva';
+
+ALTER TABLE public.app_settings
+  ADD CONSTRAINT card_payment_provider_check
+  CHECK (card_payment_provider IN ('viva','mypos'));
 ```
 
-There IS a database trigger (`trg_set_completed_at`) that should auto-set `completed_at` on transition to `'completed'`. However, based on the user's report that `completed_at` is not being set reliably, the trigger may not be firing. This could be because:
-- The trigger was added recently and existing completed orders predate it
-- Or the trigger is a `BEFORE UPDATE` trigger that requires `OLD.status IS DISTINCT FROM 'completed'` — which works correctly for new transitions but the frontend update doesn't include `completed_at` as a fallback
+Reuses existing realtime subscription, RLS (staff/admin update, public read), and the `useAppSettings` hook. No new table, no new RLS, no new policy.
 
-**The safest fix**: include `completed_at` explicitly in the frontend update when status is `'completed'`. This is belt-and-suspenders — works regardless of trigger state, and the trigger's `AND NEW.completed_at IS NULL` guard prevents double-setting.
+## 2. Type & Hook updates
 
-## Fix
+`**src/hooks/useAppSettings.ts**`
 
-**File**: `src/hooks/useKitchenOrders.ts`
+- Extend `AppSettings` interface with `card_payment_provider: 'viva' | 'mypos'`.
+- Extend `useUpdateAppSettings` mutation `Partial<Pick<...>>` to include the new field.
 
-**Change**: Line 112 — when `status === 'completed'`, include `completed_at` in the update payload.
+No other hook changes needed — realtime invalidation already covers it.
+
+## 3. Command Center UI
+
+`**src/pages/CommandCenter.tsx**` — add a new card directly **under the Wait Time card** in the Operations tab. Style mirrors the existing wait-time card (dark, minimal, motion-fade with `delay: 0.15`).
+
+Layout:
+
+```
+┌─────────────────────────────────────────────┐
+│ 💳 Card Payment Provider                    │
+│ Active provider for card transactions        │
+│                                              │
+│         [ VIVA ] [ MyPOS ]   ← segmented    │
+└─────────────────────────────────────────────┘
+```
+
+Use existing `Tabs` or a `ToggleGroup` (already in components/ui) for a 2-option segmented control. On change → `updateSettings.mutateAsync({ card_payment_provider: value })` + toast. Reads current value from `settings?.card_payment_provider ?? 'viva'`.
+
+## 4. Payload propagation (3 call sites)
+
+A tiny shared helper to centralize the read + fallback:
+
+**New file `src/lib/paymentProvider.ts**`
 
 ```ts
-// Line 110-115, change from:
-const { data, error } = await supabase
-  .from('orders')
-  .update({ status })
-  .eq('id', orderId)
-  .select('id, status, customer_name, customer_phone')
-  .maybeSingle();
+import { supabase } from '@/integrations/supabase/client';
+export type PaymentProvider = 'viva' | 'mypos';
 
-// To:
-const updatePayload: Record<string, unknown> = { status };
-if (status === 'completed') {
-  updatePayload.completed_at = new Date().toISOString();
+export async function getActivePaymentProvider(): Promise<PaymentProvider> {
+  try {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('card_payment_provider')
+      .eq('id', 1)
+      .maybeSingle();
+    const v = data?.card_payment_provider;
+    return v === 'mypos' ? 'mypos' : 'viva'; // safe default
+  } catch {
+    return 'viva';
+  }
 }
-const { data, error } = await supabase
-  .from('orders')
-  .update(updatePayload)
-  .eq('id', orderId)
-  .select('id, status, customer_name, customer_phone')
-  .maybeSingle();
 ```
 
-## Why This Is Safe
+Inject `payment_provider` into the three payload builders (additive — all existing fields untouched):
 
-- Only affects the `completed` transition — `cooking` and `ready` updates are unchanged
-- The DB trigger has a guard (`AND NEW.completed_at IS NULL`) so it won't conflict — if frontend sets it, trigger skips; if frontend somehow doesn't, trigger catches it
-- No schema changes, no new files, no UI changes
-- Payment logic, KDS grouping, webhook logic — all untouched
-- The Quick Complete path also goes through `updateOrderStatus`, so it's covered too
 
-## Files Changed
+| File                                                | Function                                                                    | Payload                                |
+| --------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------- |
+| `src/components/checkout/CustomerCheckoutModal.tsx` | `handlePayCard` (~line 229)                                                 | online card → add `payment_provider`   |
+| `src/components/checkout/StaffCheckoutModal.tsx`    | `handleCardPayment` (~line 86)                                              | terminal card → add `payment_provider` |
+| `supabase/functions/viva-wallet/index.ts`           | `webhookPayload` (line 153) and legacy `create-checkout` payload (line 307) | latent path → also include for safety  |
 
-| File | Change |
-|------|--------|
-| `src/hooks/useKitchenOrders.ts` | Include `completed_at` in update payload when status is `'completed'` |
 
-## Test Checklist
+For the Edge Function, accept an optional `payment_provider` on the request body (forwarded by any future caller) and fall back to a server-side fetch of `app_settings.card_payment_provider`, then default to `'viva'`.
 
-1. Mark a cooking order → ready (verify no `completed_at` set)
-2. Mark a ready order → completed (verify `completed_at` is populated)
-3. Use Quick Complete on a cooking order (verify `completed_at` is populated)
-4. Check the DB: `SELECT id, status, completed_at FROM orders WHERE status = 'completed' ORDER BY created_at DESC LIMIT 5`
-5. Wait 60+ minutes (or temporarily lower the threshold) and verify `get-pending-review-orders` returns the order
+**Cash flow: no change.** No provider field needed — verified `sendToKitchen` payload (`useCheckout.ts` line 207) sends `paymenttype: 'collection'` and is not card-routed.
 
+## 5. Default Safety
+
+- DB default `'viva'`
+- Helper returns `'viva'` on any error or non-`'mypos'` value
+- If `app_settings` row missing → `'viva'`
+- If realtime subscription not yet hydrated when payload built → fetched fresh from DB at submit time (not cached) so the latest toggle is always honoured
+
+## 6. Files Touched
+
+
+| File                                                | Change                           |
+| --------------------------------------------------- | -------------------------------- |
+| `supabase/migrations/<new>.sql`                     | Add column + check constraint    |
+| `src/hooks/useAppSettings.ts`                       | Extend interface + mutation type |
+| `src/pages/CommandCenter.tsx`                       | New card under Wait Time         |
+| `src/lib/paymentProvider.ts`                        | **New** helper                   |
+| `src/components/checkout/CustomerCheckoutModal.tsx` | +1 line in payload               |
+| `src/components/checkout/StaffCheckoutModal.tsx`    | +1 line in payload               |
+| `supabase/functions/viva-wallet/index.ts`           | +1 field in 2 payloads           |
+
+
+Zero changes to: cart, order insert, order_items, KDS, payment confirmation, viva-wallet OAuth flow, Wait Time, Store Open toggle, Dev Mode, special_notes, totals, customer fields, RLS.
+
+## 7. Test Plan
+
+1. **Toggle persistence** — switch to MyPOS → refresh Command Center → still MyPOS. Switch back to Viva → still Viva.
+2. **Realtime** — open Command Center in two tabs → toggle in tab A → tab B updates within ~1s.
+3. **Online card + Viva** — customer checkout → inspect network → payload contains `"payment_provider":"viva"`. n8n routes to Viva branch (existing behaviour, unchanged).
+4. **Online card + MyPOS** — toggle to MyPOS → customer checkout → payload contains `"payment_provider":"mypos"`. n8n provider switch routes to MyPOS branch.
+5. **Terminal card + Viva** — KDS → Charge Card → payload contains `"payment_provider":"viva"`.
+6. **Terminal card + MyPOS** — toggle → KDS → Charge Card → payload contains `"payment_provider":"mypos"`.
+7. **Cash unchanged** — cash collection flow → no `payment_provider` field, kitchen webhook fires as before.
+8. **Fallback** — manually `UPDATE app_settings SET card_payment_provider = NULL WHERE id=1` (will fail check) — confirm column never goes null. Set to `'viva'` to verify default path.
+9. **Mobile/desktop** — Command Center renders cleanly at 375px and 1440px widths.
+10. **Existing regression sweep** — Wait Time still updates, Store Open toggle still works, Dev Mode still works.
+
+## 8. Rollback
+
+Three-step revert if needed:
+
+1. Revert the three payload code edits (one line each) → frontend stops sending `payment_provider` → n8n provider switch falls through to default Viva branch.
+2. Hide the Command Center card (comment out the JSX block).
+3. Optionally drop the column: `ALTER TABLE app_settings DROP COLUMN card_payment_provider;`
+
+n8n live Viva flow continues working at every step because it's the default branch.  
+  
+Implement this exactly as a surgical, additive change in the live Street Eatz app.
+
+OBJECTIVE
+
+Add a Command Center control to select the active card payment provider `viva` or `mypos`) and inject `payment_provider` into all relevant card payment payloads sent to the `street-eatz-payment` n8n webhook.
+
+NON-NEGOTIABLES
+
+- No refactor
+
+- No regression
+
+- Default must remain Viva
+
+- Existing Viva online flow must continue working
+
+- Existing Viva terminal flow must continue working
+
+- Cash flow must remain untouched
+
+- Do not change totals, items, notes, checkout logic, order insert logic, KDS, or payment confirmation logic beyond additive provider propagation
+
+DATABASE
+
+Use the existing `public.app_settings` singleton row `id = 1`).
+
+Add one column only:
+
+```sql
+
+ALTER TABLE [public.app](http://public.app)_settings
+
+  ADD COLUMN IF NOT EXISTS card_payment_provider text NOT NULL DEFAULT 'viva';
+
+DO $$
+
+BEGIN
+
+  IF NOT EXISTS (
+
+    SELECT 1
+
+    FROM pg_constraint
+
+    WHERE conname = 'card_payment_provider_check'
+
+  ) THEN
+
+    ALTER TABLE [public.app](http://public.app)_settings
+
+      ADD CONSTRAINT card_payment_provider_check
+
+      CHECK (card_payment_provider IN ('viva','mypos'));
+
+  END IF;
+
+END $$;
