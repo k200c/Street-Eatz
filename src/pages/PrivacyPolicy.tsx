@@ -21,13 +21,13 @@ const PrivacyPolicy = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">1. WHO WE ARE</h2>
               <p className="text-muted-foreground leading-relaxed">
-                Street Eatz Waterford is a food service business operating from Crystal Sports & Leisure Centre, 
-                Waterford, Ireland. We are committed to protecting your privacy and handling your personal data 
+                Street Eatz Waterford is a food service business operating from Crystal Sports and Leisure Centre,
+                Cork Rd, Ballynaneashagh, Waterford, X91 E6PX, Ireland. We are committed to protecting your personal data
                 in compliance with the General Data Protection Regulation (GDPR) and the Irish Data Protection 
                 Acts 1988-2018.
               </p>
               <p className="text-muted-foreground leading-relaxed mt-2">
-                <strong className="text-foreground">Contact:</strong> hello@streeteatzwaterford.ie
+                <strong className="text-foreground">Contact:</strong> streeteatzwaterford@gmail.com
               </p>
             </section>
 
@@ -39,7 +39,7 @@ const PrivacyPolicy = () => {
               <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
                 <li>Your name and contact phone number</li>
                 <li>Your order details and preferences</li>
-                <li>Payment information (processed securely by Viva Wallet)</li>
+                <li>Payment information (processed securely by our payment provider)</li>
                 <li>Your order history for loyalty rewards</li>
               </ul>
             </section>
@@ -61,9 +61,9 @@ const PrivacyPolicy = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">4. PAYMENT PROCESSING</h2>
               <p className="text-muted-foreground leading-relaxed">
-                All card payments are processed securely through Viva Wallet, a licensed payment institution 
-                regulated by the Bank of Greece. We do not store your full card details on our systems. 
-                Viva Wallet handles all payment data in accordance with PCI DSS Level 1 security standards.
+                Payments are processed securely by our PCI-DSS compliant payment provider. We do not store
+                full card details on our website. All payment data is handled by the provider in accordance
+                with PCI DSS security standards.
               </p>
             </section>
 
@@ -108,10 +108,10 @@ const PrivacyPolicy = () => {
               </p>
               <div className="mt-3 p-4 bg-card/50 border border-border rounded-lg">
                 <p className="text-foreground font-semibold">Street Eatz Waterford</p>
-                <p className="text-muted-foreground">Crystal Sports & Leisure Centre</p>
-                <p className="text-muted-foreground">Waterford, Ireland</p>
-                <p className="text-primary mt-2">hello@streeteatzwaterford.ie</p>
-                <p className="text-primary">+353 87 123 4567</p>
+                <p className="text-muted-foreground">Crystal Sports and Leisure Centre</p>
+                <p className="text-muted-foreground">Cork Rd, Ballynaneashagh</p>
+                <p className="text-muted-foreground">Waterford, X91 E6PX, Ireland</p>
+                <p className="text-primary mt-2">streeteatzwaterford@gmail.com</p>
               </div>
             </section>
           </div>
