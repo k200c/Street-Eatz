@@ -27,6 +27,8 @@ import OrderSuccess from "./pages/OrderSuccess";
 import OrderFailed from "./pages/OrderFailed";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndConditions from "./pages/TermsAndConditions";
+import RefundPolicy from "./pages/RefundPolicy";
+import DeliveryPolicy from "./pages/DeliveryPolicy";
 
 // Component to initialize cart sync within the app
 const CartSyncProvider = ({ children }: { children: React.ReactNode }) => {
@@ -94,6 +96,8 @@ const [queryClient] = useState(() => new QueryClient({
                 {/* Legal pages (public) */}
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="/refund-policy" element={<RefundPolicy />} />
+                <Route path="/delivery-policy" element={<DeliveryPolicy />} />
                 
                 <Route path="*" element={<NotFound />} />
               </Routes>

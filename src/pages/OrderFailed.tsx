@@ -161,10 +161,10 @@ const OrderFailed = () => {
               Need help? We're here for you
             </p>
             <a
-              href="tel:+353871234567"
+              href="mailto:streeteatzwaterford@gmail.com"
               className="text-sm text-primary hover:underline"
             >
-              📞 +353 87 123 4567
+              ✉️ streeteatzwaterford@gmail.com
             </a>
           </motion.div>
         </motion.div>

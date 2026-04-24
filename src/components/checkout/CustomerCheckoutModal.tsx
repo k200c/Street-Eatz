@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { hardResetApp } from '@/lib/resetApp';
 import { postFormToUrl } from '@/lib/postFormToUrl';
+import { Link } from 'react-router-dom';
 
 interface CustomerCheckoutModalProps {
   open: boolean;
@@ -608,6 +609,38 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                     </>
                   )}
                 </Button>
+
+                {/* Compliance disclaimer */}
+                <p className="text-xs text-muted-foreground text-center px-2 leading-relaxed">
+                  By placing an order, you agree to our{" "}
+                  <Link
+                    to="/terms-and-conditions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Terms &amp; Conditions
+                  </Link>
+                  ,{" "}
+                  <Link
+                    to="/refund-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Refund Policy
+                  </Link>
+                  , and{" "}
+                  <Link
+                    to="/privacy-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
 
                 <Button
                   variant="ghost"

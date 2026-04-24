@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { MapPin, Phone, Mail, Info } from "lucide-react";
+import { MapPin, Mail, Info } from "lucide-react";
 import { AllergenModal } from "@/components/ui/allergen-modal";
 import { APP_VERSION } from "@/lib/pwa";
 // SVG Payment Icons as components for clean rendering
@@ -48,26 +48,28 @@ export function SiteFooter() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Main footer content */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          {/* Brand & Contact */}
+          {/* Business Information */}
           <div>
             <h3 className="font-heading text-lg text-foreground mb-4">
-              STREET EATZ WATERFORD
+              BUSINESS INFORMATION
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                <span>Crystal Sports & Leisure Centre, Waterford</span>
+              <p className="font-semibold text-foreground">Street Eatz Waterford</p>
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <span>
+                  Crystal Sports and Leisure Centre,<br />
+                  Cork Rd, Ballynaneashagh,<br />
+                  Waterford, X91 E6PX, Ireland
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-primary" />
-                <a href="tel:+353871234567" className="hover:text-primary transition-colors">
-                  +353 87 123 4567
-                </a>
-              </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-primary" />
-                <a href="mailto:hello@streeteatzwaterford.ie" className="hover:text-primary transition-colors">
-                  hello@streeteatzwaterford.ie
+              <div className="flex items-center gap-2 pt-1">
+                <Mail className="w-4 h-4 text-primary flex-shrink-0" />
+                <a
+                  href="mailto:streeteatzwaterford@gmail.com"
+                  className="hover:text-primary transition-colors break-all"
+                >
+                  streeteatzwaterford@gmail.com
                 </a>
               </div>
             </div>
@@ -97,16 +99,28 @@ export function SiteFooter() {
             <h3 className="font-heading text-lg text-foreground mb-4">LEGAL</h3>
             <div className="space-y-2 text-sm">
               <Link
-                to="/privacy-policy"
-                className="block text-muted-foreground hover:text-primary transition-colors"
-              >
-                Privacy Policy
-              </Link>
-              <Link
                 to="/terms-and-conditions"
                 className="block text-muted-foreground hover:text-primary transition-colors"
               >
                 Terms & Conditions
+              </Link>
+              <Link
+                to="/refund-policy"
+                className="block text-muted-foreground hover:text-primary transition-colors"
+              >
+                Refund & Cancellation Policy
+              </Link>
+              <Link
+                to="/delivery-policy"
+                className="block text-muted-foreground hover:text-primary transition-colors"
+              >
+                Delivery Policy
+              </Link>
+              <Link
+                to="/privacy-policy"
+                className="block text-muted-foreground hover:text-primary transition-colors"
+              >
+                Privacy Policy
               </Link>
               <AllergenModal
                 trigger={
