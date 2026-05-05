@@ -41,7 +41,7 @@ const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
         staleTime: 0,                    // Data is stale immediately
-        gcTime: 0,                       // Remove from cache immediately
+        gcTime: 1000 * 60 * 5,           // Keep cached results 5min to avoid refetch storms on remount
         retry: 1,                        // Only retry once
         refetchOnWindowFocus: false,     // CRITICAL: Prevent hanging on focus
       },

@@ -59,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const isMounted = useRef(true);
-  const isInitialLoad = useRef(true);
   const loadingCompleted = useRef(false);
 
   // Manual cleanup function - resets state to clean signed-out state
@@ -124,97 +123,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     isMounted.current = true;
-    isInitialLoad.current = true;
     loadingCompleted.current = false;
 
-    // Set up auth state change listener FIRST (before getSession)
+    // Event-driven auth init. INITIAL_SESSION fires synchronously from
+    // localStorage with no network call and no internal lock — avoiding
+    // the getSession()/refreshSession() deadlock that queues all REST calls.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted.current) return;
 
-        // For initial load, we handle this in initSession below
-        // This listener handles SUBSEQUENT auth changes (login, logout, token refresh)
-        if (isInitialLoad.current) {
+        if (event === 'INITIAL_SESSION') {
+          setState(prev => ({
+            ...prev,
+            session,
+            user: session?.user ?? null,
+            loading: false,
+          }));
+          loadingCompleted.current = true;
+
+          if (session?.user) {
+            // Defer to avoid Supabase client deadlock guidance.
+            setTimeout(() => {
+              if (isMounted.current) fetchUserData(session.user.id);
+            }, 0);
+          }
           return;
         }
 
-        setState(prev => ({
-          ...prev,
-          session,
-          user: session?.user ?? null,
-        }));
-
-        if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock on auth state change
-          setTimeout(() => {
-            if (isMounted.current) {
-              fetchUserData(session.user.id);
-            }
-          }, 0);
-        } else {
+        if (event === 'SIGNED_IN') {
           setState(prev => ({
             ...prev,
-            role: null,
-            profile: null,
-            profileLoading: false,
+            session,
+            user: session?.user ?? null,
+            loading: false,
           }));
+          loadingCompleted.current = true;
+          if (session?.user) {
+            setTimeout(() => {
+              if (isMounted.current) fetchUserData(session.user.id);
+            }, 0);
+          }
+          return;
+        }
+
+        if (event === 'TOKEN_REFRESHED') {
+          // Silent background refresh — update session, do not refetch profile.
+          setState(prev => ({
+            ...prev,
+            session,
+            user: session?.user ?? prev.user,
+          }));
+          return;
+        }
+
+        if (event === 'USER_UPDATED') {
+          setState(prev => ({
+            ...prev,
+            session: session ?? prev.session,
+            user: session?.user ?? prev.user,
+          }));
+          return;
+        }
+
+        if (event === 'SIGNED_OUT' || event === 'USER_DELETED' as any) {
+          setState({
+            user: null,
+            session: null,
+            role: null,
+            loading: false,
+            profileLoading: false,
+            profile: null,
+          });
+          loadingCompleted.current = true;
+          return;
         }
       }
     );
 
-    // Initialize session - AWAIT profile data before setting loading to false
-    const initSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('[Auth] getSession error:', error);
-          if (isMounted.current) {
-            applyManualCleanup();
-            loadingCompleted.current = true;
-            isInitialLoad.current = false;
-          }
-          return;
-        }
-        
-        if (!isMounted.current) return;
-        
-        // Update session, user, AND clear loading immediately so app shell renders.
-        // Profile/role load in the background via profileLoading.
-        setState(prev => ({
-          ...prev,
-          session,
-          user: session?.user ?? null,
-          loading: false,
-        }));
-        loadingCompleted.current = true;
-        isInitialLoad.current = false;
-
-        // Kick off profile fetch in the background — do NOT block app render.
-        if (session?.user) {
-          fetchUserData(session.user.id);
-        }
-      } catch (error) {
-        console.error('[Auth] getSession failed:', error);
-        if (isMounted.current) {
-          applyManualCleanup();
-          loadingCompleted.current = true;
-          isInitialLoad.current = false;
-        }
-      }
-    };
-    
-    // Safety timeout - only fires if init never completed (uses ref, not stale closure)
+    // Safety timeout - INITIAL_SESSION normally fires <100ms; release after 5s if not.
     const safetyTimeout = setTimeout(() => {
       if (isMounted.current && !loadingCompleted.current) {
-        console.warn('[Auth] Safety timeout - network may be slow');
+        console.warn('[Auth] Safety timeout - INITIAL_SESSION did not fire');
         setState(prev => ({ ...prev, loading: false }));
         loadingCompleted.current = true;
-        isInitialLoad.current = false;
       }
-    }, 15000);
-    
-    initSession();
+    }, 5000);
 
     return () => {
       isMounted.current = false;
