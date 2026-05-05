@@ -23,5 +23,12 @@ export const publicSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBL
   auth: {
     persistSession: false,
     autoRefreshToken: false,
+    detectSessionInUrl: false,
+    storageKey: 'sb-public-readonly',
+    storage: {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    },
   },
 });
