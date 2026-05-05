@@ -129,8 +129,17 @@ function setupUpdateDetection(registration: ServiceWorkerRegistration): void {
   });
 
   // Listen for controller change (new SW took over)
+  // Guard against reload loops: only reload when an update was explicitly
+  // applied via SKIP_WAITING (not on first SW install).
+  let hasReloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    console.log('[PWA] Controller changed, reloading...');
+    if (hasReloaded) return;
+    if (!updateApplied) {
+      console.log('[PWA] Controller changed (initial install), skipping reload');
+      return;
+    }
+    hasReloaded = true;
+    console.log('[PWA] Controller changed after update, reloading...');
     window.location.reload();
   });
 }
