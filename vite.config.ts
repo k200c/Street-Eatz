@@ -51,9 +51,12 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        // Navigation fallback for offline
-        navigateFallback: '/offline.html',
-        // Exclude sensitive routes from navigation fallback
+        // SPA navigation fallback: serve the app shell so React Router can
+        // resolve the route (including authenticated refreshes). The static
+        // /offline.html remains available as a true offline fallback only.
+        navigateFallback: '/index.html',
+        // Exclude sensitive routes from the SPA fallback so they always hit
+        // the network (payments, auth, order returns, edge functions, APIs).
         navigateFallbackDenylist: [
           /^\/auth/,
           /^\/processing/,
@@ -64,21 +67,11 @@ export default defineConfig(({ mode }) => ({
         ],
         // Runtime caching strategies
         runtimeCaching: [
-          // Supabase API - NetworkFirst with timeout
+          // Supabase REST API - NetworkOnly (never cache authenticated data,
+          // orders, payments, profiles, app settings, etc.)
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              networkTimeoutSeconds: 5,
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60, // 1 hour
-              },
-            },
+            handler: 'NetworkOnly',
           },
           // Edge Functions - NetworkOnly (never cache)
           {
