@@ -29,10 +29,30 @@ export async function registerSW(): Promise<ServiceWorkerRegistration | null> {
     return null;
   }
 
-  // Skip known preview environments where SW won't exist
+  // Skip iframe/editor/preview environments. Service workers in these contexts
+  // cause stale shells, navigation interception, and offline-screen pollution.
+  const isInIframe = (() => {
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true; // Cross-origin block implies iframe
+    }
+  })();
+
   const hostname = window.location.hostname;
-  if (hostname.includes('id-preview--')) {
-    console.log('[PWA] Preview environment detected, skipping SW registration');
+  const isPreviewHost =
+    hostname.includes('id-preview--') ||
+    hostname.includes('lovableproject.com') ||
+    hostname.includes('lovable.app');
+
+  if (isInIframe || isPreviewHost) {
+    console.log('[PWA] Iframe/preview detected, unregistering any existing SWs and skipping registration');
+    try {
+      const existing = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(existing.map((r) => r.unregister()));
+    } catch (err) {
+      console.warn('[PWA] Failed to unregister preview SWs:', err);
+    }
     return null;
   }
 
