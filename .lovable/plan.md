@@ -1,49 +1,49 @@
-# Disable PWA / Service Worker — Production Incident Fix
+# Auth Boot Deadlock Fix
 
-## Root Cause
-The Workbox service worker (registered with `skipWaiting` + `clientsClaim` and `NetworkOnly` handlers for all `*.supabase.co/{rest,auth,functions}` URLs) is intercepting Supabase auth/REST calls during boot. Result: `getSession()` never resolves, profile/menu/orders queries hang, `[Auth] Safety timeout` fires after 15s, users appear logged out, skeletons never resolve. Old SWs from prior deploys persist on installed devices.
+Two surgical file replacements to fix the black-screen-on-refresh bug for authenticated users.
 
-## Fix Strategy
-Remove the PWA layer entirely from the customer app. Ship a kill-switch `/sw.js` so already-installed clients self-unregister and clear caches on next visit. No changes to auth, payments, checkout, KDS, Supabase client, or any business logic.
+## Root cause
 
-## Exact Changes
+1. `AuthContext.initSession` awaits `fetchUserData` (has_role RPC + profiles SELECT, up to 5s) before clearing `loading`. The whole app is gated on this, so AuthGuard shows a spinner — and on `/details` (a static page wrongly behind AuthGuard) the user sees a black/spinner screen on every refresh.
+2. The 15s safety timeout reads `state.loading` from a stale closure (the effect only runs once with `loading: true`), so the warning logic is unreliable and never re-evaluates.
+3. `/details` is wrapped in `AuthGuard` even though it's a static info page (hours/address/phone) — it should be public.
 
-### 1. `vite.config.ts` — replace entire file
-Remove `vite-plugin-pwa` import and the `VitePWA({...})` plugin block. Keep React, componentTagger, alias, server, and `__APP_VERSION__` define.
+## Fix
 
-### 2. `src/main.tsx` — replace entire file
-- Drop `registerSW()` call.
-- On boot, unregister any existing service workers and delete all Cache Storage entries (one-shot cleanup, no reload, no loop).
-- Keep `APP_VERSION` console log and `createRoot(...).render(<App />)`.
+### 1. `src/contexts/AuthContext.tsx`
 
-### 3. `src/lib/pwa.ts` — replace entire file
-Reduce to a no-op module that still exports `APP_VERSION`, `registerSW`, `checkForUpdates`, `applyUpdate`, `onNeedRefresh`, `getRegistration` so existing imports (e.g. `UpdateToast.tsx`) keep compiling but do nothing.
+- Add `loadingCompleted = useRef(false)` to track init completion without stale closure.
+- In `initSession`: after `getSession()` resolves, set `session`/`user` AND `loading: false` immediately. Then kick off `fetchUserData` in the background (no await). `profileLoading` covers the profile fetch state.
+- Safety timeout reads `loadingCompleted.current` instead of `state.loading`; only fires if init never completed.
+- Keep everything else (signIn/signUp/signOut/updateProfile/OTP, manualCleanup, onAuthStateChange listener with `setTimeout(0)` deadlock guard) unchanged.
 
-### 4. `public/sw.js` — new file (kill-switch)
-Static SW that on activate: claims clients, deletes all caches, unregisters itself. `fetch` handler is a no-op (pass-through). This overrides whatever Workbox SW devices have cached at `/sw.js`.
+### 2. `src/App.tsx`
 
-### 5. `package.json` — remove `vite-plugin-pwa` dependency line
-Only that one line. No other dependency changes.
+- Change `<Route path="/details" element={<AuthGuard><Details /></AuthGuard>} />` to `<Route path="/details" element={<Details />} />`.
+- No other route, provider, or import changes.
 
-## Files NOT Touched
-`AuthContext.tsx`, `AuthGuard.tsx`, `supabase/client.ts`, `resetApp.ts`, `UpdateToast.tsx`, all payment/checkout/order/cart/KDS/receipt/n8n code, `public/offline.html`, `index.html`, DB schema, edge functions, RLS.
+## Explicitly NOT touched
 
-## Blast Radius
-- Customer app reverts to standard SPA behavior; menu, login, profile, admin, cart, checkout, Viva flow all start working again because nothing intercepts their requests.
-- Installed PWA clients: on next open, kill-switch SW activates, wipes caches, unregisters. Subsequent loads are clean.
-- "Add to Home Screen" shortcuts still launch the site as a normal web page (no offline mode, no install prompt).
+- `src/components/auth/AuthGuard.tsx`
+- `src/integrations/supabase/client.ts`
+- Any payment / checkout / cart / order / KDS / receipt / n8n code
+- RLS policies, edge functions, database schema
+- All other routes (cart, account, profile, admin, payment redirects)
 
-## Verification (post-deploy)
-1. Hard refresh `/menu` while logged in → items render, no permanent skeleton.
-2. Refresh `/profile` → session persists, orders or empty state render.
-3. `/auth` login completes quickly, no 30s hang.
-4. `/admin` and KDS load for admin user.
-5. Cart add/remove + checkout opens; Viva start redirects.
-6. DevTools → Application → Service Workers shows kill-switch briefly then unregistered; Cache Storage empty.
-7. No `[Auth] Safety timeout`, no false offline screen, no reload loop.
+## Why this fixes it
+
+- App shell renders as soon as the session is known (typically <200ms), instead of waiting for two RLS-protected queries.
+- Profile/role load in the background; components that need them already handle `profileLoading`.
+- `/details` no longer hits AuthGuard at all, so a refresh on that page never blocks on auth.
+- Safety timeout now correctly distinguishes "init never finished" from "init finished, profile still loading".
+
+## Test checklist
+
+- Refresh while logged in on `/`, `/menu`, `/details`, `/profile`, `/admin` — no black screen, no `[Auth] Safety timeout` warning.
+- Logged-out refresh on protected route → redirects to `/auth`.
+- Login flow works; admin redirects work.
+- Payment redirect routes (`/processing`, `/order-success`, `/order-failed`) unchanged.
 
 ## Rollback
-Revert the four code files and restore the `vite-plugin-pwa` line in `package.json`. No backend state to revert.
 
-## Remaining Risk
-Devices that never reopen the app keep the old broken SW until they do — inherent SW limitation, handled on next visit by the kill-switch.
+Revert the two files via project history.

@@ -81,7 +81,7 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/cart" element={<AuthGuard><Cart /></AuthGuard>} />
                 <Route path="/account" element={<AuthGuard><Account /></AuthGuard>} />
                 <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
-                <Route path="/details" element={<AuthGuard><Details /></AuthGuard>} />
+                <Route path="/details" element={<Details />} />
                 
                 {/* Staff routes - require admin role */}
                 <Route path="/admin" element={<AuthGuard allowedRoles={['admin']}><StaffDashboard /></AuthGuard>} />
