@@ -67,21 +67,11 @@ export default defineConfig(({ mode }) => ({
         ],
         // Runtime caching strategies
         runtimeCaching: [
-          // Supabase API - NetworkFirst with timeout
+          // Supabase REST API - NetworkOnly (never cache authenticated data,
+          // orders, payments, profiles, app settings, etc.)
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              networkTimeoutSeconds: 5,
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60, // 1 hour
-              },
-            },
+            handler: 'NetworkOnly',
           },
           // Edge Functions - NetworkOnly (never cache)
           {
