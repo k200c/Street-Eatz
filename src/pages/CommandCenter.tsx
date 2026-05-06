@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard } from 'lucide-react';
+import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard, Wifi } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
@@ -64,6 +64,15 @@ export default function CommandCenter() {
     }
   };
 
+  const handleOnlinePaymentsToggle = async (enabled: boolean) => {
+    try {
+      await updateSettings.mutateAsync({ online_payments_enabled: enabled });
+      toast.success(enabled ? 'Online payments ENABLED' : 'Online payments DISABLED');
+    } catch (error) {
+      toast.error('Failed to update online payments');
+    }
+  };
+
   if (loading || settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -77,6 +86,7 @@ export default function CommandCenter() {
   // Use effective store status (considers dev mode bypass)
   const isStoreOpen = devModeEnabled ? true : (settings?.is_store_open ?? true);
   const activeProvider: CardProvider = (settings?.card_payment_provider === 'mypos' ? 'mypos' : 'viva');
+  const onlinePaymentsEnabled = settings?.online_payments_enabled ?? true;
 
   const handleDevModeToggle = () => {
     const newValue = toggleDevMode();
@@ -217,6 +227,30 @@ export default function CommandCenter() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.15 }}
             >
+              <Card className="bg-card border-border mb-6">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Wifi className="w-5 h-5 text-primary" />
+                    Online Payments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Allow customers to pay online by card</p>
+                      <p className={`text-2xl font-bold ${onlinePaymentsEnabled ? 'text-green-400' : 'text-red-400'}`}>
+                        {onlinePaymentsEnabled ? 'ENABLED' : 'DISABLED'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={onlinePaymentsEnabled}
+                      onCheckedChange={handleOnlinePaymentsToggle}
+                      disabled={updateSettings.isPending}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card className="bg-card border-border">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-lg">

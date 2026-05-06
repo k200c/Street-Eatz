@@ -10,6 +10,7 @@ export interface AppSettings {
   marketing_banner_text: string | null;
   marketing_banner_enabled: boolean;
   card_payment_provider: 'viva' | 'mypos';
+  online_payments_enabled: boolean;
 }
 
 export function useAppSettings() {
@@ -59,7 +60,7 @@ export function useUpdateAppSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (updates: Partial<Pick<AppSettings, 'is_store_open' | 'current_wait_time' | 'marketing_banner_text' | 'marketing_banner_enabled' | 'card_payment_provider'>>) => {
+    mutationFn: async (updates: Partial<Pick<AppSettings, 'is_store_open' | 'current_wait_time' | 'marketing_banner_text' | 'marketing_banner_enabled' | 'card_payment_provider' | 'online_payments_enabled'>>) => {
       const { data, error } = await supabase
         .from('app_settings')
         .update({ ...updates, updated_at: new Date().toISOString() })
