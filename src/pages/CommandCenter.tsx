@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard } from 'lucide-react';
+import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard, Wifi } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
@@ -64,6 +64,15 @@ export default function CommandCenter() {
     }
   };
 
+  const handleOnlinePaymentsToggle = async (enabled: boolean) => {
+    try {
+      await updateSettings.mutateAsync({ online_payments_enabled: enabled });
+      toast.success(enabled ? 'Online payments ENABLED' : 'Online payments DISABLED');
+    } catch (error) {
+      toast.error('Failed to update online payments');
+    }
+  };
+
   if (loading || settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -77,6 +86,7 @@ export default function CommandCenter() {
   // Use effective store status (considers dev mode bypass)
   const isStoreOpen = devModeEnabled ? true : (settings?.is_store_open ?? true);
   const activeProvider: CardProvider = (settings?.card_payment_provider === 'mypos' ? 'mypos' : 'viva');
+  const onlinePaymentsEnabled = settings?.online_payments_enabled ?? true;
 
   const handleDevModeToggle = () => {
     const newValue = toggleDevMode();
