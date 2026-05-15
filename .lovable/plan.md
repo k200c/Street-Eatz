@@ -1,51 +1,51 @@
 ## Goal
+Show `customer_phone` directly beneath `customer_name` on each KDS order card so kitchen staff can quickly contact customers.
 
-Update the existing Community Vote "Start Vote" button in `src/components/staff/MarketingHub.tsx` so it POSTs the correct payload to the n8n Voting webhook. No redesign, no rebuild — only the changes needed to satisfy the webhook contract.
+## Investigation summary
+- Order card renders in `src/components/staff/KitchenDisplaySystem.tsx` (around line 265, the `{order.customer_name && ...}` block).
+- Orders are fetched in `src/hooks/useKitchenOrders.ts` via `supabase.from('orders').select('*')` — `customer_phone` is **already** present on every order object (confirmed: `orders.customer_phone` exists in schema and is used elsewhere in the same file at line 479).
+- Realtime subscription already refetches on INSERT/UPDATE, so new orders will include the phone automatically.
+- No DB migration, no query change, no type change required.
 
-## Current state
+## Change (single file)
+**`src/components/staff/KitchenDisplaySystem.tsx`** — extend the existing customer name block only:
 
-- File: `src/components/staff/MarketingHub.tsx`
-- The Community Vote card has: `voteTitle`, `optionA`, `optionB`, `closingDate`.
-- "Start Vote" calls `handleCreateVote` → `useCreateVote` (DB insert into `community_votes`). No webhook call. No `message` field. Only 2 options.
-- The n8n webhook requires: `title`, `message`, `options[]` (2–6 strings), `send_sms`, `send_email`, `audience`, `vote_link`.
+```tsx
+{/* Customer Name + Phone */}
+{order.customer_name && (
+  <div className="mb-2 mt-2">
+    <p className="text-sm font-medium text-primary leading-tight">
+      {order.customer_name}
+    </p>
+    {order.customer_phone && (
+      <a
+        href={`tel:${order.customer_phone}`}
+        className="text-xs text-muted-foreground tabular-nums tracking-wide hover:underline"
+      >
+        {order.customer_phone}
+      </a>
+    )}
+  </div>
+)}
+```
 
-## Changes (surgical)
+Notes:
+- Wrapped in existing `customer_name` conditional → if no name, nothing changes (preserves current behavior).
+- Phone has its own truthy check → null/undefined/empty string render nothing (no "N/A").
+- `tel:` link is a small bonus for tablet use; harmless on desktop. Can drop to a plain `<p>` if undesired.
+- Uses existing semantic tokens (`text-muted-foreground`, `text-primary`) — no design-system drift.
+- Mobile/iPad safe: `text-xs` with leading-tight, no fixed widths, no overflow risk.
 
-All edits inside `src/components/staff/MarketingHub.tsx` only.
+## Explicitly NOT touched
+- `useKitchenOrders.ts` query, types, realtime subscription, polling.
+- Order lifecycle, payment, n8n webhooks, printing, KDS workflow logic.
+- Database schema (no migration).
+- `PickupOrderCard` / customer-facing components.
 
-1. Add minimal new state:
-   - `voteMessage: string` — required by webhook.
-   - `isStartingVote: boolean` — loading flag for the button.
-   - Convert the two existing inputs into a `voteOptions: string[]` array seeded with two empty strings, while keeping the existing 2-column grid look. Render the array via `.map()` so we can support 2–6 options with a small "+ Add option" button (and a remove (×) on rows beyond the first two). This keeps the existing visual style — just a tiny extension, not a redesign.
-
-2. Add a new `Message` textarea between Title and Options (one extra field, same card, same styling tokens).
-
-3. Replace `handleCreateVote` with `startCommunityVote` using exactly the user-specified pattern:
-   - Trim/clean options, drop empties, slice to max 6.
-   - Validate: title required, message required, ≥2 options.
-   - Toast errors via existing `sonner` `toast`.
-   - `setIsStartingVote(true)` → `fetch('https://kyle2000.app.n8n.cloud/webhook/Voting-webhook', { POST, JSON })` with payload `{ title, message, options, send_sms: true, send_email: true, audience: "demo", vote_link: "" }`.
-   - Throw on non-OK; safe `try/catch` on `response.json()`.
-   - Success toast: "Community vote started. Demo SMS/email triggered."
-   - Error toast: "Community vote could not be started. Check the voting workflow and try again."
-   - Always `setIsStartingVote(false)` in `finally`.
-   - Reset the form inputs on success.
-
-4. Wire the Start Vote button:
-   - `onClick={startCommunityVote}`
-   - `disabled={isStartingVote || !voteTitle.trim() || !voteMessage.trim() || voteOptions.filter(o => o.trim()).length < 2}`
-   - Loading label: "Starting vote..." (spinner kept).
-
-## Explicitly NOT changing
-
-- `useBroadcasts.ts` / `useCreateVote` / `community_votes` table — left intact (Active Votes list still reads existing rows).
-- Closing Date picker UI — left in place but no longer required for the webhook (kept as optional metadata; not sent because the n8n payload schema doesn't include it). Validation no longer blocks on it.
-- Broadcasts, Google Reviews, Social Media, KDS, payments, orders, RLS, edge functions — untouched.
-- No Supabase service keys, no customer fetching on the frontend. The browser only POSTs the campaign payload to n8n; n8n handles SMS/email.
-
-## Acceptance check
-
-- Click Start Vote → network panel shows POST to `https://kyle2000.app.n8n.cloud/webhook/Voting-webhook` with the exact payload shape above.
-- Invalid inputs blocked with the specified toasts.
-- Button disables and shows "Starting vote..." while in flight.
-- Existing Community Vote card layout remains visually intact (one extra textarea + dynamic options list).
+## Verification checklist
+1. Existing order with name + phone → both render, phone smaller/muted under name.
+2. Order with name but no phone → only name renders (no placeholder).
+3. Historical order with neither → block hidden as today.
+4. New realtime order → appears with phone immediately (existing refetch path).
+5. iPad viewport → no overflow, readable hierarchy.
+6. Dark mode → muted-foreground token already theme-aware.
