@@ -263,9 +263,19 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
 
             {/* Customer Name */}
             {order.customer_name && (
-              <p className="text-sm font-medium text-primary mb-2 mt-2">
-                {order.customer_name}
-              </p>
+              <div className="mb-2 mt-2">
+                <p className="text-sm font-medium text-primary leading-tight">
+                  {order.customer_name}
+                </p>
+                {order.customer_phone && (
+                  <a
+                    href={`tel:${order.customer_phone}`}
+                    className="text-xs text-muted-foreground tabular-nums tracking-wide hover:underline"
+                  >
+                    {order.customer_phone}
+                  </a>
+                )}
+              </div>
             )}
 
             {/* Order Items */}
