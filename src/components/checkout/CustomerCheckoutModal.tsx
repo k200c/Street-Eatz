@@ -28,6 +28,8 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   const { submitOrder, sendToKitchen, clearCart, isSubmitting, isSendingToKitchen, total, items } = useCheckout();
   const { data: appSettings } = useAppSettings();
   const onlinePaymentsEnabled = appSettings?.online_payments_enabled ?? true;
+  const payOnCollectionEnabled = appSettings?.pay_on_collection_enabled ?? true;
+  const noPaymentMethods = !onlinePaymentsEnabled && !payOnCollectionEnabled;
   
   const [step, setStep] = useState<Step>('details');
   const [customerName, setCustomerName] = useState('');
