@@ -359,6 +359,13 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
     // Prevent duplicate submissions
     if (isProcessingPayment) return;
 
+    // Guard: Pay on Collection must be enabled (blocks manipulated / stale-state submissions).
+    // The DB trigger is the hard backstop; this prevents a wasted round-trip and shows a clear message.
+    if (!payOnCollectionEnabled) {
+      toast.error('Pay on Collection is currently unavailable. Please use card payment.');
+      return;
+    }
+
     // Verify session before proceeding
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
