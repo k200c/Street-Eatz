@@ -23,6 +23,7 @@ export type Database = {
           marketing_banner_enabled: boolean | null
           marketing_banner_text: string | null
           online_payments_enabled: boolean
+          pay_on_collection_enabled: boolean
           updated_at: string | null
         }
         Insert: {
@@ -33,6 +34,7 @@ export type Database = {
           marketing_banner_enabled?: boolean | null
           marketing_banner_text?: string | null
           online_payments_enabled?: boolean
+          pay_on_collection_enabled?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -43,6 +45,7 @@ export type Database = {
           marketing_banner_enabled?: boolean | null
           marketing_banner_text?: string | null
           online_payments_enabled?: boolean
+          pay_on_collection_enabled?: boolean
           updated_at?: string | null
         }
         Relationships: []
