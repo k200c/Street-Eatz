@@ -73,6 +73,15 @@ export default function CommandCenter() {
     }
   };
 
+  const handlePayOnCollectionToggle = async (enabled: boolean) => {
+    try {
+      await updateSettings.mutateAsync({ pay_on_collection_enabled: enabled });
+      toast.success(enabled ? 'Pay on Collection ENABLED' : 'Pay on Collection DISABLED');
+    } catch (error) {
+      toast.error('Failed to update Pay on Collection');
+    }
+  };
+
   if (loading || settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -87,6 +96,7 @@ export default function CommandCenter() {
   const isStoreOpen = devModeEnabled ? true : (settings?.is_store_open ?? true);
   const activeProvider: CardProvider = (settings?.card_payment_provider === 'mypos' ? 'mypos' : 'viva');
   const onlinePaymentsEnabled = settings?.online_payments_enabled ?? true;
+  const payOnCollectionEnabled = settings?.pay_on_collection_enabled ?? true;
 
   const handleDevModeToggle = () => {
     const newValue = toggleDevMode();
