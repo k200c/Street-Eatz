@@ -261,6 +261,31 @@ export default function CommandCenter() {
                 </CardContent>
               </Card>
 
+              {/* Pay on Collection Card */}
+              <Card className="bg-card border-border mb-6">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <ShoppingBag className="w-5 h-5 text-primary" />
+                    Pay on Collection
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Allow customers to place orders and pay when collecting</p>
+                      <p className={`text-2xl font-bold ${payOnCollectionEnabled ? 'text-green-400' : 'text-red-400'}`}>
+                        {payOnCollectionEnabled ? 'ENABLED' : 'DISABLED'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={payOnCollectionEnabled}
+                      onCheckedChange={handlePayOnCollectionToggle}
+                      disabled={updateSettings.isPending}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card className="bg-card border-border">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-lg">
