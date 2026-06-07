@@ -579,6 +579,15 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                   </div>
                 </div>
 
+                {/* No payment methods available */}
+                {noPaymentMethods && (
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-destructive text-sm text-center leading-relaxed">
+                      Ordering is temporarily unavailable because no payment methods are currently enabled. Please try again shortly.
+                    </p>
+                  </div>
+                )}
+
                 {onlinePaymentsEnabled && (
                   <>
                     {/* Email required notice for card payments */}
@@ -609,22 +618,24 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                 )}
 
                 {/* Pay on Collection */}
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full h-16"
-                  onClick={handlePayOnCollection}
-                  disabled={isButtonDisabled}
-                >
-                  {isButtonDisabled ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                  ) : (
-                    <>
-                      <ShoppingBag className="w-6 h-6 mr-3" />
-                      PAY ON COLLECTION
-                    </>
-                  )}
-                </Button>
+                {payOnCollectionEnabled && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="w-full h-16"
+                    onClick={handlePayOnCollection}
+                    disabled={isButtonDisabled}
+                  >
+                    {isButtonDisabled ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <>
+                        <ShoppingBag className="w-6 h-6 mr-3" />
+                        PAY ON COLLECTION
+                      </>
+                    )}
+                  </Button>
+                )}
 
                 {/* Compliance disclaimer */}
                 <p className="text-xs text-muted-foreground text-center px-2 leading-relaxed">
