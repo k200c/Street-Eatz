@@ -23,6 +23,7 @@ export type Database = {
           marketing_banner_enabled: boolean | null
           marketing_banner_text: string | null
           online_payments_enabled: boolean
+          opening_hours: Json | null
           pay_on_collection_enabled: boolean
           updated_at: string | null
         }
@@ -34,6 +35,7 @@ export type Database = {
           marketing_banner_enabled?: boolean | null
           marketing_banner_text?: string | null
           online_payments_enabled?: boolean
+          opening_hours?: Json | null
           pay_on_collection_enabled?: boolean
           updated_at?: string | null
         }
@@ -45,6 +47,7 @@ export type Database = {
           marketing_banner_enabled?: boolean | null
           marketing_banner_text?: string | null
           online_payments_enabled?: boolean
+          opening_hours?: Json | null
           pay_on_collection_enabled?: boolean
           updated_at?: string | null
         }
