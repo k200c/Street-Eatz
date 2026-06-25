@@ -1,51 +1,16 @@
-## Goal
-Show `customer_phone` directly beneath `customer_name` on each KDS order card so kitchen staff can quickly contact customers.
+# Add `get-hours` Edge Function
 
-## Investigation summary
-- Order card renders in `src/components/staff/KitchenDisplaySystem.tsx` (around line 265, the `{order.customer_name && ...}` block).
-- Orders are fetched in `src/hooks/useKitchenOrders.ts` via `supabase.from('orders').select('*')` — `customer_phone` is **already** present on every order object (confirmed: `orders.customer_phone` exists in schema and is used elsewhere in the same file at line 479).
-- Realtime subscription already refetches on INSERT/UPDATE, so new orders will include the phone automatically.
-- No DB migration, no query change, no type change required.
+Create one new Supabase Edge Function, `get-hours`, that reads the `opening_hours` column from `app_settings` and returns it as JSON. No other files, tables, functions, or config are touched.
 
-## Change (single file)
-**`src/components/staff/KitchenDisplaySystem.tsx`** — extend the existing customer name block only:
+## Verified
+- `app_settings.opening_hours` exists as `Json | null` (confirmed in `src/integrations/supabase/types.ts`), so the query and null-fallback in the provided code are valid.
 
-```tsx
-{/* Customer Name + Phone */}
-{order.customer_name && (
-  <div className="mb-2 mt-2">
-    <p className="text-sm font-medium text-primary leading-tight">
-      {order.customer_name}
-    </p>
-    {order.customer_phone && (
-      <a
-        href={`tel:${order.customer_phone}`}
-        className="text-xs text-muted-foreground tabular-nums tracking-wide hover:underline"
-      >
-        {order.customer_phone}
-      </a>
-    )}
-  </div>
-)}
-```
+## Change
+- **Create `supabase/functions/get-hours/index.ts`** with the exact code you supplied (uses `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, both already present as secrets). Always returns HTTP 200 with `{ opening_hours: ... }`, falling back to `null` on missing data or error. CORS preflight handled.
 
-Notes:
-- Wrapped in existing `customer_name` conditional → if no name, nothing changes (preserves current behavior).
-- Phone has its own truthy check → null/undefined/empty string render nothing (no "N/A").
-- `tel:` link is a small bonus for tablet use; harmless on desktop. Can drop to a plain `<p>` if undesired.
-- Uses existing semantic tokens (`text-muted-foreground`, `text-primary`) — no design-system drift.
-- Mobile/iPad safe: `text-xs` with leading-tight, no fixed widths, no overflow risk.
+## Notes
+- The function is Lovable-managed and deploys automatically with the default `verify_jwt = false`; no `supabase/config.toml` edit is needed.
+- Read-only: it only `SELECT`s from `app_settings`. No schema changes, no migrations, no edits to existing functions or frontend code.
 
-## Explicitly NOT touched
-- `useKitchenOrders.ts` query, types, realtime subscription, polling.
-- Order lifecycle, payment, n8n webhooks, printing, KDS workflow logic.
-- Database schema (no migration).
-- `PickupOrderCard` / customer-facing components.
-
-## Verification checklist
-1. Existing order with name + phone → both render, phone smaller/muted under name.
-2. Order with name but no phone → only name renders (no placeholder).
-3. Historical order with neither → block hidden as today.
-4. New realtime order → appears with phone immediately (existing refetch path).
-5. iPad viewport → no overflow, readable hierarchy.
-6. Dark mode → muted-foreground token already theme-aware.
+## Verification after build
+- Deploy `get-hours`, then call it and confirm it returns a 200 with the `opening_hours` JSON payload (or `{ opening_hours: null }` if unset).
