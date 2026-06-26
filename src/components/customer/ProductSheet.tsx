@@ -14,6 +14,7 @@ import { useProductAllergens } from '@/hooks/useProductAllergens';
 import { useCartStore } from '@/stores/cartStore';
 import { getIngredientAddonPrice, getModifierTotal, getLoadedFriesPrice, hasFriesLargeOption, getFriesLargeUpgradeDelta } from '@/lib/pricingRules';
 import { useIngredientPriceLookup } from '@/hooks/useIngredientPriceLookup';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { toast } from 'sonner';
 import { AllergenBadges } from './AllergenBadges';
 import { AllergenModal } from '@/components/ui/allergen-modal';
