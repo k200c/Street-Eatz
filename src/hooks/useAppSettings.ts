@@ -12,6 +12,7 @@ export interface AppSettings {
   card_payment_provider: 'viva' | 'mypos';
   online_payments_enabled: boolean;
   pay_on_collection_enabled: boolean;
+  flatbread_addon_enabled: boolean;
 }
 
 export function useAppSettings() {
