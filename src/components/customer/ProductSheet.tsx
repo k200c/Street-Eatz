@@ -329,7 +329,7 @@ export function ProductSheet({
     }
 
     // Add flatbread bread swap
-    if (flatbreadSelected) {
+    if (flatbreadSelected && flatbreadAddonEnabled) {
       allMods.push({
         id: BREAD_SWAP_FLATBREAD.id,
         name: BREAD_SWAP_FLATBREAD.name,
@@ -360,7 +360,7 @@ export function ProductSheet({
   const drinkPrice = (!isKidsMenu && drinksProducts?.find(p => p.id === selectedDrink)?.price) || 0;
   const selectedSauceProduct = saucesProducts?.find(p => p.id === selectedSauce);
   const saucePrice = selectedSauceProduct ? lookupPrice(selectedSauceProduct.name, product.category) : 0;
-  const flatbreadPrice = flatbreadSelected ? BREAD_SWAP_FLATBREAD.price : 0;
+  const flatbreadPrice = (flatbreadSelected && flatbreadAddonEnabled) ? BREAD_SWAP_FLATBREAD.price : 0;
   const makeLargeTotal = makeLargeSelected ? getFriesLargeUpgradeDelta(product) : 0;
   
   const totalPrice = (product.price + currentAddonsTotal + beefPattyTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice + flatbreadPrice + makeLargeTotal) * quantity;
