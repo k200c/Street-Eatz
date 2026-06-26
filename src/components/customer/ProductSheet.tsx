@@ -208,7 +208,6 @@ export function ProductSheet({
   // Fries get their own Make It Epic with just drinks + "Make it Large"
   const showFriesMakeItEpic = product.category === 'Fries';
   const showDropdowns = !isKidsMenu;
-  const { data: appSettings } = useAppSettings();
   const flatbreadAddonEnabled = appSettings?.flatbread_addon_enabled ?? true;
   const showFlatbreadOption =
     (product.category === 'Burgers' || product.category === 'Specials') && flatbreadAddonEnabled;
