@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard, Wifi, ShoppingBag } from 'lucide-react';
+import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard, Wifi, ShoppingBag, Sandwich } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
@@ -82,6 +82,15 @@ export default function CommandCenter() {
     }
   };
 
+  const handleFlatbreadToggle = async (enabled: boolean) => {
+    try {
+      await updateSettings.mutateAsync({ flatbread_addon_enabled: enabled });
+      toast.success(enabled ? 'Flatbread add-on ENABLED' : 'Flatbread add-on DISABLED');
+    } catch (error) {
+      toast.error('Failed to update flatbread add-on');
+    }
+  };
+
   if (loading || settingsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -97,6 +106,7 @@ export default function CommandCenter() {
   const activeProvider: CardProvider = (settings?.card_payment_provider === 'mypos' ? 'mypos' : 'viva');
   const onlinePaymentsEnabled = settings?.online_payments_enabled ?? true;
   const payOnCollectionEnabled = settings?.pay_on_collection_enabled ?? true;
+  const flatbreadAddonEnabled = settings?.flatbread_addon_enabled ?? true;
 
   const handleDevModeToggle = () => {
     const newValue = toggleDevMode();
@@ -280,6 +290,31 @@ export default function CommandCenter() {
                     <Switch
                       checked={payOnCollectionEnabled}
                       onCheckedChange={handlePayOnCollectionToggle}
+                      disabled={updateSettings.isPending}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Flatbread Add-on Card */}
+              <Card className="bg-card border-border mb-6">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Sandwich className="w-5 h-5 text-primary" />
+                    Flatbread Add-on
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Show the "Make it a Flatbread" option on Burgers &amp; Specials</p>
+                      <p className={`text-2xl font-bold ${flatbreadAddonEnabled ? 'text-green-400' : 'text-red-400'}`}>
+                        {flatbreadAddonEnabled ? 'ENABLED' : 'DISABLED'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={flatbreadAddonEnabled}
+                      onCheckedChange={handleFlatbreadToggle}
                       disabled={updateSettings.isPending}
                     />
                   </div>

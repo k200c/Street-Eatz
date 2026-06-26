@@ -12,6 +12,7 @@ export interface AppSettings {
   card_payment_provider: 'viva' | 'mypos';
   online_payments_enabled: boolean;
   pay_on_collection_enabled: boolean;
+  flatbread_addon_enabled: boolean;
 }
 
 export function useAppSettings() {
@@ -61,7 +62,7 @@ export function useUpdateAppSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (updates: Partial<Pick<AppSettings, 'is_store_open' | 'current_wait_time' | 'marketing_banner_text' | 'marketing_banner_enabled' | 'card_payment_provider' | 'online_payments_enabled' | 'pay_on_collection_enabled'>>) => {
+    mutationFn: async (updates: Partial<Pick<AppSettings, 'is_store_open' | 'current_wait_time' | 'marketing_banner_text' | 'marketing_banner_enabled' | 'card_payment_provider' | 'online_payments_enabled' | 'pay_on_collection_enabled' | 'flatbread_addon_enabled'>>) => {
       const { data, error } = await supabase
         .from('app_settings')
         .update({ ...updates, updated_at: new Date().toISOString() })

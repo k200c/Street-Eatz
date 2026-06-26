@@ -14,6 +14,7 @@ import { useProductAllergens } from '@/hooks/useProductAllergens';
 import { useCartStore } from '@/stores/cartStore';
 import { getIngredientAddonPrice, getModifierTotal, getLoadedFriesPrice, hasFriesLargeOption, getFriesLargeUpgradeDelta } from '@/lib/pricingRules';
 import { useIngredientPriceLookup } from '@/hooks/useIngredientPriceLookup';
+import { useAppSettings } from '@/hooks/useAppSettings';
 import { toast } from 'sonner';
 import { AllergenBadges } from './AllergenBadges';
 import { AllergenModal } from '@/components/ui/allergen-modal';
@@ -101,6 +102,7 @@ export function ProductSheet({
   const { data: saucesProducts } = useSauces();
   const { data: allergenData } = useProductAllergens(product?.id || null);
   const { lookupPrice, isInStock } = useIngredientPriceLookup();
+  const { data: appSettings } = useAppSettings();
 
   useEffect(() => {
     if (product) {
@@ -206,7 +208,9 @@ export function ProductSheet({
   // Fries get their own Make It Epic with just drinks + "Make it Large"
   const showFriesMakeItEpic = product.category === 'Fries';
   const showDropdowns = !isKidsMenu;
-  const showFlatbreadOption = product.category === 'Burgers' || product.category === 'Specials';
+  const flatbreadAddonEnabled = appSettings?.flatbread_addon_enabled ?? true;
+  const showFlatbreadOption =
+    (product.category === 'Burgers' || product.category === 'Specials') && flatbreadAddonEnabled;
   // Show beef patty stepper for non-Kids, non-Fries, non-Drinks, non-Sauces, non-Flatbreads
   const showBeefPattyStepper = showMakeItEpic && product.category !== 'Flatbreads';
 
@@ -325,7 +329,7 @@ export function ProductSheet({
     }
 
     // Add flatbread bread swap
-    if (flatbreadSelected) {
+    if (flatbreadSelected && flatbreadAddonEnabled) {
       allMods.push({
         id: BREAD_SWAP_FLATBREAD.id,
         name: BREAD_SWAP_FLATBREAD.name,
@@ -356,7 +360,7 @@ export function ProductSheet({
   const drinkPrice = (!isKidsMenu && drinksProducts?.find(p => p.id === selectedDrink)?.price) || 0;
   const selectedSauceProduct = saucesProducts?.find(p => p.id === selectedSauce);
   const saucePrice = selectedSauceProduct ? lookupPrice(selectedSauceProduct.name, product.category) : 0;
-  const flatbreadPrice = flatbreadSelected ? BREAD_SWAP_FLATBREAD.price : 0;
+  const flatbreadPrice = (flatbreadSelected && flatbreadAddonEnabled) ? BREAD_SWAP_FLATBREAD.price : 0;
   const makeLargeTotal = makeLargeSelected ? getFriesLargeUpgradeDelta(product) : 0;
   
   const totalPrice = (product.price + currentAddonsTotal + beefPattyTotal + extrasTotal + modifiersTotal + selectedLoadedFriesPrice + drinkPrice + saucePrice + flatbreadPrice + makeLargeTotal) * quantity;

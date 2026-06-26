@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           card_payment_provider: string
           current_wait_time: string
+          flatbread_addon_enabled: boolean
           id: number
           is_store_open: boolean
           marketing_banner_enabled: boolean | null
@@ -30,6 +31,7 @@ export type Database = {
         Insert: {
           card_payment_provider?: string
           current_wait_time?: string
+          flatbread_addon_enabled?: boolean
           id?: number
           is_store_open?: boolean
           marketing_banner_enabled?: boolean | null
@@ -42,6 +44,7 @@ export type Database = {
         Update: {
           card_payment_provider?: string
           current_wait_time?: string
+          flatbread_addon_enabled?: boolean
           id?: number
           is_store_open?: boolean
           marketing_banner_enabled?: boolean | null
