@@ -207,7 +207,10 @@ export function ProductSheet({
   // Fries get their own Make It Epic with just drinks + "Make it Large"
   const showFriesMakeItEpic = product.category === 'Fries';
   const showDropdowns = !isKidsMenu;
-  const showFlatbreadOption = product.category === 'Burgers' || product.category === 'Specials';
+  const { data: appSettings } = useAppSettings();
+  const flatbreadAddonEnabled = appSettings?.flatbread_addon_enabled ?? true;
+  const showFlatbreadOption =
+    (product.category === 'Burgers' || product.category === 'Specials') && flatbreadAddonEnabled;
   // Show beef patty stepper for non-Kids, non-Fries, non-Drinks, non-Sauces, non-Flatbreads
   const showBeefPattyStepper = showMakeItEpic && product.category !== 'Flatbreads';
 
