@@ -296,6 +296,31 @@ export default function CommandCenter() {
                 </CardContent>
               </Card>
 
+              {/* Flatbread Add-on Card */}
+              <Card className="bg-card border-border mb-6">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Sandwich className="w-5 h-5 text-primary" />
+                    Flatbread Add-on
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Show the "Make it a Flatbread" option on Burgers &amp; Specials</p>
+                      <p className={`text-2xl font-bold ${flatbreadAddonEnabled ? 'text-green-400' : 'text-red-400'}`}>
+                        {flatbreadAddonEnabled ? 'ENABLED' : 'DISABLED'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={flatbreadAddonEnabled}
+                      onCheckedChange={handleFlatbreadToggle}
+                      disabled={updateSettings.isPending}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card className="bg-card border-border">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-lg">
