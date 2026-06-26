@@ -102,6 +102,7 @@ export function ProductSheet({
   const { data: saucesProducts } = useSauces();
   const { data: allergenData } = useProductAllergens(product?.id || null);
   const { lookupPrice, isInStock } = useIngredientPriceLookup();
+  const { data: appSettings } = useAppSettings();
 
   useEffect(() => {
     if (product) {
