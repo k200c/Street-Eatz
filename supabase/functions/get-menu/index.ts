@@ -39,18 +39,25 @@ Deno.serve(async (req) => {
 
     let category: string | undefined;
     let queryText: string | undefined;
+    let includeUnavailable = false;
 
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       category = typeof body.category === "string" ? body.category.trim() : undefined;
       queryText = typeof body.query === "string" ? body.query.trim() : undefined;
+      includeUnavailable =
+        body.include_unavailable === true ||
+        (typeof body.include_unavailable === "string" &&
+          body.include_unavailable.toLowerCase() === "true");
     } else if (req.method === "GET") {
       const url = new URL(req.url);
       category = url.searchParams.get("category")?.trim() || undefined;
       queryText = url.searchParams.get("query")?.trim() || undefined;
+      includeUnavailable =
+        (url.searchParams.get("include_unavailable") || "").toLowerCase() === "true";
     }
 
-    console.log("[get-menu] Request received:", { category, queryText });
+    console.log("[get-menu] Request received:", { category, queryText, includeUnavailable });
 
     let normalizedCategory: string | undefined;
 
@@ -87,8 +94,11 @@ Deno.serve(async (req) => {
     let dbQuery = supabase
       .from("products")
       .select("name, price, description, category, is_available")
-      .eq("is_available", true)
       .order("name");
+
+    if (!includeUnavailable) {
+      dbQuery = dbQuery.eq("is_available", true);
+    }
 
     if (normalizedCategory) {
       dbQuery = dbQuery.eq("category", normalizedCategory);
