@@ -1,16 +1,33 @@
-# Add `get-hours` Edge Function
-
-Create one new Supabase Edge Function, `get-hours`, that reads the `opening_hours` column from `app_settings` and returns it as JSON. No other files, tables, functions, or config are touched.
-
-## Verified
-- `app_settings.opening_hours` exists as `Json | null` (confirmed in `src/integrations/supabase/types.ts`), so the query and null-fallback in the provided code are valid.
-
 ## Change
-- **Create `supabase/functions/get-hours/index.ts`** with the exact code you supplied (uses `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, both already present as secrets). Always returns HTTP 200 with `{ opening_hours: ... }`, falling back to `null` on missing data or error. CORS preflight handled.
 
-## Notes
-- The function is Lovable-managed and deploys automatically with the default `verify_jwt = false`; no `supabase/config.toml` edit is needed.
-- Read-only: it only `SELECT`s from `app_settings`. No schema changes, no migrations, no edits to existing functions or frontend code.
+Modify **only** `supabase/functions/get-menu/index.ts` to accept an optional `include_unavailable` boolean parameter.
 
-## Verification after build
-- Deploy `get-hours`, then call it and confirm it returns a 200 with the `opening_hours` JSON payload (or `{ opening_hours: null }` if unset).
+### Parsing
+- POST: read `body.include_unavailable`; coerce to boolean only if it's strictly `true` or `"true"`. Anything else (missing, null, unknown type, garbage string) → `false`.
+- GET: read `url.searchParams.get("include_unavailable")`; treat `"true"` (case-insensitive) as `true`, everything else as `false`.
+- Malformed input never throws — falls through to `false`.
+
+### Query logic
+- Default (`false`): keep the existing `.eq("is_available", true)` filter — behaviour identical to today.
+- `true`: skip the `.eq("is_available", true)` filter entirely, returning all products regardless of availability.
+- `category` and `query` filters continue to apply in both modes, unchanged.
+
+### Response
+- Shape, field names, ordering, `success`/`category`/`query`/`count`/`items` structure all unchanged.
+- `is_available` is already selected and mapped on every row (`p.is_available ?? true`), so it is present and accurate in both modes.
+- Status codes, CORS headers, and error handling unchanged.
+- Log line extended to include the new flag for debugging.
+
+### Config
+- No change to `supabase/config.toml` — `verify_jwt = false` stays as-is.
+
+## Out of scope (untouched)
+- `create-order`, `create-voice-order`, `get-hours`, `get-wait-time`, `get-order-status`, all other edge functions
+- Any frontend file, hook, or component
+- Any table, RLS policy, or migration
+
+## Verification
+After deploy, call the function three ways and confirm:
+1. No param → same count as today (available only).
+2. `include_unavailable=false` → same as (1).
+3. `include_unavailable=true` → count ≥ (1), and at least one row with `is_available: false` appears when unavailable products exist.
