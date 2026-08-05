@@ -362,6 +362,17 @@ export default function Auth() {
                       </div>
                     )}
 
+                    {!isSignUp && (
+                      <div className="text-right">
+                        <Link
+                          to="/forgot-password"
+                          className="text-primary text-sm hover:underline"
+                        >
+                          Forgot password?
+                        </Link>
+                      </div>
+                    )}
+
                     <Button
                       type="submit"
                       variant="glow"
