@@ -1,33 +1,22 @@
-## Change
+# Forgot Password Flow
 
-Modify **only** `supabase/functions/get-menu/index.ts` to accept an optional `include_unavailable` boolean parameter.
+Add a self-service password reset for customers, matching the existing Street Eatz dark/orange styling and mobile-first layout. No existing auth logic, tables, policies, or edge functions change.
 
-### Parsing
-- POST: read `body.include_unavailable`; coerce to boolean only if it's strictly `true` or `"true"`. Anything else (missing, null, unknown type, garbage string) → `false`.
-- GET: read `url.searchParams.get("include_unavailable")`; treat `"true"` (case-insensitive) as `true`, everything else as `false`.
-- Malformed input never throws — falls through to `false`.
+## What the user sees
 
-### Query logic
-- Default (`false`): keep the existing `.eq("is_available", true)` filter — behaviour identical to today.
-- `true`: skip the `.eq("is_available", true)` filter entirely, returning all products regardless of availability.
-- `category` and `query` filters continue to apply in both modes, unchanged.
+1. **Sign-in screen** — a small "Forgot password?" link under the password field (only in sign-in mode, hidden while signing up).
+2. **/forgot-password** — one email field, one submit button. After submit it always shows the same confirmation: "If an account exists for that email, we've sent a reset link. Please check your inbox and spam folder." The same message appears whether or not the email is registered, and even if the backend call errors, so nobody can use this page to discover which emails exist. The button is disabled while sending and stays disabled afterwards to stop double-sends.
+3. **/reset-password** — reached from the email link. Shows a short "verifying link" state, then new password + confirm password fields with live inline validation (min 8 characters, both must match). On success: a confirmation screen with a button to sign in.
+4. **Invalid / expired link** — a clear explanation plus a "Request a new link" button back to /forgot-password. Never a blank page or raw error text.
 
-### Response
-- Shape, field names, ordering, `success`/`category`/`query`/`count`/`items` structure all unchanged.
-- `is_available` is already selected and mapped on every row (`p.is_available ?? true`), so it is present and accurate in both modes.
-- Status codes, CORS headers, and error handling unchanged.
-- Log line extended to include the new flag for debugging.
+## Technical detail
 
-### Config
-- No change to `supabase/config.toml` — `verify_jwt = false` stays as-is.
+New files:
+- `src/pages/ForgotPassword.tsx` — email validated with the same zod pattern already used in Auth.tsx; calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/reset-password' })`. Result ignored for display purposes; a fixed ~600ms floor before showing the confirmation keeps timing uniform for existing vs unknown emails.
+- `src/pages/ResetPassword.tsx` — subscribes to `supabase.auth.onAuthStateChange`, accepts `PASSWORD_RECOVERY` or an `INITIAL_SESSION`/`SIGNED_IN` event carrying a session as proof of a valid recovery session; a ~6s timeout with no session switches to the expired-link state. Submit calls `supabase.auth.updateUser({ password })`; errors mentioning expired/invalid/same-password are mapped to friendly copy, expiry cases route to the expired-link state. On success it signs the recovery session out and navigates to `/auth`.
 
-## Out of scope (untouched)
-- `create-order`, `create-voice-order`, `get-hours`, `get-wait-time`, `get-order-status`, all other edge functions
-- Any frontend file, hook, or component
-- Any table, RLS policy, or migration
+Edited files:
+- `src/pages/Auth.tsx` — presentation only: add the "Forgot password?" link below the password field.
+- `src/App.tsx` — register `/forgot-password` and `/reset-password` as public routes (no AuthGuard), placed with the other public routes so the recovery session is not redirected away.
 
-## Verification
-After deploy, call the function three ways and confirm:
-1. No param → same count as today (available only).
-2. `include_unavailable=false` → same as (1).
-3. `include_unavailable=true` → count ≥ (1), and at least one row with `is_available: false` appears when unavailable products exist.
+Both pages reuse the existing card/logo/`variant="glow"` button treatment from Auth.tsx, `min-h-screen` with `h-12` inputs for touch targets, and `sonner` toasts only for non-sensitive feedback.
