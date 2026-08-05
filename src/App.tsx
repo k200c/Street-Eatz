@@ -13,6 +13,8 @@ import Menu from "./pages/Menu";
 import Cart from "./pages/Cart";
 import Account from "./pages/Account";
 import Auth from "./pages/Auth";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Details from "./pages/Details";
 import Profile from "./pages/Profile";
 import StaffPOS from "./pages/StaffPOS";
@@ -75,6 +77,8 @@ const [queryClient] = useState(() => new QueryClient({
                 {/* Public routes */}
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/menu" element={<Menu />} />
                 
                 {/* Customer routes - require auth */}
