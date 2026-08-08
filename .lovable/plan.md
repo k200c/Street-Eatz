@@ -1,37 +1,41 @@
-# Plan: Add `include_unavailable` to `get-menu` Edge Function
+# Plan: Filter Unpaid Web Orders from KDS
 
 ## Current State
-The requested behavior is already present in `supabase/functions/get-menu/index.ts`:
+- `useKitchenOrders.ts` fetches every non-`completed` order and groups them into `cooking`/`ready`/`pending_payment` buckets.
+- `KitchenDisplaySystem.tsx` renders the `cooking` and `ready` columns and applies an optional "Show Unpaid Only" toggle on top of those buckets.
+- `PaymentStatusBadge.tsx` treats both `paid` and `completed` as paid; the KDS card currently uses `payment_status !== 'paid'` to flag unpaid orders.
 
-- **POST parsing** (lines 48-51): `body.include_unavailable === true` or string `"true"` (case-insensitive) sets the flag to `true`; everything else defaults to `false`.
-- **GET parsing** (lines 56-57): `url.searchParams.get("include_unavailable")` compared lowercase to `"true"`; everything else defaults to `false`.
-- **Malformed input** (line 45): `req.json().catch(() => ({}))` swallows parse errors and falls through to `includeUnavailable = false`.
-- **Default behavior** (lines 99-101): when `includeUnavailable` is `false`, the existing `.eq("is_available", true)` filter is applied — identical to today’s behavior.
-- **When true** (lines 99-101): the availability filter is skipped, returning all products.
-- **`is_available` field** (line 126): included on every returned row.
-- **Other filters** (lines 103-109): `category` and `query` filters apply unchanged in both modes.
-- **Response / CORS / auth** (lines 138-149, 3-6, 36-38): unchanged.
+## Goal
+Hide web/card orders that have not been paid from the kitchen board. Orders should still appear if they are genuinely paid, cash/pay-on-collection, or voice/in-person.
 
-## Proposed Work
-No source-code changes are required. The plan is to verify the existing implementation with targeted tests:
+## Proposed Change
+Modify `src/components/staff/KitchenDisplaySystem.tsx` only.
 
-1. Run the existing Deno tests for `get-menu` (if present).
-2. If no tests exist, deploy the function and curl it with the following cases:
-   - POST with `include_unavailable: true` → expect unavailable products included.
-   - POST with `include_unavailable: "true"` → expect unavailable products included.
-   - POST with `include_unavailable: "True"` → expect unavailable products included.
-   - POST with `include_unavailable: false` → expect only available products.
-   - POST with `include_unavailable: "yes"` → expect only available products.
-   - POST with malformed JSON body → expect only available products, no 500.
-   - GET with `?include_unavailable=true` → expect unavailable products included.
-   - GET with `?include_unavailable=TRUE` → expect unavailable products included.
-   - GET with `?include_unavailable=false` → expect only available products.
-   - GET with `?include_unavailable=1` → expect only available products.
-3. Confirm `is_available` is present and accurate on every item in all responses.
-4. Confirm category and query filters still work with `include_unavailable=true`.
+1. Add a base eligibility filter that runs before the existing `showUnpaidOnly` toggle.
+   An order is eligible for the KDS kitchen tab if:
+   - `payment_status` is `'paid'` or `'completed'`, OR
+   - `payment_method` is `'cash'` (covers pay-on-collection and in-person cash), OR
+   - `order_channel` is `'voice'`.
+
+2. Apply this eligibility filter to both the `cooking` and `ready` arrays so unpaid web/card orders never render in the kitchen columns.
+
+3. Keep the existing `showUnpaidOnly` toggle working on the already-eligible subset (staff can still choose to see only the unpaid cash/voice orders if they want).
+
+4. Update the derived counts (`totalOrders`, `unpaidCount`) so the header badges reflect the filtered list.
+
+5. Leave `pending_payment` / pickup tab untouched — those are intentionally for orders awaiting payment.
 
 ## Files Touched
-None. Verification only.
+- `src/components/staff/KitchenDisplaySystem.tsx` only.
+
+## Verification
+- Build the project to ensure no TypeScript errors.
+- Open the KDS preview and confirm that:
+  - A paid web order (`payment_status = 'paid'`) appears.
+  - A cash order appears.
+  - A voice order appears.
+  - A web/card order with `payment_status = 'pending'` is hidden.
+  - The "Show Unpaid Only" toggle still filters the remaining eligible orders.
 
 ## Rollback
-Not applicable — no changes made.
+Revert the single change in `src/components/staff/KitchenDisplaySystem.tsx`.
