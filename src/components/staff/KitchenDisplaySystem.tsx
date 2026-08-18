@@ -243,6 +243,15 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
       >
         <Card className="bg-card border-2 border-border hover:border-primary/50 transition-colors">
           <CardContent className="p-3">
+            {/* Revealed-only marker: this ticket is normally hidden from the kitchen */}
+            {isHiddenUnpaid && (
+              <div className="mb-2 px-2 py-1 rounded bg-amber-500/20 border border-amber-500/60">
+                <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">
+                  Unpaid — not confirmed
+                </p>
+              </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
