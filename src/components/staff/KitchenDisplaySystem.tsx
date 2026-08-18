@@ -487,6 +487,7 @@ export function KitchenDisplaySystem() {
   const [checkoutOrder, setCheckoutOrder] = useState<KitchenOrder | null>(null);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
+  const [showHiddenUnpaid, setShowHiddenUnpaid] = useState(false);
 
   // Find full order data by ID
   const findOrderById = (orderId: string): KitchenOrder | undefined => {
@@ -494,10 +495,18 @@ export function KitchenDisplaySystem() {
       .find(order => order.id === orderId);
   };
 
-  // Filter orders based on unpaid toggle
+  // Step 1: kitchen eligibility — unpaid card (web) orders never reach the kitchen
+  // unless staff explicitly reveal them.
+  const applyEligibility = (orders: KitchenOrder[]) => {
+    if (showHiddenUnpaid) return orders;
+    return orders.filter(isKitchenEligible);
+  };
+
+  // Step 2: optional "unpaid only" view on top of the eligible set
   const filterOrders = (orders: KitchenOrder[]) => {
-    if (!showUnpaidOnly) return orders;
-    return orders.filter(order => order.payment_status !== 'paid');
+    const eligible = applyEligibility(orders);
+    if (!showUnpaidOnly) return eligible;
+    return eligible.filter(order => !isOrderPaid(order));
   };
 
   const filteredOrdersByStatus = {
@@ -505,6 +514,10 @@ export function KitchenDisplaySystem() {
     ready: filterOrders(ordersByStatus.ready),
     pending_payment: ordersByStatus.pending_payment
   };
+
+  // How many tickets the eligibility filter is currently suppressing
+  const hiddenCount = [...ordersByStatus.cooking, ...ordersByStatus.ready]
+    .filter(o => !isKitchenEligible(o)).length;
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus, skipWebhook = false) => {
     try {
@@ -611,14 +624,14 @@ export function KitchenDisplaySystem() {
     forceRefresh();
   };
 
-  const totalOrders = 
-    ordersByStatus.cooking.length + 
-    ordersByStatus.ready.length;
+  // Counts reflect what is actually on screen
+  const visibleCooking = applyEligibility(ordersByStatus.cooking);
+  const visibleReady = applyEligibility(ordersByStatus.ready);
 
-  const unpaidCount = [
-    ...ordersByStatus.cooking,
-    ...ordersByStatus.ready
-  ].filter(o => o.payment_status !== 'paid').length;
+  const totalOrders = visibleCooking.length + visibleReady.length;
+
+  const unpaidCount = [...visibleCooking, ...visibleReady]
+    .filter(o => !isOrderPaid(o)).length;
 
   const pickupCount = ordersByStatus.pending_payment.length;
 
