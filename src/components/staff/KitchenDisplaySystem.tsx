@@ -454,6 +454,7 @@ function KanbanColumn({ config, orders, onDrop, onDragOver, onStatusChange, onQu
                 e.dataTransfer.setData('orderId', o.id);
                 e.dataTransfer.setData('currentStatus', o.status || 'pending');
               }}
+              isHiddenUnpaid={!isKitchenEligible(order)}
             />
           ))}
         </AnimatePresence>
