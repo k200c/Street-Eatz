@@ -17,6 +17,22 @@ import { StaffCheckoutModal } from './StaffCheckoutModal';
 
 type OrderStatus = 'pending' | 'cooking' | 'ready' | 'completed' | 'pending_payment';
 
+// SINGLE SOURCE OF TRUTH for payment state in this file.
+// Production `payment_status` values: paid, completed, pending, unpaid, processing, failed.
+// Only these two mean money has actually been taken.
+const PAID_STATUSES = ['paid', 'completed'];
+
+const isOrderPaid = (order: Pick<KitchenOrder, 'payment_status'>): boolean =>
+  PAID_STATUSES.includes(order.payment_status ?? '');
+
+// An order may be shown to the kitchen if it is paid, or if it is a cash /
+// pay-on-collection order, or if it came in via the voice channel.
+// Unpaid card orders are abandoned/in-progress web checkouts, not real orders.
+const isKitchenEligible = (order: KitchenOrder): boolean =>
+  isOrderPaid(order) ||
+  order.payment_method !== 'card' ||
+  (order as { order_channel?: string | null }).order_channel === 'voice';
+
 interface ColumnConfig {
   status: OrderStatus;
   title: string;
@@ -52,10 +68,11 @@ interface OrderCardProps {
   onStatusChange: (orderId: string, newStatus: OrderStatus, skipWebhook?: boolean) => void;
   currentStatus: OrderStatus;
   onQuickPay?: (order: KitchenOrder) => void;
+  isHiddenUnpaid?: boolean;
 }
 
 const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
-  ({ order, onDragStart, onStatusChange, currentStatus, onQuickPay }, ref) => {
+  ({ order, onDragStart, onStatusChange, currentStatus, onQuickPay, isHiddenUnpaid = false }, ref) => {
     const [isUpdating, setIsUpdating] = useState(false);
     
     const timeAgo = order.created_at 
@@ -67,7 +84,7 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
       ? String(order.display_id).padStart(4, '0')
       : order.id.slice(-4).toUpperCase();
 
-    const isUnpaid = order.payment_status !== 'paid';
+    const isUnpaid = !isOrderPaid(order);
 
     // Parse modifiers from the structured payload
     interface ParsedModifiers {
