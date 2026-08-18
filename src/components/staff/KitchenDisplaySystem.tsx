@@ -696,6 +696,7 @@ export function KitchenDisplaySystem() {
 
             {/* Unpaid Filter Toggle */}
             {activeTab === 'kitchen' && (
+              <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50">
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <Label htmlFor="unpaid-filter" className="text-sm cursor-pointer flex items-center gap-2">
@@ -711,6 +712,25 @@ export function KitchenDisplaySystem() {
                   checked={showUnpaidOnly}
                   onCheckedChange={setShowUnpaidOnly}
                 />
+              </div>
+
+              {/* Reveal tickets suppressed by the payment filter */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50">
+                <EyeOff className="w-4 h-4 text-muted-foreground" />
+                <Label htmlFor="hidden-unpaid-filter" className="text-sm cursor-pointer flex items-center gap-2">
+                  Show Hidden Unpaid
+                  {hiddenCount > 0 && (
+                    <span className="bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                      {hiddenCount}
+                    </span>
+                  )}
+                </Label>
+                <Switch
+                  id="hidden-unpaid-filter"
+                  checked={showHiddenUnpaid}
+                  onCheckedChange={setShowHiddenUnpaid}
+                />
+              </div>
               </div>
             )}
           </div>
