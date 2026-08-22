@@ -521,8 +521,9 @@ export function KitchenDisplaySystem() {
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus, skipWebhook = false) => {
     try {
-      // Only send webhook for "Mark Ready" action (cooking -> ready)
-      if (!skipWebhook && newStatus === 'ready') {
+      // Send webhook for cooking and ready status changes (cooking->ready via
+      // "Mark Ready", and any drag-to-cooking). Completed orders never notify.
+      if (!skipWebhook && (newStatus === 'cooking' || newStatus === 'ready')) {
         // FETCH-THEN-SEND: Get fresh order data directly from database
         const { data: freshOrder, error: fetchError } = await supabase
           .from('orders')
