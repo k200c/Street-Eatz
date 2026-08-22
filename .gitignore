@@ -22,5 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+<<<<<<< HEAD
 files/ 
 media/ 
+=======
+.env
+ 1f8775c01d712035f6474a86cc1dfba3521a5e2e

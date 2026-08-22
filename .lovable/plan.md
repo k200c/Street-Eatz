@@ -1,51 +1,50 @@
-## Goal
-Show `customer_phone` directly beneath `customer_name` on each KDS order card so kitchen staff can quickly contact customers.
+# Plan: Remove duplicate KDS status notifications (double SMS)
 
-## Investigation summary
-- Order card renders in `src/components/staff/KitchenDisplaySystem.tsx` (around line 265, the `{order.customer_name && ...}` block).
-- Orders are fetched in `src/hooks/useKitchenOrders.ts` via `supabase.from('orders').select('*')` — `customer_phone` is **already** present on every order object (confirmed: `orders.customer_phone` exists in schema and is used elsewhere in the same file at line 479).
-- Realtime subscription already refetches on INSERT/UPDATE, so new orders will include the phone automatically.
-- No DB migration, no query change, no type change required.
+## Problem
+On "Mark Ready", the customer receives **two** SMS:
+1. `useKitchenOrders.ts` `updateOrderStatus` mutation POSTs directly to the
+   hardcoded `N8N_STATUS_URL` (public, unauthenticated n8n webhook).
+2. `KitchenDisplaySystem.tsx` `handleStatusChange` invokes the authenticated
+   `update-order-status` edge function.
 
-## Change (single file)
-**`src/components/staff/KitchenDisplaySystem.tsx`** — extend the existing customer name block only:
+Both send a `status_update` payload to the same n8n Order Ingestion workflow,
+so n8n fires the SMS twice.
 
-```tsx
-{/* Customer Name + Phone */}
-{order.customer_name && (
-  <div className="mb-2 mt-2">
-    <p className="text-sm font-medium text-primary leading-tight">
-      {order.customer_name}
-    </p>
-    {order.customer_phone && (
-      <a
-        href={`tel:${order.customer_phone}`}
-        className="text-xs text-muted-foreground tabular-nums tracking-wide hover:underline"
-      >
-        {order.customer_phone}
-      </a>
-    )}
-  </div>
-)}
-```
+## Scope — exactly two files, no other changes
 
-Notes:
-- Wrapped in existing `customer_name` conditional → if no name, nothing changes (preserves current behavior).
-- Phone has its own truthy check → null/undefined/empty string render nothing (no "N/A").
-- `tel:` link is a small bonus for tablet use; harmless on desktop. Can drop to a plain `<p>` if undesired.
-- Uses existing semantic tokens (`text-muted-foreground`, `text-primary`) — no design-system drift.
-- Mobile/iPad safe: `text-xs` with leading-tight, no fixed widths, no overflow risk.
+### File 1 — `src/hooks/useKitchenOrders.ts`
+- **Delete** the `N8N_STATUS_URL` constant (lines 7-8, including the comment).
+- **Delete** the entire webhook block inside `updateOrderStatus`
+  (lines 131-167): the `if (['cooking', 'ready'].includes(status))` branch,
+  the `fetch(N8N_STATUS_URL, …)` call, the toast warnings, and the try/catch.
+- The mutation becomes: build `updatePayload` → `supabase.from('orders').update(...)` → `.select(...)` → return `data`. No network call to n8n.
+- Keep `onSuccess` (invalidate `kitchen-orders`) and `onError` (toast) unchanged.
+- `toast` import is still used by `onError`, so leave the import.
 
-## Explicitly NOT touched
-- `useKitchenOrders.ts` query, types, realtime subscription, polling.
-- Order lifecycle, payment, n8n webhooks, printing, KDS workflow logic.
-- Database schema (no migration).
-- `PickupOrderCard` / customer-facing components.
+### File 2 — `src/components/staff/KitchenDisplaySystem.tsx`
+- In `handleStatusChange`, change the guard (line 525) from
+  `if (!skipWebhook && newStatus === 'ready')` to
+  `if (!skipWebhook && (newStatus === 'cooking' || newStatus === 'ready'))`.
+- This restores the `'cooking'` notification that the hook used to send (now via
+  the authenticated edge function instead of the public webhook), and keeps the
+  `'ready'` notification as the single source of SMS.
+- No other logic in `handleStatusChange` changes (fetch-then-send pattern,
+  edge function invocation, DB mutation call, toast labels all stay).
 
-## Verification checklist
-1. Existing order with name + phone → both render, phone smaller/muted under name.
-2. Order with name but no phone → only name renders (no placeholder).
-3. Historical order with neither → block hidden as today.
-4. New realtime order → appears with phone immediately (existing refetch path).
-5. iPad viewport → no overflow, readable hierarchy.
-6. Dark mode → muted-foreground token already theme-aware.
+## Why this is safe
+- The edge function `update-order-status` already authenticates the staff user
+  via `has_role()` and forwards to the same n8n webhook using the
+  `N8N_STATUS_WEBHOOK_URL` secret — it is the correct single channel.
+- `OrderCard.handleAction` sets `skipWebhook = currentStatus !== 'cooking'`,
+  so the only card-driven notifications are cooking→ready (`skipWebhook=false`,
+  fires for `'ready'`) and ready→completed / quick-complete (`skipWebhook=true`,
+  no notification). Drag-to-`'cooking'` will now correctly notify via the edge
+  function, matching the hook's former behavior.
+- Completed orders never notify (skipWebhook=true from cards; the new
+  condition excludes `'completed'`).
+
+## Verification
+- After edits, check `/tmp/observability/build-errors.log` — expect "build OK".
+- Confirm no remaining references to `N8N_STATUS_URL` in `src/`:
+  `rg N8N_STATUS_URL src/` returns nothing.
+- Confirm `updateOrderStatus` no longer imports/uses the removed webhook.

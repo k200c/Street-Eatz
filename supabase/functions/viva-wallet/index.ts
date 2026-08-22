@@ -409,6 +409,22 @@ serve(async (req) => {
       }
 
       case 'webhook': {
+        // Shared-secret auth: the orderCode is exposed to the customer's browser
+        // during checkout, so this endpoint must not accept unauthenticated
+        // payment-confirmations. Mirrors the guard in confirm-payment/index.ts.
+        const expectedSecret = Deno.env.get("N8N_WEBHOOK_SECRET");
+        if (!expectedSecret) {
+          console.error("N8N_WEBHOOK_SECRET not configured");
+          return new Response(JSON.stringify({ error: "Server misconfiguration" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        const authHeader = req.headers.get("Authorization");
+        if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
+          console.warn("Unauthorized viva-wallet webhook attempt");
+          return new Response(JSON.stringify({ error: "Unauthorized" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
         // Handle Viva Wallet webhook for payment confirmation
         const { orderCode, transactionId, statusId } = data;
 

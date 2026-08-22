@@ -1,6 +1,6 @@
 import React, { useState, DragEvent, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChefHat, Clock, Volume2, VolumeX, GripVertical, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag, Filter } from 'lucide-react';
+import { ChefHat, Clock, Volume2, VolumeX, GripVertical, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag, Filter, EyeOff } from 'lucide-react';
 import { useKitchenOrders, KitchenOrder } from '@/hooks/useKitchenOrders';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,22 @@ import { PaymentStatusBadge } from './PaymentStatusBadge';
 import { StaffCheckoutModal } from './StaffCheckoutModal';
 
 type OrderStatus = 'pending' | 'cooking' | 'ready' | 'completed' | 'pending_payment';
+
+// SINGLE SOURCE OF TRUTH for payment state in this file.
+// Production `payment_status` values: paid, completed, pending, unpaid, processing, failed.
+// Only these two mean money has actually been taken.
+const PAID_STATUSES = ['paid', 'completed'];
+
+const isOrderPaid = (order: Pick<KitchenOrder, 'payment_status'>): boolean =>
+  PAID_STATUSES.includes(order.payment_status ?? '');
+
+// An order may be shown to the kitchen if it is paid, or if it is a cash /
+// pay-on-collection order, or if it came in via the voice channel.
+// Unpaid card orders are abandoned/in-progress web checkouts, not real orders.
+const isKitchenEligible = (order: KitchenOrder): boolean =>
+  isOrderPaid(order) ||
+  order.payment_method !== 'card' ||
+  (order as { order_channel?: string | null }).order_channel === 'voice';
 
 interface ColumnConfig {
   status: OrderStatus;
@@ -52,10 +68,11 @@ interface OrderCardProps {
   onStatusChange: (orderId: string, newStatus: OrderStatus, skipWebhook?: boolean) => void;
   currentStatus: OrderStatus;
   onQuickPay?: (order: KitchenOrder) => void;
+  isHiddenUnpaid?: boolean;
 }
 
 const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
-  ({ order, onDragStart, onStatusChange, currentStatus, onQuickPay }, ref) => {
+  ({ order, onDragStart, onStatusChange, currentStatus, onQuickPay, isHiddenUnpaid = false }, ref) => {
     const [isUpdating, setIsUpdating] = useState(false);
     
     const timeAgo = order.created_at 
@@ -67,7 +84,7 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
       ? String(order.display_id).padStart(4, '0')
       : order.id.slice(-4).toUpperCase();
 
-    const isUnpaid = order.payment_status !== 'paid';
+    const isUnpaid = !isOrderPaid(order);
 
     // Parse modifiers from the structured payload
     interface ParsedModifiers {
@@ -226,6 +243,15 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
       >
         <Card className="bg-card border-2 border-border hover:border-primary/50 transition-colors">
           <CardContent className="p-3">
+            {/* Revealed-only marker: this ticket is normally hidden from the kitchen */}
+            {isHiddenUnpaid && (
+              <div className="mb-2 px-2 py-1 rounded bg-amber-500/20 border border-amber-500/60">
+                <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">
+                  Unpaid — not confirmed
+                </p>
+              </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -428,6 +454,7 @@ function KanbanColumn({ config, orders, onDrop, onDragOver, onStatusChange, onQu
                 e.dataTransfer.setData('orderId', o.id);
                 e.dataTransfer.setData('currentStatus', o.status || 'pending');
               }}
+              isHiddenUnpaid={!isKitchenEligible(order)}
             />
           ))}
         </AnimatePresence>
@@ -460,6 +487,7 @@ export function KitchenDisplaySystem() {
   const [checkoutOrder, setCheckoutOrder] = useState<KitchenOrder | null>(null);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
+  const [showHiddenUnpaid, setShowHiddenUnpaid] = useState(false);
 
   // Find full order data by ID
   const findOrderById = (orderId: string): KitchenOrder | undefined => {
@@ -467,10 +495,18 @@ export function KitchenDisplaySystem() {
       .find(order => order.id === orderId);
   };
 
-  // Filter orders based on unpaid toggle
+  // Step 1: kitchen eligibility — unpaid card (web) orders never reach the kitchen
+  // unless staff explicitly reveal them.
+  const applyEligibility = (orders: KitchenOrder[]) => {
+    if (showHiddenUnpaid) return orders;
+    return orders.filter(isKitchenEligible);
+  };
+
+  // Step 2: optional "unpaid only" view on top of the eligible set
   const filterOrders = (orders: KitchenOrder[]) => {
-    if (!showUnpaidOnly) return orders;
-    return orders.filter(order => order.payment_status !== 'paid');
+    const eligible = applyEligibility(orders);
+    if (!showUnpaidOnly) return eligible;
+    return eligible.filter(order => !isOrderPaid(order));
   };
 
   const filteredOrdersByStatus = {
@@ -478,6 +514,10 @@ export function KitchenDisplaySystem() {
     ready: filterOrders(ordersByStatus.ready),
     pending_payment: ordersByStatus.pending_payment
   };
+
+  // How many tickets the eligibility filter is currently suppressing
+  const hiddenCount = [...ordersByStatus.cooking, ...ordersByStatus.ready]
+    .filter(o => !isKitchenEligible(o)).length;
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus, skipWebhook = false) => {
     try {
@@ -584,14 +624,14 @@ export function KitchenDisplaySystem() {
     forceRefresh();
   };
 
-  const totalOrders = 
-    ordersByStatus.cooking.length + 
-    ordersByStatus.ready.length;
+  // Counts reflect what is actually on screen
+  const visibleCooking = applyEligibility(ordersByStatus.cooking);
+  const visibleReady = applyEligibility(ordersByStatus.ready);
 
-  const unpaidCount = [
-    ...ordersByStatus.cooking,
-    ...ordersByStatus.ready
-  ].filter(o => o.payment_status !== 'paid').length;
+  const totalOrders = visibleCooking.length + visibleReady.length;
+
+  const unpaidCount = [...visibleCooking, ...visibleReady]
+    .filter(o => !isOrderPaid(o)).length;
 
   const pickupCount = ordersByStatus.pending_payment.length;
 
@@ -656,6 +696,7 @@ export function KitchenDisplaySystem() {
 
             {/* Unpaid Filter Toggle */}
             {activeTab === 'kitchen' && (
+              <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50">
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <Label htmlFor="unpaid-filter" className="text-sm cursor-pointer flex items-center gap-2">
@@ -671,6 +712,25 @@ export function KitchenDisplaySystem() {
                   checked={showUnpaidOnly}
                   onCheckedChange={setShowUnpaidOnly}
                 />
+              </div>
+
+              {/* Reveal tickets suppressed by the payment filter */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50">
+                <EyeOff className="w-4 h-4 text-muted-foreground" />
+                <Label htmlFor="hidden-unpaid-filter" className="text-sm cursor-pointer flex items-center gap-2">
+                  Show Hidden Unpaid
+                  {hiddenCount > 0 && (
+                    <span className="bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                      {hiddenCount}
+                    </span>
+                  )}
+                </Label>
+                <Switch
+                  id="hidden-unpaid-filter"
+                  checked={showHiddenUnpaid}
+                  onCheckedChange={setShowHiddenUnpaid}
+                />
+              </div>
               </div>
             )}
           </div>

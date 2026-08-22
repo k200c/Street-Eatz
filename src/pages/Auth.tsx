@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -359,6 +359,17 @@ export default function Auth() {
                             className="h-12 pl-10 bg-secondary"
                           />
                         </div>
+                      </div>
+                    )}
+
+                    {!isSignUp && (
+                      <div className="text-right">
+                        <Link
+                          to="/forgot-password"
+                          className="text-primary text-sm hover:underline"
+                        >
+                          Forgot password?
+                        </Link>
                       </div>
                     )}
 

@@ -28,6 +28,8 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   const { submitOrder, sendToKitchen, clearCart, isSubmitting, isSendingToKitchen, total, items } = useCheckout();
   const { data: appSettings } = useAppSettings();
   const onlinePaymentsEnabled = appSettings?.online_payments_enabled ?? true;
+  const payOnCollectionEnabled = appSettings?.pay_on_collection_enabled ?? true;
+  const noPaymentMethods = !onlinePaymentsEnabled && !payOnCollectionEnabled;
   
   const [step, setStep] = useState<Step>('details');
   const [customerName, setCustomerName] = useState('');
@@ -357,6 +359,13 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
     // Prevent duplicate submissions
     if (isProcessingPayment) return;
 
+    // Guard: Pay on Collection must be enabled (blocks manipulated / stale-state submissions).
+    // The DB trigger is the hard backstop; this prevents a wasted round-trip and shows a clear message.
+    if (!payOnCollectionEnabled) {
+      toast.error('Pay on Collection is currently unavailable. Please use card payment.');
+      return;
+    }
+
     // Verify session before proceeding
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -570,6 +579,15 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                   </div>
                 </div>
 
+                {/* No payment methods available */}
+                {noPaymentMethods && (
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-destructive text-sm text-center leading-relaxed">
+                      Ordering is temporarily unavailable because no payment methods are currently enabled. Please try again shortly.
+                    </p>
+                  </div>
+                )}
+
                 {onlinePaymentsEnabled && (
                   <>
                     {/* Email required notice for card payments */}
@@ -600,22 +618,24 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                 )}
 
                 {/* Pay on Collection */}
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full h-16"
-                  onClick={handlePayOnCollection}
-                  disabled={isButtonDisabled}
-                >
-                  {isButtonDisabled ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                  ) : (
-                    <>
-                      <ShoppingBag className="w-6 h-6 mr-3" />
-                      PAY ON COLLECTION
-                    </>
-                  )}
-                </Button>
+                {payOnCollectionEnabled && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="w-full h-16"
+                    onClick={handlePayOnCollection}
+                    disabled={isButtonDisabled}
+                  >
+                    {isButtonDisabled ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <>
+                        <ShoppingBag className="w-6 h-6 mr-3" />
+                        PAY ON COLLECTION
+                      </>
+                    )}
+                  </Button>
+                )}
 
                 {/* Compliance disclaimer */}
                 <p className="text-xs text-muted-foreground text-center px-2 leading-relaxed">

@@ -18,31 +18,40 @@ export type Database = {
         Row: {
           card_payment_provider: string
           current_wait_time: string
+          flatbread_addon_enabled: boolean
           id: number
           is_store_open: boolean
           marketing_banner_enabled: boolean | null
           marketing_banner_text: string | null
           online_payments_enabled: boolean
+          opening_hours: Json | null
+          pay_on_collection_enabled: boolean
           updated_at: string | null
         }
         Insert: {
           card_payment_provider?: string
           current_wait_time?: string
+          flatbread_addon_enabled?: boolean
           id?: number
           is_store_open?: boolean
           marketing_banner_enabled?: boolean | null
           marketing_banner_text?: string | null
           online_payments_enabled?: boolean
+          opening_hours?: Json | null
+          pay_on_collection_enabled?: boolean
           updated_at?: string | null
         }
         Update: {
           card_payment_provider?: string
           current_wait_time?: string
+          flatbread_addon_enabled?: boolean
           id?: number
           is_store_open?: boolean
           marketing_banner_enabled?: boolean | null
           marketing_banner_text?: string | null
           online_payments_enabled?: boolean
+          opening_hours?: Json | null
+          pay_on_collection_enabled?: boolean
           updated_at?: string | null
         }
         Relationships: []
