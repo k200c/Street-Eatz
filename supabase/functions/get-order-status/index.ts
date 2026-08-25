@@ -13,6 +13,12 @@ const STATUS_MESSAGES: Record<string, string> = {
   'pending_payment': 'Awaiting payment confirmation'
 };
 
+// Escape LIKE wildcards so an ilike comparison is an exact case-insensitive
+// match rather than a pattern the caller controls.
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 function normalizePhone(phone: string): string {
   // Remove all non-digit characters except +
   let normalized = phone.replace(/[^\d+]/g, '');
@@ -37,9 +43,35 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Verify shared secret from n8n
+    const authHeader = req.headers.get('Authorization');
+    const expectedSecret = Deno.env.get('N8N_WEBHOOK_SECRET');
+
+    if (!expectedSecret) {
+      console.error('[get-order-status] N8N_WEBHOOK_SECRET not configured');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Server configuration error' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
+      console.error('[get-order-status] Unauthorized: Invalid or missing authorization');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Parse request body
@@ -58,16 +90,17 @@ Deno.serve(async (req) => {
 
     console.log('[get-order-status] Request received:', { phoneNumber: phoneNumber ? '***' : undefined, customerName });
 
-    // Validate input
-    if (!phoneNumber && !customerName) {
+    // Validate input. A phone number is always required — a name may be supplied
+    // alongside it to narrow the match, but never on its own.
+    if (!phoneNumber) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Please provide either phone_number or customer_name'
+          error: 'Please provide phone_number'
         }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -79,13 +112,13 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (phoneNumber) {
-      const normalizedPhone = normalizePhone(phoneNumber);
-      console.log('[get-order-status] Searching by phone:', normalizedPhone);
-      query = query.eq('customer_phone', normalizedPhone);
-    } else if (customerName) {
-      console.log('[get-order-status] Searching by name:', customerName);
-      query = query.ilike('customer_name', `%${customerName}%`);
+    const normalizedPhone = normalizePhone(phoneNumber);
+    console.log('[get-order-status] Searching by phone:', normalizedPhone);
+    query = query.eq('customer_phone', normalizedPhone);
+
+    if (customerName) {
+      console.log('[get-order-status] Narrowing by name:', customerName);
+      query = query.ilike('customer_name', escapeLikePattern(customerName));
     }
 
     const { data: orders, error } = await query;
