@@ -24,11 +24,6 @@ const GOOGLE_REVIEW_URL = import.meta.env.VITE_GOOGLE_REVIEW_URL as string | und
 
 type Screen = 'loading' | 'invalid' | 'already_rated' | 'rate' | 'done';
 
-interface OrderItem {
-  name: string;
-  quantity: number;
-}
-
 interface SubmitResult {
   ok?: boolean;
   rating?: number;
@@ -36,19 +31,24 @@ interface SubmitResult {
   needs_callback?: boolean;
 }
 
-/** The RPC's item shape is not pinned in this repo — accept the likely keys. */
-function normaliseItems(raw: unknown): OrderItem[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const item = entry as Record<string, unknown>;
-      const name = item.name ?? item.product_name ?? item.title;
-      const quantity = item.quantity ?? item.qty ?? 1;
-      if (typeof name !== 'string' || !name.trim()) return null;
-      return { name: name.trim(), quantity: Number(quantity) || 1 };
-    })
-    .filter((item): item is OrderItem => item !== null);
+/**
+ * Drop the token from the address bar and this history entry as soon as the
+ * context call resolves. It is held in memory for the rest of the session, so
+ * removing it costs nothing and keeps it out of browser history, the back
+ * stack, screenshots the customer might share, and any Referer header.
+ *
+ * React Router is not notified (replaceState fires no popstate), so the
+ * already-matched route keeps rendering. A refresh lands on the bare /rate
+ * route, which shows the expired state.
+ */
+function stripTokenFromUrl() {
+  try {
+    if (window.location.pathname.startsWith('/rate/')) {
+      window.history.replaceState(null, '', '/rate');
+    }
+  } catch {
+    // Some in-app browsers block history writes. Non-fatal.
+  }
 }
 
 /**
@@ -104,7 +104,7 @@ export default function RateOrder() {
 
   const [screen, setScreen] = useState<Screen>('loading');
   const [displayId, setDisplayId] = useState<number | null>(null);
-  const [items, setItems] = useState<OrderItem[]>([]);
+  const [items, setItems] = useState('');
   const [rating, setRating] = useState<number | null>(null);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -131,16 +131,22 @@ export default function RateOrder() {
 
         if (cancelled) return;
 
+        // The token has done its job — take it out of the URL and history.
+        stripTokenFromUrl();
+
         if (error || !data || data.valid !== true) {
           setScreen('invalid');
           return;
         }
 
         setDisplayId(typeof data.display_id === 'number' ? data.display_id : null);
-        setItems(normaliseItems(data.items));
+        // items is a pre-joined display string, e.g. "1x Smash Burger, 1x Chips".
+        setItems(typeof data.items === 'string' ? data.items : '');
         setScreen(data.already_rated === true ? 'already_rated' : 'rate');
       } catch {
-        if (!cancelled) setScreen('invalid');
+        if (cancelled) return;
+        stripTokenFromUrl();
+        setScreen('invalid');
       }
     };
 
@@ -274,21 +280,15 @@ export default function RateOrder() {
           <p className="mt-2 text-sm text-muted-foreground">One tap. That's it.</p>
         </div>
 
-        {(displayId || items.length > 0) && (
+        {(displayId || items) && (
           <div className="street-card mt-6 p-4">
             {displayId && (
               <p className="font-heading text-lg font-bold text-primary">
                 #{String(displayId).padStart(4, '0')}
               </p>
             )}
-            {items.length > 0 && (
-              <ul className="mt-1 space-y-0.5">
-                {items.map((item, index) => (
-                  <li key={index} className="text-sm text-muted-foreground">
-                    {item.quantity}× {item.name}
-                  </li>
-                ))}
-              </ul>
+            {items && (
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{items}</p>
             )}
           </div>
         )}

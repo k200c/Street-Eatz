@@ -83,8 +83,11 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/menu" element={<Menu />} />
 
                 {/* Post-order rating from an SMS link. Public, no auth, no layout —
-                    the token in the path is the only credential. */}
+                    the token in the path is the only credential. The page strips
+                    the token from the URL once loaded, so /rate is the landing
+                    spot on refresh and shows the expired state. */}
                 <Route path="/rate/:token" element={<RateOrder />} />
+                <Route path="/rate" element={<RateOrder />} />
                 
                 {/* Customer routes - require auth */}
                 <Route path="/cart" element={<AuthGuard><Cart /></AuthGuard>} />
