@@ -15,6 +15,7 @@ import Account from "./pages/Account";
 import Auth from "./pages/Auth";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import RateOrder from "./pages/RateOrder";
 import Details from "./pages/Details";
 import Profile from "./pages/Profile";
 import StaffPOS from "./pages/StaffPOS";
@@ -80,6 +81,10 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/menu" element={<Menu />} />
+
+                {/* Post-order rating from an SMS link. Public, no auth, no layout —
+                    the token in the path is the only credential. */}
+                <Route path="/rate/:token" element={<RateOrder />} />
                 
                 {/* Customer routes - require auth */}
                 <Route path="/cart" element={<AuthGuard><Cart /></AuthGuard>} />

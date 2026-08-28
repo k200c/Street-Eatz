@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.mark-review-sms-sent]
 verify_jwt = false
+
+# Public by design: called by an unauthenticated customer following a tokenised
+# link from an order SMS. The feedback token is the credential, validated inside
+# the function by SECURITY DEFINER RPCs. No order_id/phone/display_id lookup.
+[functions.feedback]
+verify_jwt = false
