@@ -32,24 +32,10 @@ interface SubmitResult {
 }
 
 /**
- * Drop the token from the address bar and this history entry as soon as the
- * context call resolves. It is held in memory for the rest of the session, so
- * removing it costs nothing and keeps it out of browser history, the back
- * stack, screenshots the customer might share, and any Referer header.
- *
- * React Router is not notified (replaceState fires no popstate), so the
- * already-matched route keeps rendering. A refresh lands on the bare /rate
- * route, which shows the expired state.
+ * The token stays in the URL for the life of the page. Outbound links carry
+ * rel="noreferrer", which closes the only meaningful leak; removing it from the
+ * address bar as well would break a mid-rating refresh for no further gain.
  */
-function stripTokenFromUrl() {
-  try {
-    if (window.location.pathname.startsWith('/rate/')) {
-      window.history.replaceState(null, '', '/rate');
-    }
-  } catch {
-    // Some in-app browsers block history writes. Non-fatal.
-  }
-}
 
 /**
  * The page URL carries the feedback token, so every outbound link uses
@@ -131,9 +117,6 @@ export default function RateOrder() {
 
         if (cancelled) return;
 
-        // The token has done its job — take it out of the URL and history.
-        stripTokenFromUrl();
-
         if (error || !data || data.valid !== true) {
           setScreen('invalid');
           return;
@@ -144,9 +127,7 @@ export default function RateOrder() {
         setItems(typeof data.items === 'string' ? data.items : '');
         setScreen(data.already_rated === true ? 'already_rated' : 'rate');
       } catch {
-        if (cancelled) return;
-        stripTokenFromUrl();
-        setScreen('invalid');
+        if (!cancelled) setScreen('invalid');
       }
     };
 
