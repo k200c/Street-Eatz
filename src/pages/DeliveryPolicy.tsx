@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { FooterInfoBar } from "@/components/layout/FooterInfoBar";
+import { clientConfig, clientLegalLastUpdated } from "@/config/client";
 
 const DeliveryPolicy = () => {
   return (
@@ -14,7 +15,7 @@ const DeliveryPolicy = () => {
           </h1>
 
           <p className="text-muted-foreground text-sm mb-8">
-            Last updated: {new Date().toLocaleDateString('en-IE', { month: 'long', day: 'numeric', year: 'numeric' })}
+            Last updated: {clientLegalLastUpdated}
           </p>
 
           <div className="space-y-8 text-foreground">
@@ -25,9 +26,8 @@ const DeliveryPolicy = () => {
                 for in-person pickup at:
               </p>
               <div className="p-4 bg-card/50 border border-border rounded-lg text-muted-foreground">
-                <p className="text-foreground font-semibold">Street Eatz Waterford</p>
-                <p>Crystal Sports and Leisure Centre, Cork Rd</p>
-                <p>Waterford, X91 E6PX, Ireland</p>
+                <p className="text-foreground font-semibold">{clientConfig.legalName}</p>
+                {clientConfig.addressLines.map((line) => <p key={line}>{line}</p>)}
               </div>
               <p className="text-muted-foreground leading-relaxed mt-3">
                 Collection is available during our normal opening hours: Thursday &ndash; Friday 12pm&ndash;7pm
@@ -46,7 +46,7 @@ const DeliveryPolicy = () => {
                 <li>Orders placed via these platforms are fulfilled by their own couriers.</li>
                 <li>The delivery itself is governed by the platform's own terms and conditions.</li>
                 <li>
-                  Once an order has been collected by a third-party courier, Street Eatz Waterford is{" "}
+                  Once an order has been collected by a third-party courier, {clientConfig.legalName} is{" "}
                   <strong className="text-foreground">not liable</strong> for any delay, damage in transit,
                   loss, or non-delivery.
                 </li>
@@ -75,7 +75,7 @@ const DeliveryPolicy = () => {
               <h2 className="font-heading text-xl text-primary mb-3">4. CUSTOMER RESPONSIBILITY AFTER PICKUP / DELIVERY</h2>
               <p className="text-muted-foreground leading-relaxed">
                 Once an order has been handed to you (collection) or to a third-party courier (delivery),
-                responsibility for the food passes from Street Eatz Waterford. Please consume your food promptly
+                responsibility for the food passes from {clientConfig.legalName}. Please consume your food promptly
                 for the best quality and food-safety experience. We cannot be held responsible for issues caused by
                 food being left uneaten for extended periods after collection or delivery.
               </p>
@@ -93,11 +93,9 @@ const DeliveryPolicy = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">6. CONTACT</h2>
               <div className="mt-3 p-4 bg-card/50 border border-border rounded-lg">
-                <p className="text-foreground font-semibold">Street Eatz Waterford</p>
-                <p className="text-muted-foreground">Crystal Sports and Leisure Centre</p>
-                <p className="text-muted-foreground">Cork Rd, Ballynaneashagh</p>
-                <p className="text-muted-foreground">Waterford, X91 E6PX, Ireland</p>
-                <p className="text-primary mt-2">streeteatzwaterford@gmail.com</p>
+                <p className="text-foreground font-semibold">{clientConfig.legalName}</p>
+                {clientConfig.addressLines.map((line) => <p key={line} className="text-muted-foreground">{line}</p>)}
+                <p className="text-primary mt-2">{clientConfig.email}</p>
               </div>
             </section>
           </div>

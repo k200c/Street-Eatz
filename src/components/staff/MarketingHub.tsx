@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { Send, Image, Loader2, Mail, DollarSign, Users, Vote, Calendar, Trophy, Tag, Percent, Trash2, Plus, X } from 'lucide-react';
+import { Send, Image, Loader2, Mail, DollarSign, Users, Vote, Calendar, Trophy, Tag, Percent, Trash2, Plus, ShieldCheck, BarChart3, Gift, Link2 } from 'lucide-react';
 import { useBroadcasts, useSendBroadcast, useCommunityVotes, useCreateVote } from '@/hooks/useBroadcasts';
 import { usePromotions, useCreatePromotion, useUpdatePromotion, useDeletePromotion } from '@/hooks/usePromotions';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
@@ -17,31 +17,55 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useFoodOSModules, useMarketingMetrics } from '@/hooks/useFoodOSModules';
 
 export function MarketingHub() {
   const [activeTab, setActiveTab] = useState('broadcasts');
+  const { data: modules = [] } = useFoodOSModules();
+  const enabled = new Set(modules.filter((module) => module.enabled).map((module) => module.module_key));
+  const visible = (moduleKey: string) => modules.length === 0 || enabled.has(moduleKey);
+  const tabs = [
+    visible('marketing_sms') || visible('marketing_community') ? { value: 'broadcasts', label: '📢 Broadcasts' } : null,
+    visible('marketing_email') ? { value: 'email', label: '✉️ Email' } : null,
+    visible('marketing_ads') ? { value: 'ads', label: '📊 Ads' } : null,
+    visible('marketing_loyalty') ? { value: 'loyalty', label: '🎁 Loyalty' } : null,
+    visible('marketing_coupons') ? { value: 'coupons', label: '🏷️ Coupons' } : null,
+    visible('marketing_banner') ? { value: 'banner', label: '🖼️ Banner' } : null,
+  ].filter((tab): tab is { value: string; label: string } => Boolean(tab));
 
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="broadcasts">📢 Broadcasts</TabsTrigger>
-          <TabsTrigger value="coupons">🏷️ Coupons</TabsTrigger>
-          <TabsTrigger value="banner">🖼️ Banner</TabsTrigger>
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto p-1">
+          {tabs.map((tab) => <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">{tab.label}</TabsTrigger>)}
         </TabsList>
 
-        <TabsContent value="broadcasts" className="mt-4">
+        {(visible('marketing_sms') || visible('marketing_community')) && <TabsContent value="broadcasts" className="mt-4">
           <BroadcastsTab />
-        </TabsContent>
-        <TabsContent value="coupons" className="mt-4">
+        </TabsContent>}
+        {visible('marketing_email') && <TabsContent value="email" className="mt-4"><MarketingConnectionPanel channel="email" /></TabsContent>}
+        {visible('marketing_ads') && <TabsContent value="ads" className="mt-4"><MarketingConnectionPanel channel="ads" /></TabsContent>}
+        {visible('marketing_loyalty') && <TabsContent value="loyalty" className="mt-4"><LoyaltyMarketingPanel /></TabsContent>}
+        {visible('marketing_coupons') && <TabsContent value="coupons" className="mt-4">
           <CouponsTab />
-        </TabsContent>
-        <TabsContent value="banner" className="mt-4">
+        </TabsContent>}
+        {visible('marketing_banner') && <TabsContent value="banner" className="mt-4">
           <BannerTab />
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
     </div>
   );
@@ -52,9 +76,7 @@ function BroadcastsTab() {
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [broadcastImageUrl, setBroadcastImageUrl] = useState('');
   const [voteTitle, setVoteTitle] = useState('');
-  const [voteMessage, setVoteMessage] = useState('');
   const [voteOptions, setVoteOptions] = useState<string[]>(['', '']);
-  const [isStartingVote, setIsStartingVote] = useState(false);
   const [closingDate, setClosingDate] = useState<Date>();
 
   const { data: broadcasts, isLoading: broadcastsLoading } = useBroadcasts();
@@ -71,25 +93,14 @@ function BroadcastsTab() {
   const updateVoteOption = (index: number, value: string) => {
     setVoteOptions((prev) => prev.map((o, i) => (i === index ? value : o)));
   };
-  const addVoteOption = () => {
-    setVoteOptions((prev) => (prev.length >= 6 ? prev : [...prev, '']));
-  };
-  const removeVoteOption = (index: number) => {
-    setVoteOptions((prev) => (prev.length <= 2 ? prev : prev.filter((_, i) => i !== index)));
-  };
-
   const startCommunityVote = async () => {
     const cleanOptions = voteOptions
       .map((option) => String(option).trim())
       .filter(Boolean)
-      .slice(0, 6);
+      .slice(0, 2);
 
     if (!voteTitle.trim()) {
       toast.error('Please enter a vote title.');
-      return;
-    }
-    if (!voteMessage.trim()) {
-      toast.error('Please enter a vote message.');
       return;
     }
     if (cleanOptions.length < 2) {
@@ -97,66 +108,65 @@ function BroadcastsTab() {
       return;
     }
 
-    const payload = {
-      title: voteTitle.trim(),
-      message: voteMessage.trim(),
-      options: cleanOptions,
-      send_sms: true,
-      send_email: true,
-      audience: 'demo',
-      vote_link: '',
-    };
-
-    setIsStartingVote(true);
+    if (!closingDate) {
+      toast.error('Please choose a closing date.');
+      return;
+    }
     try {
-      const response = await fetch('https://kyle2000.app.n8n.cloud/webhook/Voting-webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      await createVote.mutateAsync({
+        title: voteTitle.trim(),
+        option_a: cleanOptions[0],
+        option_b: cleanOptions[1],
+        closing_date: closingDate.toISOString(),
       });
-
-      if (!response.ok) {
-        throw new Error(`Voting webhook failed with status ${response.status}`);
-      }
-
-      let result: unknown = {};
-      try {
-        result = await response.json();
-      } catch {
-        result = {};
-      }
-
-      toast.success('Community vote started. Demo SMS/email triggered.');
-      console.log('Community vote webhook result:', result);
-
       setVoteTitle('');
-      setVoteMessage('');
       setVoteOptions(['', '']);
       setClosingDate(undefined);
+      toast.success('Vote created. Distribution will stay off until a verified SMS or email connection is selected.');
     } catch (error) {
       console.error('Community vote start failed:', error);
       toast.error('Community vote could not be started. Check the voting workflow and try again.');
-    } finally {
-      setIsStartingVote(false);
     }
   };
 
-  const broadcastStats = broadcasts?.reduce(
-    (acc, b) => ({ totalSent: acc.totalSent + 1, totalRecipients: acc.totalRecipients + (b.recipients_count || 0), avgOpenRate: acc.avgOpenRate + (b.open_rate || 0), totalRevenue: acc.totalRevenue + (b.revenue_generated || 0) }),
-    { totalSent: 0, totalRecipients: 0, avgOpenRate: 0, totalRevenue: 0 }
-  ) || { totalSent: 0, totalRecipients: 0, avgOpenRate: 0, totalRevenue: 0 };
-  if (broadcastStats.totalSent > 0) broadcastStats.avgOpenRate = broadcastStats.avgOpenRate / broadcastStats.totalSent;
+  const verifiedBroadcasts = broadcasts?.filter((broadcast) => broadcast.metrics_verified === true) ?? [];
+  const confirmedAccepted = verifiedBroadcasts.reduce(
+    (total, broadcast) => total + (broadcast.accepted_recipients ?? broadcast.recipients_count ?? 0),
+    0,
+  );
+  const confirmedDelivered = verifiedBroadcasts.reduce(
+    (total, broadcast) => total + (broadcast.delivered_recipients ?? 0),
+    0,
+  );
+  const confirmedRevenue = verifiedBroadcasts.reduce(
+    (total, broadcast) => total + (broadcast.revenue_generated ?? 0),
+    0,
+  );
+  const deliveryRate = confirmedAccepted > 0
+    ? (confirmedDelivered / confirmedAccepted) * 100
+    : null;
 
   return (
     <>
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3">
+        <ShieldCheck className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+        <div>
+          <p className="font-semibold text-amber-200">Verified metrics only</p>
+          <p className="text-sm text-muted-foreground">
+            Legacy reach, open-rate and revenue values are hidden until Twilio delivery callbacks and paid-order attribution verify them. SMS does not provide an open-rate metric.
+          </p>
+        </div>
+      </div>
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Broadcasts Sent</p>
-                <p className="text-2xl font-bold">{broadcastStats.totalSent}</p>
+                <p className="text-sm text-muted-foreground">History Records</p>
+                <p className="text-2xl font-bold">{broadcasts?.length ?? 0}</p>
+                <p className="text-xs text-muted-foreground">not a delivery count</p>
               </div>
               <Mail className="w-8 h-8 text-primary opacity-50" />
             </div>
@@ -166,8 +176,9 @@ function BroadcastsTab() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Reach</p>
-                <p className="text-2xl font-bold">{broadcastStats.totalRecipients}</p>
+                <p className="text-sm text-muted-foreground">Confirmed Deliveries</p>
+                <p className="text-2xl font-bold">{verifiedBroadcasts.length > 0 ? confirmedDelivered : '—'}</p>
+                <p className="text-xs text-muted-foreground">Twilio-confirmed only</p>
               </div>
               <Users className="w-8 h-8 text-blue-400 opacity-50" />
             </div>
@@ -177,8 +188,9 @@ function BroadcastsTab() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Avg Open Rate</p>
-                <p className="text-2xl font-bold text-green-400">{broadcastStats.avgOpenRate.toFixed(0)}%</p>
+                <p className="text-sm text-muted-foreground">Delivery Rate</p>
+                <p className="text-2xl font-bold text-green-400">{deliveryRate === null ? '—' : `${deliveryRate.toFixed(1)}%`}</p>
+                <p className="text-xs text-muted-foreground">open rate is not available for SMS</p>
               </div>
               <Mail className="w-8 h-8 text-green-400 opacity-50" />
             </div>
@@ -188,8 +200,9 @@ function BroadcastsTab() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Revenue Generated</p>
-                <p className="text-2xl font-bold text-primary">€{broadcastStats.totalRevenue.toFixed(0)}</p>
+                <p className="text-sm text-muted-foreground">Attributed Revenue</p>
+                <p className="text-2xl font-bold text-primary">{verifiedBroadcasts.length > 0 ? `€${confirmedRevenue.toFixed(2)}` : '—'}</p>
+                <p className="text-xs text-muted-foreground">paid orders with campaign evidence</p>
               </div>
               <DollarSign className="w-8 h-8 text-primary opacity-50" />
             </div>
@@ -202,7 +215,7 @@ function BroadcastsTab() {
         <Card className="bg-card border-border">
           <CardHeader className="bg-gradient-to-r from-primary/10 to-transparent border-b border-border">
             <CardTitle className="flex items-center gap-2">
-              📢 Savage Sunday Broadcast
+              📢 Weekly Broadcast
             </CardTitle>
             <CardDescription>Send marketing messages to your customer base</CardDescription>
           </CardHeader>
@@ -211,7 +224,7 @@ function BroadcastsTab() {
               <Label htmlFor="broadcast-title">Title</Label>
               <Input
                 id="broadcast-title"
-                placeholder="e.g., 🔥 SAVAGE SUNDAY DEAL!"
+                placeholder="e.g., This week's Street Eatz offer"
                 value={broadcastTitle}
                 onChange={(e) => setBroadcastTitle(e.target.value)}
                 className="bg-background/50"
@@ -227,6 +240,10 @@ function BroadcastsTab() {
                 onChange={(e) => setBroadcastMessage(e.target.value)}
                 className="min-h-[100px] bg-background/50"
               />
+              <div className="flex justify-between gap-3 text-xs text-muted-foreground">
+                <span>A “Reply STOP to opt out” footer is added automatically.</span>
+                <span>{broadcastMessage.length}/1600</span>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -243,23 +260,39 @@ function BroadcastsTab() {
               />
             </div>
 
-            <Button
-              onClick={handleSendBroadcast}
-              disabled={sendBroadcast.isPending || !broadcastTitle.trim() || !broadcastMessage.trim()}
-              className="w-full bg-primary hover:bg-primary/90"
-            >
-              {sendBroadcast.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Now
-                </>
-              )}
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  disabled={sendBroadcast.isPending || !broadcastTitle.trim() || !broadcastMessage.trim()}
+                  className="w-full bg-primary hover:bg-primary/90"
+                >
+                  {sendBroadcast.isPending ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
+                  ) : (
+                    <><Send className="w-4 h-4 mr-2" />Review & Send</>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Send this marketing broadcast now?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This can contact every eligible customer with recorded marketing consent and cannot be undone. Sending is blocked outside the configured Ireland contact window.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-4">
+                  <p className="font-semibold">{broadcastTitle.trim()}</p>
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{broadcastMessage.trim()}</p>
+                  <p className="text-xs text-amber-300">Reply STOP to opt out. (added automatically)</p>
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Go back</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void handleSendBroadcast()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Confirm broadcast
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
 
@@ -270,7 +303,7 @@ function BroadcastsTab() {
               <Vote className="w-5 h-5 text-violet-400" />
               Community Vote
             </CardTitle>
-            <CardDescription>Let your customers decide the next special!</CardDescription>
+            <CardDescription>Create a two-option customer vote. Sending stays separate until a verified channel is connected.</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
@@ -284,17 +317,7 @@ function BroadcastsTab() {
             </div>
 
             <div className="space-y-2">
-              <Label>Message</Label>
-              <Textarea
-                placeholder="e.g., Help us pick next week's Street Eatz special."
-                value={voteMessage}
-                onChange={(e) => setVoteMessage(e.target.value)}
-                className="bg-background/50 min-h-[80px]"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Vote Options ({voteOptions.filter((o) => o.trim()).length}/6)</Label>
+              <Label>Vote options</Label>
               <div className="space-y-2">
                 {voteOptions.map((option, index) => (
                   <div key={index} className="flex gap-2 items-center">
@@ -304,32 +327,9 @@ function BroadcastsTab() {
                       onChange={(e) => updateVoteOption(index, e.target.value)}
                       className="bg-background/50 border-violet-500/30"
                     />
-                    {voteOptions.length > 2 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeVoteOption(index)}
-                        className="shrink-0"
-                        aria-label={`Remove option ${index + 1}`}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
                   </div>
                 ))}
               </div>
-              {voteOptions.length < 6 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addVoteOption}
-                  className="mt-2"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add option
-                </Button>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -364,14 +364,14 @@ function BroadcastsTab() {
             <Button
               onClick={startCommunityVote}
               disabled={
-                isStartingVote ||
+                createVote.isPending ||
                 !voteTitle.trim() ||
-                !voteMessage.trim() ||
-                voteOptions.filter((o) => o.trim()).length < 2
+                voteOptions.filter((o) => o.trim()).length < 2 ||
+                !closingDate
               }
               className="w-full bg-violet-600 hover:bg-violet-700"
             >
-              {isStartingVote ? (
+              {createVote.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Starting vote...
@@ -421,20 +421,27 @@ function BroadcastsTab() {
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{broadcast.message}</p>
-                    <div className="flex gap-4 text-xs">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        {broadcast.recipients_count} reached
-                      </span>
-                      <span className="flex items-center gap-1 text-green-400">
-                        <Mail className="w-3 h-3" />
-                        {broadcast.open_rate}% opened
-                      </span>
-                      <span className="flex items-center gap-1 text-primary">
-                        <DollarSign className="w-3 h-3" />
-                        €{broadcast.revenue_generated}
-                      </span>
-                    </div>
+                    {broadcast.metrics_verified === true ? (
+                      <div className="flex flex-wrap gap-4 text-xs">
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {broadcast.delivered_recipients ?? 0} delivered
+                        </span>
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          {broadcast.failed_recipients ?? 0} failed
+                        </span>
+                        <span className="flex items-center gap-1 text-primary">
+                          <DollarSign className="w-3 h-3" />
+                          €{(broadcast.revenue_generated ?? 0).toFixed(2)} attributed
+                        </span>
+                        <Badge variant="outline" className="text-[10px]">{broadcast.metrics_source ?? 'verified'}</Badge>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-xs text-amber-300">
+                        <ShieldCheck className="w-3 h-3" />
+                        Unverified legacy record · provider metrics pending
+                      </div>
+                    )}
                   </motion.div>
                 ))}
               </div>
@@ -593,6 +600,45 @@ function CouponsTab() {
       </Card>
     </div>
   );
+}
+
+function MarketingConnectionPanel({ channel }: { channel: 'email' | 'ads' }) {
+  const { data: metrics = [], isLoading, error } = useMarketingMetrics();
+  const relevant = metrics.filter((metric) => channel === 'email'
+    ? metric.provider === 'sendgrid_email'
+    : metric.provider === 'google_ads' || metric.provider === 'meta_ads');
+
+  const totals = relevant.reduce<Record<string, number>>((result, metric) => {
+    result[metric.metric_name] = (result[metric.metric_name] ?? 0) + Number(metric.metric_value);
+    return result;
+  }, {});
+  const hasVerifiedData = relevant.length > 0;
+
+  const cards = channel === 'email'
+    ? [
+        ['Delivered', 'delivered'], ['Unique opens', 'unique_opens'], ['Clicks', 'clicks'],
+        ['Bounces', 'bounces'], ['Unsubscribes', 'unsubscribes'], ['Spam reports', 'spam_reports'],
+      ]
+    : [
+        ['Spend', 'spend'], ['Impressions', 'impressions'], ['Clicks', 'clicks'],
+        ['Conversions', 'conversions'], ['Attributed revenue', 'attributed_revenue'],
+      ];
+
+  return <div className="space-y-4">
+    <Card className="border-amber-500/30 bg-amber-500/5"><CardHeader><CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-amber-400" />{channel === 'email' ? 'Email provider connection' : 'Google & Meta Ads connection'}</CardTitle><CardDescription>{hasVerifiedData ? 'Verified provider data is flowing into FoodOS.' : `${channel === 'email' ? 'SendGrid' : 'Google Ads and Meta Ads'} credentials and ingestion are still required. No placeholder metrics are displayed.`}</CardDescription></CardHeader></Card>
+    {isLoading ? <div className="h-32 animate-pulse rounded-xl bg-secondary/30" /> : error ? <p className="rounded-lg border border-destructive/40 p-4">Marketing metrics could not be loaded.</p> : <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{cards.map(([label, metricName]) => <Card key={metricName}><CardContent className="p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="text-2xl font-bold">{hasVerifiedData && totals[metricName] != null ? `${metricName === 'spend' || metricName === 'attributed_revenue' ? '€' : ''}${totals[metricName].toLocaleString('en-IE', { maximumFractionDigits: 2 })}` : '—'}</p></CardContent></Card>)}</div>}
+    <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-primary" />What FoodOS will report</CardTitle></CardHeader><CardContent><ul className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">{(channel === 'email' ? ['Delivery rate and bounce health', 'Unique open and click-through rate', 'Unsubscribes and spam complaints', 'Campaign-attributed paid orders and revenue'] : ['Spend, impressions, reach and frequency', 'Clicks, CPC, conversions and cost per order', 'Paid-order revenue attribution and ROAS', 'Campaign, ad-set and creative performance']).map((item) => <li key={item} className="flex gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{item}</li>)}</ul></CardContent></Card>
+  </div>;
+}
+
+function LoyaltyMarketingPanel() {
+  const { data: settings, isLoading } = useAppSettings();
+  const rewardCost = settings?.loyalty_reward_cost ?? 7;
+  const rewardLabel = settings?.loyalty_reward_label ?? 'Free Chips';
+  return <div className="space-y-4">
+    <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-transparent"><CardHeader><CardTitle className="flex items-center gap-2"><Gift className="h-5 w-5 text-primary" />Street Eatz loyalty</CardTitle><CardDescription>Simple, clear and tied only to paid customer orders.</CardDescription></CardHeader><CardContent><div className="grid gap-4 md:grid-cols-3"><div><p className="text-sm text-muted-foreground">Rule</p><p className="text-xl font-bold">Every {isLoading ? '—' : `${rewardCost}th`} paid order</p></div><div><p className="text-sm text-muted-foreground">Reward</p><p className="text-xl font-bold text-primary">{isLoading ? '—' : rewardLabel}</p></div><div><p className="text-sm text-muted-foreground">Status</p><Badge variant={settings?.loyalty_enabled ? 'default' : 'secondary'}>{settings?.loyalty_enabled ? 'Live' : 'Hidden'}</Badge></div></div></CardContent></Card>
+    <Card><CardHeader><CardTitle className="text-lg">How it works</CardTitle></CardHeader><CardContent><ol className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3"><li><strong className="block text-foreground">1. Paid order</strong>One stamp is awarded only after payment is confirmed.</li><li><strong className="block text-foreground">2. Seventh stamp</strong>The seventh paid order unlocks a Free Chips reward.</li><li><strong className="block text-foreground">3. Controlled redemption</strong>Redemption is recorded in the immutable loyalty ledger so it cannot be reused.</li></ol><p className="mt-4 text-xs text-muted-foreground">Existing paid orders are not guessed or backfilled. The rule applies to verified loyalty activity from activation onward.</p></CardContent></Card>
+  </div>;
 }
 
 function BannerTab() {

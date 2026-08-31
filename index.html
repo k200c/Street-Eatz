@@ -2,14 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>StreetEatz | Gourmet Street Food Waterford</title>
     <meta name="description" content="StreetEatz Waterford — premium smash burgers, flatbreads, and loaded fries from Waterford's favourite food truck. Order online for pickup!" />
     <meta name="author" content="StreetEatz" />
     
     <!-- Preconnect to critical origins — improves FCP by starting connections early -->
-    <link rel="preconnect" href="https://ftzinsesuiuqcjfpbaur.supabase.co" crossorigin />
-    <link rel="dns-prefetch" href="https://ftzinsesuiuqcjfpbaur.supabase.co" />
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
     <link rel="preconnect" href="https://storage.googleapis.com" crossorigin />
     <link rel="dns-prefetch" href="https://storage.googleapis.com" />
 
@@ -21,26 +21,25 @@
     <!-- iOS PWA Support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="StreetEatz" />
+    <meta name="apple-mobile-web-app-title" content="Street Eatz" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Street Eatz" />
     
     <!-- Mobile Web App Icons -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v2.png" />
     
     <!-- Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32-v2.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16-v2.png" />
 
-    <!-- Web App Manifest (manifest-only install for Admin/KDS — no service worker) -->
+    <!-- Installable web app manifest -->
     <link rel="manifest" href="/manifest.webmanifest" />
     
     <!-- Open Graph -->
     <meta property="og:title" content="StreetEatz | Gourmet Street Food Waterford" />
     <meta property="og:description" content="StreetEatz Waterford — premium smash burgers, flatbreads, and loaded fries from Waterford's favourite food truck. Order online for pickup!" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:image" content="https://streeteatzwaterford.ie/app-icon-1024-v2.png" />
     <meta property="og:site_name" content="StreetEatz" />
     
     <!-- Twitter -->
@@ -48,7 +47,7 @@
     <meta name="twitter:site" content="@StreetEatzWaterford" />
     <meta name="twitter:title" content="StreetEatz | Gourmet Street Food Waterford" />
     <meta name="twitter:description" content="Order premium smash burgers, flatbreads, and loaded fries from StreetEatz Waterford." />
-    <meta name="twitter:image" content="/pwa-512x512.png" />
+    <meta name="twitter:image" content="https://streeteatzwaterford.ie/app-icon-1024-v2.png" />
     
     <!-- Prevent phone number detection -->
     <meta name="format-detection" content="telephone=no" />

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import confetti from "canvas-confetti";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { clientConfig } from "@/config/client";
 
 interface OrderDetails {
   display_id: number;
@@ -179,7 +180,7 @@ const OrderSuccess = () => {
             </motion.div>
           )}
 
-          {/* Waterford messaging */}
+          {/* Local brand messaging */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -255,14 +256,14 @@ const OrderSuccess = () => {
             Redirecting to your orders in {countdown}s...
           </motion.p>
 
-          {/* Waterford pride */}
+          {/* Local pride */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.5 }}
             className="text-xs text-muted-foreground mt-4"
           >
-            Made with ❤️ in Waterford, Ireland 🇮🇪
+            Made with ❤️ in {clientConfig.city}, Ireland 🇮🇪
           </motion.p>
         </motion.div>
       </div>

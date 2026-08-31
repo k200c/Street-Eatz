@@ -4,6 +4,7 @@ import { XCircle, AlertCircle, Clock, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { clientConfig, clientMailto } from "@/config/client";
 
 const OrderFailed = () => {
   const [searchParams] = useSearchParams();
@@ -161,10 +162,10 @@ const OrderFailed = () => {
               Need help? We're here for you
             </p>
             <a
-              href="mailto:streeteatzwaterford@gmail.com"
+              href={clientMailto}
               className="text-sm text-primary hover:underline"
             >
-              ✉️ streeteatzwaterford@gmail.com
+              ✉️ {clientConfig.email}
             </a>
           </motion.div>
         </motion.div>

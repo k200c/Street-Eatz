@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Product } from '@/types/database';
-import { Plus, Settings2 } from 'lucide-react';
+import { AlertTriangle, Plus, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCartStore } from '@/stores/cartStore';
 import { toast } from 'sonner';
@@ -37,7 +37,7 @@ export function ProductCardHorizontal({
 }: ProductCardHorizontalProps) {
   const addItem = useCartStore((state) => state.addItem);
   const [imgError, setImgError] = useState(false);
-  const { data: allergensMap } = useAllProductAllergens();
+  const { data: allergensMap, isLoading: allergensLoading } = useAllProductAllergens();
   const fallbackImage = categoryImages[product.category] || heroBurger;
   const rawImageUrl = imgError ? fallbackImage : (product.image_url || fallbackImage);
   const imageUrl = getOptimizedImageUrl(rawImageUrl, 400);
@@ -99,7 +99,12 @@ export function ProductCardHorizontal({
           
           {/* Allergen badges - compact */}
           {allergenNumbers.length > 0 && (
-            <AllergenBadges allergenNumbers={allergenNumbers} size="sm" showTooltip={false} />
+            <AllergenBadges allergenNumbers={allergenNumbers} size="sm" showTooltip={false} showNames />
+          )}
+          {!allergensLoading && allergenNumbers.length === 0 && (
+            <span className="flex items-center gap-1 text-[9px] text-amber-400">
+              <AlertTriangle className="h-3 w-3 shrink-0" />Allergens: ask staff
+            </span>
           )}
           
           {/* Price and Quick Add row */}

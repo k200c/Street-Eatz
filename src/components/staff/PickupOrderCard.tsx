@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Clock, CreditCard } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { KitchenOrder } from '@/hooks/useKitchenOrders';
+import { isPaymentSettled } from '@/lib/paymentState';
 import { PaymentStatusBadge } from './PaymentStatusBadge';
 
 interface PickupOrderCardProps {
@@ -34,7 +35,7 @@ export function PickupOrderCard({ order, onTakePayment }: PickupOrderCardProps) 
     return [];
   };
 
-  const isUnpaid = order.payment_status !== 'paid';
+  const isUnpaid = !isPaymentSettled(order.payment_status);
 
   return (
     <motion.div

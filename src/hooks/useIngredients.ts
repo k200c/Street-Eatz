@@ -80,7 +80,7 @@ export function useProductIngredientsAdmin(productId?: string) {
           product_id: item.product_id,
           ingredient_id: item.ingredient_id,
           is_default: item.is_default,
-          is_removable: (item as any).is_removable ?? true,
+          is_removable: item.is_removable ?? true,
           created_at: item.created_at,
           ingredient: item.ingredients as unknown as Ingredient,
         })) as ProductIngredientWithDetails[];

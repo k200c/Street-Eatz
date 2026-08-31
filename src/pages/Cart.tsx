@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCartStore } from '@/stores/cartStore';
 import { Button } from '@/components/ui/button';
 import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, AlertTriangle, Edit2 } from 'lucide-react';
@@ -39,7 +39,7 @@ export default function Cart() {
   // Edit item state
   const [editingItem, setEditingItem] = useState<{ index: number; item: CartItem } | null>(null);
 
-  const { isStoreOpen, devModeEnabled } = useStoreStatus();
+  const { isStoreOpen, isStatusAvailable } = useStoreStatus();
   
   // Fetch modifiers and ingredients for the product being edited
   const { data: editModifierGroups } = useProductModifiers(editingItem?.item.product.id);
@@ -59,7 +59,10 @@ export default function Cart() {
   const { data: productAvailability } = useValidateCartItems(productIds);
 
   // Check for unavailable items
-  const unavailableItems = productAvailability?.filter(p => !p.is_available) || [];
+  const unavailableItems = useMemo(
+    () => productAvailability?.filter(p => !p.is_available) || [],
+    [productAvailability],
+  );
   const hasUnavailableItems = unavailableItems.length > 0;
 
   // Show toast when items become unavailable
@@ -72,9 +75,16 @@ export default function Cart() {
         });
       });
     }
-  }, [unavailableItems.map(i => i.id).join(',')]);
+  }, [unavailableItems]);
 
   const handleCheckoutClick = () => {
+    if (!isStatusAvailable) {
+      toast.error("Ordering is temporarily unavailable", {
+        description: "We couldn't verify the live store status. Please try again shortly.",
+      });
+      return;
+    }
+
     if (!isStoreOpen) {
       toast.error("We are currently closed!", {
         description: "You can browse, but ordering opens Thu 12pm.",
@@ -281,12 +291,14 @@ export default function Cart() {
             )}
             <Button
               className={`w-full h-16 md:h-14 text-lg md:text-base font-bold tracking-wider ${
-                isStoreOpen && !hasUnavailableItems ? 'btn-glow' : 'bg-muted text-muted-foreground cursor-not-allowed'
+                isStatusAvailable && isStoreOpen && !hasUnavailableItems ? 'btn-glow' : 'bg-muted text-muted-foreground cursor-not-allowed'
               }`}
               onClick={handleCheckoutClick}
-              disabled={!isStoreOpen || hasUnavailableItems}
+              disabled={!isStatusAvailable || !isStoreOpen || hasUnavailableItems}
             >
-              {!isStoreOpen 
+              {!isStatusAvailable
+                ? "ORDERING TEMPORARILY UNAVAILABLE"
+                : !isStoreOpen 
                 ? "STORE CLOSED (Opens Thu 12pm)"
                 : hasUnavailableItems
                 ? "REMOVE SOLD OUT ITEMS"

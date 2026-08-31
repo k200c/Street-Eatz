@@ -16,9 +16,6 @@ interface StaffCheckoutModalProps {
   onSuccess: (orderNumber: number) => void;
 }
 
-// Unified payment webhook URL
-const N8N_PAYMENT_WEBHOOK = 'https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment';
-
 export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheckoutModalProps) {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
   const [amountTendered, setAmountTendered] = useState('');
@@ -103,27 +100,19 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
 
       console.log('🔌 Staff Terminal Payment:', JSON.stringify(payload, null, 2));
 
-      // Step 3: POST to the unified payment webhook
-      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      // Step 3: start terminal payment through the authenticated server boundary.
+      const { data, error } = await supabase.functions.invoke('payment-session', {
+        body: { action: 'start', order_id: result.orderId, payment_type: 'terminal' },
       });
 
-      if (response.ok) {
+      if (!error && data?.success) {
         toast.success('Terminal Active: Tap card on phone now.');
         clearCart();
         resetForm();
         onOpenChange(false);
         onSuccess(result.displayId);
       } else {
-        // Still proceed - order is saved in DB
-        console.warn('Payment webhook returned non-OK status, but order created');
-        toast.success('Order created. Terminal notification sent.');
-        clearCart();
-        resetForm();
-        onOpenChange(false);
-        onSuccess(result.displayId);
+        throw error ?? new Error('Terminal workflow did not acknowledge the payment');
       }
     } catch (error) {
       console.error('Card payment error:', error);
@@ -166,10 +155,14 @@ export function StaffCheckoutModal({ open, onOpenChange, onSuccess }: StaffCheck
 
       if (result) {
         // Send to kitchen webhook
-        await sendToKitchen(result, { 
-          name: customerName, 
-          phone: customerPhone 
-        });
+        const kitchenDispatched = await sendToKitchen(result);
+
+        if (!kitchenDispatched) {
+          toast.error('Order saved, but printer dispatch needs attention', {
+            description: `Order #${result.displayId} is still visible in the kitchen display. Retry printing from the order screen.`,
+            duration: 8000,
+          });
+        }
 
         clearCart(); // Clear the staff cart
         resetForm();

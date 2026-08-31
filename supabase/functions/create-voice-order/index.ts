@@ -1,4 +1,4 @@
-// create-voice-order — Street Eatz Voice Ordering Edge Function
+// create-voice-order — FoodOS Voice Ordering Edge Function
 // ─────────────────────────────────────────────────────────────
 // VERSION 2 — fixes:
 //   • selected_modifiers written as {modifiers:[],removedIngredients:[]} matching app shape
@@ -15,6 +15,15 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function secretsMatch(received: string, expected: string): boolean {
+  if (received.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < received.length; index++) {
+    difference |= received.charCodeAt(index) ^ expected.charCodeAt(index);
+  }
+  return difference === 0;
+}
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -40,6 +49,9 @@ interface VoiceOrderRequest {
   items: IncomingItem[];
   special_notes?: string;
   call_id?: string;
+  fulfillment_type?: string;
+  scheduled_for?: string;
+  pickup_time?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -81,8 +93,14 @@ const PAYMENT_ALIASES: Record<string, "cash" | "card" | "split"> = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
+    const expectedSecret = Deno.env.get("VOICE_ORDER_WEBHOOK_SECRET") ?? Deno.env.get("N8N_WEBHOOK_SECRET");
+    const receivedSecret = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    if (!expectedSecret) return jsonResponse({ error: "Voice ordering is not configured" }, 503);
+    if (!secretsMatch(receivedSecret, expectedSecret)) return jsonResponse({ error: "Unauthorized" }, 401);
+
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     let body: VoiceOrderRequest;
@@ -92,31 +110,107 @@ serve(async (req) => {
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
 
-    console.log("[voice-order] Received:", JSON.stringify(body));
+    const callId = String(body.call_id || "").trim();
+    if (callId.length < 8 || callId.length > 200) {
+      return jsonResponse({ error: "A valid call_id is required" }, 400);
+    }
+
+    const { data: existingOrder } = await supabase
+      .from("orders")
+      .select("id, display_id, created_at, total, customer_name, customer_phone, fulfillment_type, scheduled_for, kitchen_release_at")
+      .eq("voice_call_id", callId)
+      .maybeSingle();
+    if (existingOrder) {
+      return jsonResponse({
+        ok: true,
+        duplicate: true,
+        should_dispatch: false,
+        order_id: existingOrder.id,
+        display_id: existingOrder.display_id,
+        customer_name: existingOrder.customer_name,
+        customer_phone: existingOrder.customer_phone,
+        created_at: existingOrder.created_at,
+        total: Number(existingOrder.total),
+        fulfillment_type: existingOrder.fulfillment_type,
+        scheduled_for: existingOrder.scheduled_for,
+        kitchen_release_at: existingOrder.kitchen_release_at,
+        source: "voice",
+      });
+    }
+
+    console.log("[voice-order] Validated request", { call_id: callId, item_count: body.items?.length ?? 0 });
 
     // ── Validate top-level ─────────────────────────────────────
 
     const customerName = (body.customer_name || "").trim();
-    if (!customerName) return jsonResponse({ error: "customer_name is required" }, 400);
+    if (!customerName || customerName.length > 120) {
+      return jsonResponse({ error: "A valid customer_name is required" }, 400);
+    }
 
     const customerPhoneRaw = String(body.customer_phone || "").trim();
     if (!customerPhoneRaw) return jsonResponse({ error: "customer_phone is required" }, 400);
     const customerPhone = normalizePhone(customerPhoneRaw);
+    if (!/^\+353\d{8,10}$/.test(customerPhone)) {
+      return jsonResponse({ error: "A valid Irish customer_phone is required" }, 400);
+    }
 
     const pmRaw = (body.payment_method || "cash").trim().toLowerCase();
     const paymentMethod: "cash" | "card" | "split" = PAYMENT_ALIASES[pmRaw] ?? "cash";
+    if (paymentMethod !== "cash") {
+      return jsonResponse({ error: "Voice orders currently support pay-on-collection only" }, 400);
+    }
 
-    if (!Array.isArray(body.items) || body.items.length === 0) {
+    if (!Array.isArray(body.items) || body.items.length === 0 || body.items.length > 50) {
       return jsonResponse({ error: "items must be a non-empty array" }, 400);
+    }
+    for (const item of body.items) {
+      if (!item || typeof item !== "object" || typeof item.product_name !== "string") {
+        return jsonResponse({ error: "Every item requires a product_name" }, 400);
+      }
+      item.product_name = item.product_name.trim();
+      if (!item.product_name || item.product_name.length > 160) {
+        return jsonResponse({ error: "Every item requires a valid product_name" }, 400);
+      }
+      if (item.addons !== undefined && (!Array.isArray(item.addons) || item.addons.length > 30)) {
+        return jsonResponse({ error: `Invalid add-ons for '${item.product_name}'` }, 400);
+      }
+      if (
+        item.removed_ingredients !== undefined &&
+        (!Array.isArray(item.removed_ingredients) || item.removed_ingredients.length > 30)
+      ) {
+        return jsonResponse({ error: `Invalid removed ingredients for '${item.product_name}'` }, 400);
+      }
+    }
+
+    const requestedFulfillment = String(body.fulfillment_type || "").trim().toLowerCase();
+    if (requestedFulfillment && requestedFulfillment !== "asap" && requestedFulfillment !== "scheduled") {
+      return jsonResponse({ error: "fulfillment_type must be 'asap' or 'scheduled'" }, 400);
+    }
+
+    const requestedCollectionTime = String(body.scheduled_for || body.pickup_time || "").trim();
+    const fulfillmentType = requestedCollectionTime || requestedFulfillment === "scheduled" ? "scheduled" : "asap";
+    let scheduledFor: string | null = null;
+    if (fulfillmentType === "scheduled") {
+      if (!requestedCollectionTime) {
+        return jsonResponse({ error: "scheduled_for is required for a scheduled voice order" }, 400);
+      }
+      if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(requestedCollectionTime)) {
+        return jsonResponse({ error: "scheduled_for must include an explicit timezone" }, 400);
+      }
+      const scheduledInstant = new Date(requestedCollectionTime);
+      if (Number.isNaN(scheduledInstant.getTime())) {
+        return jsonResponse({ error: "scheduled_for must be a valid ISO date and time" }, 400);
+      }
+      scheduledFor = scheduledInstant.toISOString();
     }
 
     // ── Fetch all products needed ──────────────────────────────
 
-    const productNames = [...new Set(body.items.map((i) => i.product_name))];
+    const requestedProductNames = new Set(body.items.map((item) => item.product_name.toLowerCase()));
     const { data: products, error: prodErr } = await supabase
       .from("products")
       .select("id, name, price, is_available, is_sold_out, is_visible")
-      .in("name", productNames);
+      .eq("is_visible", true);
 
     if (prodErr) {
       console.error("[voice-order] Products DB error:", prodErr);
@@ -125,14 +219,12 @@ serve(async (req) => {
 
     const productMap = new Map<string, { id: string; name: string; price: number }>();
     for (const p of products ?? []) {
+      if (!requestedProductNames.has(p.name.toLowerCase())) continue;
       if (p.is_available === false) {
         return jsonResponse({ error: `'${p.name}' is currently unavailable` }, 409);
       }
       if (p.is_sold_out === true) {
         return jsonResponse({ error: `'${p.name}' is sold out` }, 409);
-      }
-      if (p.is_visible === false) {
-        return jsonResponse({ error: `Product not found: '${p.name}'` }, 404);
       }
       productMap.set(p.name.toLowerCase(), {
         id: p.id,
@@ -152,22 +244,47 @@ serve(async (req) => {
     // We fetch all modifiers once and build a lookup map.
     // Prices are authoritative from the DB — never trusted from the payload.
 
-    const { data: allModifiers, error: modErr } = await supabase
-      .from("modifiers")
-      .select("id, name, price_adjustment, group_id");
+    const productIds = [...productMap.values()].map((product) => product.id);
+    const [
+      { data: allModifiers, error: modErr },
+      { data: productGroups, error: productGroupsError },
+      { data: productIngredients, error: productIngredientsError },
+    ] = await Promise.all([
+      supabase.from("modifiers").select("id, name, price_adjustment, group_id"),
+      supabase.from("product_modifiers").select("product_id, group_id").in("product_id", productIds),
+      supabase
+        .from("product_ingredients")
+        .select("product_id, is_removable, ingredients(name)")
+        .in("product_id", productIds),
+    ]);
 
-    if (modErr) {
-      console.error("[voice-order] Modifiers DB error:", modErr);
-      return jsonResponse({ error: "Database error fetching modifiers" }, 500);
+    if (modErr || productGroupsError || productIngredientsError) {
+      console.error("[voice-order] Product option DB error", {
+        modifiers: modErr?.message,
+        groups: productGroupsError?.message,
+        ingredients: productIngredientsError?.message,
+      });
+      return jsonResponse({ error: "Database error fetching product options" }, 500);
     }
 
-    // Build case-insensitive modifier lookup
-    const modifierMap = new Map<string, { name: string; price_adjustment: number }>();
-    for (const m of allModifiers ?? []) {
-      modifierMap.set(m.name.toLowerCase().trim(), {
-        name: m.name,
-        price_adjustment: Number(m.price_adjustment),
-      });
+    const allowedGroupsByProduct = new Map<string, Set<string>>();
+    for (const row of productGroups ?? []) {
+      if (!row.product_id || !row.group_id) continue;
+      const groups = allowedGroupsByProduct.get(row.product_id) ?? new Set<string>();
+      groups.add(row.group_id);
+      allowedGroupsByProduct.set(row.product_id, groups);
+    }
+
+    const removableIngredientsByProduct = new Map<string, Map<string, string>>();
+    for (const row of productIngredients ?? []) {
+      const ingredient = Array.isArray(row.ingredients) ? row.ingredients[0] : row.ingredients;
+      const ingredientName = ingredient && typeof ingredient === "object" && "name" in ingredient
+        ? String(ingredient.name).trim()
+        : "";
+      if (!row.product_id || !row.is_removable || !ingredientName) continue;
+      const ingredients = removableIngredientsByProduct.get(row.product_id) ?? new Map<string, string>();
+      ingredients.set(ingredientName.toLowerCase(), ingredientName);
+      removableIngredientsByProduct.set(row.product_id, ingredients);
     }
 
     // ── Build order items ──────────────────────────────────────
@@ -200,49 +317,50 @@ serve(async (req) => {
 
     for (const item of body.items) {
       const product = productMap.get(item.product_name.toLowerCase())!;
-      const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      const qty = Math.floor(Number(item.quantity));
+      if (!Number.isInteger(qty) || qty < 1 || qty > 20) {
+        return jsonResponse({ error: `Invalid quantity for '${product.name}'` }, 400);
+      }
 
       // ── Resolve add-on modifier prices from DB ─────────────
       const resolvedModifiers: ReceiptModifier[] = [];
-      const unresolvableAddons: string[] = [];
+      const allowedGroupIds = allowedGroupsByProduct.get(product.id) ?? new Set<string>();
+      const allowedModifiers = (allModifiers ?? []).filter((modifier) =>
+        modifier.group_id && allowedGroupIds.has(modifier.group_id)
+      );
 
       for (const addon of item.addons ?? []) {
         const addonName = (addon.name || "").trim();
         if (!addonName) continue;
 
         const key = addonName.toLowerCase();
-        const match = modifierMap.get(key);
-
-        if (match) {
-          // Exact match in modifiers table
-          resolvedModifiers.push({
-            name: match.name,
-            price_adjustment: match.price_adjustment,
-          });
-        } else {
-          // Try partial / fuzzy match
-          let found: { name: string; price_adjustment: number } | null = null;
-          for (const [mk, mv] of modifierMap) {
-            if (mk.includes(key) || key.includes(mk)) {
-              found = mv;
-              break;
-            }
-          }
-          if (found) {
-            resolvedModifiers.push(found);
-          } else {
-            // Not in modifiers table — add as kitchen note, don't fail order
-            console.warn(`[voice-order] Add-on '${addonName}' not found in modifiers table — adding as note`);
-            unresolvableAddons.push(addonName);
-          }
+        const match = allowedModifiers.find((modifier) => modifier.name.toLowerCase().trim() === key);
+        if (!match) {
+          return jsonResponse({ error: `'${addonName}' is not an available add-on for '${product.name}'` }, 409);
         }
+        const addonQuantity = Math.floor(Number(addon.quantity ?? 1));
+        if (!Number.isInteger(addonQuantity) || addonQuantity < 1 || addonQuantity > 10) {
+          return jsonResponse({ error: `Invalid add-on quantity for '${addonName}'` }, 400);
+        }
+        resolvedModifiers.push({
+          name: addonQuantity > 1 ? `${addonQuantity}× ${match.name}` : match.name,
+          price_adjustment: round2(Number(match.price_adjustment) * addonQuantity),
+        });
       }
 
       // ── Build removed_ingredients list ─────────────────────
       // The app schema stores: removedIngredients: [{name: "..."}]
-      const removedIngredients: { name: string }[] = (item.removed_ingredients ?? [])
-        .filter((r) => r && r.name)
-        .map((r) => ({ name: String(r.name).trim() }));
+      const removableIngredients = removableIngredientsByProduct.get(product.id) ?? new Map<string, string>();
+      const removedIngredients: { name: string }[] = [];
+      for (const requested of item.removed_ingredients ?? []) {
+        const requestedName = String(requested?.name ?? "").trim();
+        if (!requestedName) continue;
+        const canonicalName = removableIngredients.get(requestedName.toLowerCase());
+        if (!canonicalName) {
+          return jsonResponse({ error: `'${requestedName}' cannot be removed from '${product.name}'` }, 409);
+        }
+        removedIngredients.push({ name: canonicalName });
+      }
 
       // ── Calculate unit_price (matches app convention) ──────
       // App stores: unit_price = base_price + sum(modifier price_adjustments)
@@ -260,10 +378,8 @@ serve(async (req) => {
 
       // ── Build notes for this line ──────────────────────────
       const noteParts: string[] = [];
+      if ((item.notes?.length ?? 0) > 500) return jsonResponse({ error: "Item notes are too long" }, 400);
       if (item.notes) noteParts.push(item.notes.trim());
-      if (unresolvableAddons.length) {
-        noteParts.push("Extra: " + unresolvableAddons.join(", "));
-      }
       const lineNotes = noteParts.join("; ");
 
       dbOrderItems.push({
@@ -291,8 +407,10 @@ serve(async (req) => {
 
     // ── Build special_notes string ─────────────────────────────
     const notesParts: string[] = [];
+    if ((body.special_notes?.length ?? 0) > 1_000) {
+      return jsonResponse({ error: "special_notes is too long" }, 400);
+    }
     if (body.special_notes?.trim()) notesParts.push(body.special_notes.trim());
-    if (body.call_id) notesParts.push(`[call_id: ${body.call_id}]`);
     const specialNotes = notesParts.length > 0 ? notesParts.join(" | ") : null;
 
     // ── Insert order ───────────────────────────────────────────
@@ -307,11 +425,38 @@ serve(async (req) => {
         customer_phone: customerPhone,
         special_notes: specialNotes,
         order_channel: "voice",
+        voice_call_id: callId,
+        fulfillment_type: fulfillmentType,
+        scheduled_for: scheduledFor,
       })
-      .select("id, display_id, created_at")
+      .select("id, display_id, created_at, fulfillment_type, scheduled_for, kitchen_release_at")
       .single();
 
     if (orderError) {
+      if (orderError.code === "23505") {
+        const { data: replayedOrder } = await supabase
+          .from("orders")
+          .select("id, display_id, created_at, total, customer_name, customer_phone, fulfillment_type, scheduled_for, kitchen_release_at")
+          .eq("voice_call_id", callId)
+          .maybeSingle();
+        if (replayedOrder) {
+          return jsonResponse({
+            ok: true,
+            duplicate: true,
+            should_dispatch: false,
+            order_id: replayedOrder.id,
+            display_id: replayedOrder.display_id,
+            customer_name: replayedOrder.customer_name,
+            customer_phone: replayedOrder.customer_phone,
+            created_at: replayedOrder.created_at,
+            total: Number(replayedOrder.total),
+            fulfillment_type: replayedOrder.fulfillment_type,
+            scheduled_for: replayedOrder.scheduled_for,
+            kitchen_release_at: replayedOrder.kitchen_release_at,
+            source: "voice",
+          });
+        }
+      }
       console.error("[voice-order] Order insert error:", orderError);
       return jsonResponse({ error: "Failed to create order" }, 500);
     }
@@ -337,17 +482,22 @@ serve(async (req) => {
 
     return jsonResponse({
       ok: true,
+      duplicate: false,
+      should_dispatch: fulfillmentType === "asap",
       order_id: order.id,
       display_id: order.display_id,
       customer_name: customerName,
       customer_phone: customerPhone,
       created_at: order.created_at,
       total: orderTotal,
+      fulfillment_type: order.fulfillment_type,
+      scheduled_for: order.scheduled_for,
+      kitchen_release_at: order.kitchen_release_at,
       receipt_lines: receiptLines,
       source: "voice",
     });
   } catch (error: unknown) {
     console.error("[voice-order] Unexpected error:", error);
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500);
   }
 });

@@ -16,6 +16,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useSocialMediaPosts, SocialMediaPost } from '@/hooks/useSocialMediaPosts';
+import { clientConfig } from '@/config/client';
 
 type PostType = 'single' | 'carousel' | 'video';
 type AIPreference = 'generate_ai' | 'upload_media';
@@ -244,7 +245,7 @@ export function SocialMediaManager() {
                 <Label htmlFor="brief" className="font-medium">Brief / Context</Label>
                 <Textarea
                   id="brief"
-                  placeholder="e.g., Mention limited time offer, tag @streeteatzwaterford, use hashtags..."
+                  placeholder={`e.g., Mention limited time offer, tag ${clientConfig.instagramHandle}, use hashtags...`}
                   value={brief}
                   onChange={(e) => setBrief(e.target.value)}
                   className="min-h-[60px] bg-background/50 border-border resize-none"

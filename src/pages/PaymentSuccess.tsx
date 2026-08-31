@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/stores/cartStore";
 import { supabase } from "@/integrations/supabase/client";
 import confetti from "canvas-confetti";
+import { createRealtimeChannelName } from "@/lib/realtimeChannel";
 
 interface OrderDetails {
   id: string;
@@ -105,7 +106,7 @@ const PaymentSuccess = () => {
     if (!order?.id) return;
 
     const channel = supabase
-      .channel(`order-${order.id}`)
+      .channel(createRealtimeChannelName(`order-${order.id}`))
       .on(
         "postgres_changes",
         {

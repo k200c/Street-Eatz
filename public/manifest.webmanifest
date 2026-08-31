@@ -1,24 +1,50 @@
 {
-  "name": "Street Eatz Admin",
+  "id": "/",
+  "name": "Street Eatz",
   "short_name": "Street Eatz",
-  "start_url": "/admin",
+  "description": "Order from Street Eatz and track your collection.",
+  "start_url": "/?source=pwa",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "scope": "/",
+  "lang": "en-IE",
+  "dir": "ltr",
+  "categories": ["food", "shopping", "lifestyle"],
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/pwa-192x192.png",
+      "src": "/pwa-192x192-v2.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/pwa-512x512.png",
+      "src": "/pwa-512x512-v2.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Order now",
+      "short_name": "Order",
+      "url": "/menu?source=pwa",
+      "icons": [{ "src": "/pwa-192x192-v2.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "My orders",
+      "short_name": "Orders",
+      "url": "/profile?source=pwa",
+      "icons": [{ "src": "/pwa-192x192-v2.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "prefer_related_applications": false
 }

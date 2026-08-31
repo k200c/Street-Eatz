@@ -44,10 +44,13 @@ INSERT INTO public.ingredients (name) VALUES
 -- Link ingredients to Urban Legend burger
 INSERT INTO public.product_ingredients (product_id, ingredient_id, is_default)
 SELECT 
-  '405e8403-04d3-47cd-bdaf-c842a0f8f0df'::uuid,
-  id,
+  products.id,
+  ingredients.id,
   true
-FROM public.ingredients;
+FROM public.products
+CROSS JOIN public.ingredients
+WHERE products.name = 'Urban Legend'
+ON CONFLICT (product_id, ingredient_id) DO NOTHING;
 
 -- Seed modifier groups
 INSERT INTO public.modifier_groups (id, name, min_selection, max_selection) VALUES

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
-import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { getOrderSource } from "@/lib/orderSource";
 
 interface CheckoutData {
   paymentMethod: "card" | "cash";
@@ -11,6 +11,8 @@ interface CheckoutData {
   customerPhone?: string;
   customerEmail?: string;
   specialNotes?: string;
+  fulfillmentType?: "asap" | "scheduled";
+  scheduledFor?: string | null;
 }
 
 interface OrderResult {
@@ -26,7 +28,6 @@ export function useCheckout() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
   const { items, getTotal, clearCart } = useCartStore();
-  const { user } = useAuth();
 
   /**
    * Submit order via DIRECT Supabase insert (bypasses Edge Function)
@@ -58,6 +59,7 @@ export function useCheckout() {
 
       // Determine payment status based on method
       const paymentStatus = data.paymentMethod === "card" ? "pending" : "unpaid";
+      const orderSource = getOrderSource();
 
       // Step 1: Insert order directly (BYPASS Edge Function)
       const { data: order, error: orderError } = await supabase
@@ -73,6 +75,9 @@ export function useCheckout() {
           special_notes: data.specialNotes || null,
           cash_tendered: data.paymentMethod === "cash" ? data.amountTendered : null,
           change_due: changeDue,
+          order_channel: orderSource.channel,
+          fulfillment_type: data.fulfillmentType ?? "asap",
+          scheduled_for: data.scheduledFor ?? null,
         })
         .select("id, display_id, created_at")
         .single();
@@ -149,100 +154,33 @@ export function useCheckout() {
     }
   };
 
-  /**
-   * Send order to n8n webhook for collection payments
-   * Uses standardized payload with paymenttype: 'collection'
-   */
+  /** Ask the authenticated canonical dispatcher to release a saved order. */
   const sendToKitchen = async (
     orderResult: { orderId: string; orderNumber: number; createdAt: string },
-    customerData: { name: string; phone: string; email: string; specialNotes?: string },
-    cartItems: typeof items,
-    orderTotal: number,
-    orderSource: "staff" | "web" = "web",
   ): Promise<boolean> => {
-    if (!cartItems || cartItems.length === 0) {
-      console.error("N8N Error: No items provided, cannot send to kitchen");
-      toast.error("No items to send");
-      return false;
-    }
-
     setIsSendingToKitchen(true);
 
     try {
-      // Fetch current wait time from app_settings
-      const { data: settings } = await supabase
-        .from("app_settings")
-        .select("current_wait_time")
-        .eq("id", 1)
-        .maybeSingle();
-
-      const waitTime = settings?.current_wait_time || "20 mins";
-      const totalAmount = Number(orderTotal) || 0;
-
-      // Build formatted items array
-      const formattedItems = cartItems.map((item) => {
-        const modifiers: string[] = [];
-
-        if (item.removedIngredients && Array.isArray(item.removedIngredients)) {
-          item.removedIngredients.forEach((ing) => {
-            if (ing?.name) modifiers.push(`No ${ing.name}`);
-          });
-        }
-
-        if (item.selectedModifiers && Array.isArray(item.selectedModifiers)) {
-          item.selectedModifiers.forEach((mod) => {
-            if (mod?.name) modifiers.push(mod.name);
-          });
-        }
-
-        return {
-          name: item.product?.name || "Unknown Item",
-          quantity: item.quantity || 1,
-          price: item.totalPrice / item.quantity,
-          modifiers: modifiers,
-        };
-      });
-
-      // Build STANDARDIZED payload for collection payments
-      const payload = {
-        order_id: orderResult.orderId,
-        display_id: orderResult.orderNumber,
-        total_amount: totalAmount,
-        user_id: user?.id || null,             // Supabase auth.uid() for customer tracking
-        payment_method: "cash",
-        paymenttype: "collection",             // Triggers 'Collection' branch in n8n
-        payment_status: "unpaid",              // Customer pays on pickup
-        customer_name: customerData.name || "",
-        customer_phone: customerData.phone || "",
-        customer_email: customerData.email || "",
-        items: formattedItems,
-        timestamp: new Date().toISOString(),
-        order_source: orderSource,
-        special_notes: customerData.specialNotes || '',
-        store_meta: {
-          wait_time: waitTime,
-        },
-      };
-
-      console.log("🚀 Sending collection order to kitchen via Edge Function:", JSON.stringify(payload, null, 2));
-
       const { data, error: fnError } = await supabase.functions.invoke('send-to-kitchen', {
-        body: payload,
+        body: { order_id: orderResult.orderId },
       });
 
-      if (!fnError) {
-        console.log("✅ Order sent to kitchen successfully!");
-        toast.success("Order sent to Kitchen! 👨‍🍳");
-        return true;
-      } else {
+      if (fnError || !data?.success) {
         console.error("❌ Kitchen edge function error:", fnError);
-        toast.error("Network Error. Please show staff this screen.");
-        return true; // Still return true - order is saved in DB
+        toast.error("Order saved, but kitchen handoff needs attention. Keep this screen open.");
+        return false;
       }
+
+      if (data.status === "queued" || data.status === "in_progress") {
+        toast.success("Order saved and safely queued for the kitchen.");
+      } else {
+        toast.success("Order sent to Kitchen! 👨‍🍳");
+      }
+      return true;
     } catch (error) {
       console.error("❌ Kitchen error:", error);
-      toast.error("Network Error: Connection failed. Please show staff this screen.");
-      return true; // Still proceed - order is saved in DB
+      toast.error("Order saved, but kitchen handoff needs attention. Keep this screen open.");
+      return false;
     } finally {
       setIsSendingToKitchen(false);
     }

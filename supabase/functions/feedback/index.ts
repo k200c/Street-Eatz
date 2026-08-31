@@ -26,7 +26,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Site origin allow-list. Never "*" — this endpoint is unauthenticated, so the
 // browser-side origin check is one of the few free controls available.
-const ALLOWED_ORIGINS = Deno.env.get("ALLOWED_ORIGINS") || "https://streeteatzwaterford.ie";
+const ALLOWED_ORIGINS = Deno.env.get("ALLOWED_ORIGINS") || "";
 const allowedOriginsList = ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean);
 
 const MAX_TOKEN_LENGTH = 200;

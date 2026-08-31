@@ -2,6 +2,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { FooterInfoBar } from "@/components/layout/FooterInfoBar";
 import { Link } from "react-router-dom";
+import { clientConfig, clientLegalLastUpdated } from "@/config/client";
 
 const TermsAndConditions = () => {
   return (
@@ -15,17 +16,16 @@ const TermsAndConditions = () => {
           </h1>
           
           <p className="text-muted-foreground text-sm mb-8">
-            Last updated: {new Date().toLocaleDateString('en-IE', { month: 'long', day: 'numeric', year: 'numeric' })}
+            Last updated: {clientLegalLastUpdated}
           </p>
 
           <div className="space-y-8 text-foreground">
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">1. INTRODUCTION</h2>
               <p className="text-muted-foreground leading-relaxed">
-                Welcome to Street Eatz Waterford. These terms and conditions govern your use of our website
+                Welcome to {clientConfig.legalName}. These terms and conditions govern your use of our website
                 and ordering services. By accessing this website or placing an order, you agree to be bound by these terms.
-                Street Eatz Waterford operates from Crystal Sports and Leisure Centre, Cork Rd, Ballynaneashagh,
-                Waterford, X91 E6PX, Ireland.
+                {' '}{clientConfig.legalName} operates from {clientConfig.addressLines.join(', ')}.
               </p>
               <p className="text-muted-foreground leading-relaxed mt-2">
                 You may use this website only for lawful purposes and in accordance with these terms.
@@ -59,7 +59,7 @@ const TermsAndConditions = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">4. COLLECTION & PICKUP</h2>
               <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-                <li>Orders must be collected from our location at Crystal Sports and Leisure Centre, Cork Rd, Ballynaneashagh, Waterford, X91 E6PX.</li>
+                <li>Orders must be collected from our location at {clientConfig.addressLines.join(', ')}.</li>
                 <li>Please arrive at your designated pickup time to ensure food quality.</li>
                 <li>You may be asked to show your order confirmation number.</li>
                 <li>Uncollected orders may be disposed of after 30 minutes without refund.</li>
@@ -76,7 +76,7 @@ const TermsAndConditions = () => {
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
                 <li>Once an order has been confirmed and is being prepared, cancellations may not be possible.</li>
-                <li>If you need to cancel, please contact us immediately at streeteatzwaterford@gmail.com.</li>
+                <li>If you need to cancel, please contact us immediately at {clientConfig.email}.</li>
                 <li>Refunds for food quality issues must be reported within 24 hours of collection.</li>
                 <li>Refunds will be processed to the original payment method within 5-10 business days.</li>
                 <li>For cash payments, refunds may be provided as store credit.</li>
@@ -113,8 +113,8 @@ const TermsAndConditions = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">8. INTELLECTUAL PROPERTY</h2>
               <p className="text-muted-foreground leading-relaxed">
-                All content on this website, including logos, images, and text, is the property of 
-                Street Eatz Waterford and is protected by Irish and international copyright law. 
+                All content on this website, including logos, images, and text, is the property of{' '}
+                {clientConfig.legalName} and is protected by Irish and international copyright law. 
                 Unauthorized reproduction or distribution is prohibited.
               </p>
             </section>
@@ -122,7 +122,7 @@ const TermsAndConditions = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">9. LIABILITY DISCLAIMER</h2>
               <p className="text-muted-foreground leading-relaxed">
-                To the fullest extent permitted by Irish law, Street Eatz Waterford shall not be liable 
+                To the fullest extent permitted by Irish law, {clientConfig.legalName} shall not be liable 
                 for any indirect, incidental, or consequential damages arising from the use of our services. 
                 Our total liability shall not exceed the value of your order.
               </p>
@@ -140,11 +140,9 @@ const TermsAndConditions = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">11. CONTACT</h2>
               <div className="mt-3 p-4 bg-card/50 border border-border rounded-lg">
-                <p className="text-foreground font-semibold">Street Eatz Waterford</p>
-                <p className="text-muted-foreground">Crystal Sports and Leisure Centre</p>
-                <p className="text-muted-foreground">Cork Rd, Ballynaneashagh</p>
-                <p className="text-muted-foreground">Waterford, X91 E6PX, Ireland</p>
-                <p className="text-primary mt-2">streeteatzwaterford@gmail.com</p>
+                <p className="text-foreground font-semibold">{clientConfig.legalName}</p>
+                {clientConfig.addressLines.map((line) => <p key={line} className="text-muted-foreground">{line}</p>)}
+                <p className="text-primary mt-2">{clientConfig.email}</p>
               </div>
             </section>
 

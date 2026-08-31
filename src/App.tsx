@@ -2,36 +2,40 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState } from "react";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { lazy, Suspense, useState } from "react";
 import { useCartSync } from "@/hooks/useCartSync";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UpdateToast } from "@/components/pwa/UpdateToast";
+import { InstallAppPrompt } from "@/components/pwa/InstallAppPrompt";
+import { OrderSourceCapture } from "@/components/customer/OrderSourceCapture";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import Index from "./pages/Index";
-import Menu from "./pages/Menu";
-import Cart from "./pages/Cart";
-import Account from "./pages/Account";
-import Auth from "./pages/Auth";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import RateOrder from "./pages/RateOrder";
-import Details from "./pages/Details";
-import Profile from "./pages/Profile";
-import StaffPOS from "./pages/StaffPOS";
-import StaffDashboard from "./pages/StaffDashboard";
-import CommandCenter from "./pages/CommandCenter";
-import NotFound from "./pages/NotFound";
-import PaymentProcessing from "./pages/PaymentProcessing";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentError from "./pages/PaymentError";
-import Processing from "./pages/Processing";
-import OrderSuccess from "./pages/OrderSuccess";
-import OrderFailed from "./pages/OrderFailed";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsAndConditions from "./pages/TermsAndConditions";
-import RefundPolicy from "./pages/RefundPolicy";
-import DeliveryPolicy from "./pages/DeliveryPolicy";
+const Index = lazy(() => import("./pages/Index"));
+const Menu = lazy(() => import("./pages/Menu"));
+const Cart = lazy(() => import("./pages/Cart"));
+const Auth = lazy(() => import("./pages/Auth"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const RateOrder = lazy(() => import("./pages/RateOrder"));
+const Details = lazy(() => import("./pages/Details"));
+const Profile = lazy(() => import("./pages/Profile"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const PaymentProcessing = lazy(() => import("./pages/PaymentProcessing"));
+const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
+const PaymentError = lazy(() => import("./pages/PaymentError"));
+const Processing = lazy(() => import("./pages/Processing"));
+const OrderSuccess = lazy(() => import("./pages/OrderSuccess"));
+const OrderFailed = lazy(() => import("./pages/OrderFailed"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
+const DeliveryPolicy = lazy(() => import("./pages/DeliveryPolicy"));
+const QrOrderEntry = lazy(() => import("./pages/QrOrderEntry"));
+const StaffDashboard = lazy(() => import("./pages/StaffDashboard"));
+const CommandCenter = lazy(() => import("./pages/CommandCenter"));
+const QrHub = lazy(() => import("./pages/QrHub"));
+const FoodOSPreview = lazy(() => import("./pages/FoodOSPreview"));
+const InstallApp = lazy(() => import("./pages/InstallApp"));
 
 // Component to initialize cart sync within the app
 const CartSyncProvider = ({ children }: { children: React.ReactNode }) => {
@@ -68,7 +72,10 @@ const [queryClient] = useState(() => new QueryClient({
               }}
             />
             <UpdateToast />
+            <InstallAppPrompt />
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <OrderSourceCapture />
+            <Suspense fallback={<div className="min-h-[100dvh] bg-background flex items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
             <Routes>
                 {/* CRITICAL: Viva Wallet redirect routes MUST be first - public, no auth */}
                 <Route path="/processing" element={<Processing />} />
@@ -81,6 +88,8 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/menu" element={<Menu />} />
+                <Route path="/qr/order" element={<QrOrderEntry />} />
+                <Route path="/install" element={<InstallApp />} />
 
                 {/* Post-order rating from an SMS link. Public, no auth, no layout —
                     the token in the path is the only credential. The bare /rate
@@ -91,7 +100,7 @@ const [queryClient] = useState(() => new QueryClient({
                 
                 {/* Customer routes - require auth */}
                 <Route path="/cart" element={<AuthGuard><Cart /></AuthGuard>} />
-                <Route path="/account" element={<AuthGuard><Account /></AuthGuard>} />
+                <Route path="/account" element={<AuthGuard><Navigate to="/profile" replace /></AuthGuard>} />
                 <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
                 <Route path="/details" element={<Details />} />
                 
@@ -99,6 +108,7 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/admin" element={<AuthGuard allowedRoles={['admin']}><StaffDashboard /></AuthGuard>} />
                 <Route path="/admin/pos" element={<AuthGuard allowedRoles={['admin']}><StaffDashboard /></AuthGuard>} />
                 <Route path="/admin/dashboard" element={<AuthGuard allowedRoles={['admin']}><CommandCenter /></AuthGuard>} />
+                <Route path="/admin/qr" element={<AuthGuard allowedRoles={['admin']}><QrHub /></AuthGuard>} />
                 
                 {/* Legacy payment routes - require auth */}
                 <Route path="/processing/:orderCode" element={<AuthGuard><PaymentProcessing /></AuthGuard>} />
@@ -110,9 +120,15 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
                 <Route path="/refund-policy" element={<RefundPolicy />} />
                 <Route path="/delivery-policy" element={<DeliveryPolicy />} />
+
+                {/* Visual-only Food OS workspace. Development builds only: this route is
+                    intentionally unavailable in production until its modules are wired,
+                    secured and approved. */}
+                {import.meta.env.DEV && <Route path="/os-preview" element={<FoodOSPreview />} />}
                 
                 <Route path="*" element={<NotFound />} />
               </Routes>
+            </Suspense>
             </BrowserRouter>
           </CartSyncProvider>
         </AuthProvider>

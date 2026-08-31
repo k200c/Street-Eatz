@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { createRealtimeChannelName } from '@/lib/realtimeChannel';
 
 type Order = Tables<'orders'>;
 type OrderItem = Tables<'order_items'>;
@@ -56,10 +57,13 @@ export function useKitchenOrders() {
         throw ordersError;
       }
 
-      console.log('[KDS] Raw orders fetched:', ordersData?.length || 0);
+      const releasedOrders = (ordersData || []).filter((order) =>
+        order.fulfillment_type !== 'scheduled' || Boolean(order.released_to_kitchen_at)
+      );
+      console.log('[KDS] Kitchen-released orders fetched:', releasedOrders.length);
 
       // Fetch order items for all orders
-      const orderIds = ordersData?.map(o => o.id) || [];
+      const orderIds = releasedOrders.map(o => o.id);
       if (orderIds.length === 0) {
         console.log('[KDS] No active orders found');
         return [];
@@ -76,7 +80,7 @@ export function useKitchenOrders() {
       }
 
       // Combine orders with their items
-      const ordersWithItems: KitchenOrder[] = ordersData.map(order => ({
+      const ordersWithItems: KitchenOrder[] = releasedOrders.map(order => ({
         ...order,
         order_items: itemsData?.filter(item => item.order_id === order.id) || []
       }));
@@ -150,7 +154,7 @@ export function useKitchenOrders() {
   // Subscribe to realtime updates
   useEffect(() => {
     const channel = supabase
-      .channel('kitchen-orders-realtime')
+      .channel(createRealtimeChannelName('kitchen-orders-realtime'))
       .on(
         'postgres_changes',
         {
@@ -160,7 +164,10 @@ export function useKitchenOrders() {
         },
         (payload) => {
           console.log('[KDS] New order received via realtime:', payload);
-          playNotificationSound();
+          const order = payload.new as Partial<Order>;
+          if (order.fulfillment_type !== 'scheduled' || order.released_to_kitchen_at) {
+            playNotificationSound();
+          }
           refetch();
         }
       )
@@ -173,6 +180,11 @@ export function useKitchenOrders() {
         },
         (payload) => {
           console.log('[KDS] Order updated via realtime:', payload);
+          const previous = payload.old as Partial<Order>;
+          const next = payload.new as Partial<Order>;
+          if (!previous.released_to_kitchen_at && next.released_to_kitchen_at) {
+            playNotificationSound();
+          }
           refetch();
         }
       )

@@ -6,8 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-const DEFAULT_REVIEW_LINK = "https://g.page/r/streeteatz/review";
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -121,7 +119,14 @@ Deno.serve(async (req) => {
     console.log("rows returned:", data?.length ?? 0);
     console.log("sample rows:", (data || []).slice(0, 5));
 
-    const reviewLink = Deno.env.get("GOOGLE_REVIEW_LINK") || DEFAULT_REVIEW_LINK;
+    const reviewLink = Deno.env.get("GOOGLE_REVIEW_LINK");
+    if (!reviewLink) {
+      console.error("❌ GOOGLE_REVIEW_LINK not configured");
+      return new Response(
+        JSON.stringify({ ok: false, error: "Review link not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const orders = (data || []).map((o) => ({
       order_id: o.id,

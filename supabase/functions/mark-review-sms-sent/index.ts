@@ -7,7 +7,7 @@ const corsHeaders = {
 
 function normalizePhone(input: string): string {
   if (!input) return "";
-  let p = input.replace(/[\s\-()]/g, "");
+  const p = input.replace(/[\s\-()]/g, "");
   if (p.startsWith("+")) return p;
   if (p.startsWith("00")) return "+" + p.slice(2);
   if (p.startsWith("0")) return "+353" + p.slice(1);

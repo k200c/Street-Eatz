@@ -16,7 +16,7 @@ interface OrderHistoryCardProps {
       product_name: string | null;
       quantity: number | null;
       unit_price: number;
-      selected_modifiers: any;
+      selected_modifiers: unknown;
     }[];
   };
 }
@@ -48,12 +48,19 @@ export function OrderHistoryCard({ order }: OrderHistoryCardProps) {
         
         if (product) {
           // Parse modifiers from the saved order
-          const modifiers = Array.isArray(item.selected_modifiers) 
-            ? item.selected_modifiers.map((m: any) => ({
-                id: m.id || crypto.randomUUID(),
-                name: m.name || '',
-                price_adjustment: m.price_adjustment || 0,
-              }))
+          const modifiers = Array.isArray(item.selected_modifiers)
+            ? item.selected_modifiers.map((value: unknown) => {
+                const modifier = value && typeof value === 'object'
+                  ? value as Record<string, unknown>
+                  : {};
+                return {
+                  id: typeof modifier.id === 'string' ? modifier.id : crypto.randomUUID(),
+                  name: typeof modifier.name === 'string' ? modifier.name : '',
+                  price_adjustment: typeof modifier.price_adjustment === 'number'
+                    ? modifier.price_adjustment
+                    : 0,
+                };
+              })
             : [];
           
           addItem(

@@ -12,11 +12,16 @@ import { useUserOrders } from '@/hooks/useUserOrders';
 import { User, LogOut, Settings, ChevronRight, History, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppSettings } from '@/hooks/useAppSettings';
+import { useLoyalty } from '@/hooks/useLoyalty';
 
 export default function Profile() {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, signOut, isAdmin } = useAuth();
   const { activeOrders, completedOrders, completedOrderCount, isLoading: ordersLoading, refetch } = useUserOrders();
+  const { data: appSettings } = useAppSettings();
+  const loyaltyEnabled = appSettings?.loyalty_enabled ?? false;
+  const { data: loyaltyBalance, isLoading: loyaltyLoading } = useLoyalty(loyaltyEnabled);
   const [showSettings, setShowSettings] = useState(false);
 
   // Redirect to auth if not logged in
@@ -119,19 +124,25 @@ export default function Profile() {
         )}
 
         {/* Loyalty Stamp Card */}
-        <motion.section
+        {loyaltyEnabled && <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          {isLoading ? (
+          {isLoading || loyaltyLoading ? (
             <div className="glass-card p-5 animate-pulse">
               <div className="h-24 bg-secondary/50 rounded-lg" />
             </div>
           ) : (
-            <LoyaltyStampCard completedOrders={completedOrderCount} />
+            <LoyaltyStampCard
+              pointsBalance={loyaltyBalance?.pointsBalance ?? 0}
+              lifetimePoints={loyaltyBalance?.lifetimePoints ?? 0}
+              rewardsRedeemed={loyaltyBalance?.rewardsRedeemed ?? 0}
+              rewardCost={appSettings?.loyalty_reward_cost ?? 5}
+              rewardLabel={appSettings?.loyalty_reward_label ?? 'Free Fries or a Drink'}
+            />
           )}
-        </motion.section>
+        </motion.section>}
 
         {/* Order History */}
         <motion.section

@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ExternalLink } from 'lucide-react';
-import streetEatzLogo from '@/assets/street-eatz-logo-new.jpeg';
+import { clientAssets, clientConfig } from '@/config/client';
 
 const DeliveryOptionsModal = lazy(() => import('./DeliveryOptionsModal').then(m => ({ default: m.DeliveryOptionsModal })));
 
@@ -51,12 +51,13 @@ export function HeroSection() {
           
           {/* Logo — compact on mobile, explicit dimensions to prevent CLS */}
           <img
-            src={streetEatzLogo}
-            alt="StreetEatz Logo"
+            src={clientAssets.logo}
+            alt={`${clientConfig.brandName} logo`}
             width={80}
             height={80}
             className="w-20 sm:w-48 md:w-56 lg:w-64 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(255,107,0,0.5)]"
-            fetchPriority="high"
+            loading="eager"
+            decoding="async"
           />
         </div>
 
@@ -70,7 +71,7 @@ export function HeroSection() {
               textShadow: '0 0 40px rgba(255, 107, 0, 0.5), 0 0 80px rgba(255, 107, 0, 0.3)',
             }}
           >
-            StreetEatz Waterford
+            {clientConfig.legalName}
           </h1>
           
           <h2
@@ -80,13 +81,13 @@ export function HeroSection() {
               lineHeight: 1.1,
             }}
           >
-            GOURMET STREET FOOD
+            {clientConfig.category.toUpperCase()}
           </h2>
         </div>
 
         {/* Tagline */}
         <p className="text-muted-foreground text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.3em] uppercase mb-2 sm:mb-8">
-          Fresh · Bold · Waterford
+          {clientConfig.tagline}
         </p>
 
         {/* CTA Buttons */}

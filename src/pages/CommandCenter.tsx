@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard, Wifi, ShoppingBag, Sandwich } from 'lucide-react';
+import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, CreditCard, Wifi, ShoppingBag, Sandwich, QrCode, Bot, Settings2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
@@ -11,21 +11,38 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SocialMediaManager } from '@/components/staff/SocialMediaManager';
-import { CRMDashboard } from '@/components/staff/CRMDashboard';
-import { MarketingHub } from '@/components/staff/MarketingHub';
-import { AnalyticsDashboard } from '@/components/staff/AnalyticsDashboard';
 import { QuickStockManager } from '@/components/staff/QuickStockManager';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { IngredientPriceManager } from '@/components/staff/IngredientPriceManager';
 import { toast } from 'sonner';
 
+const SocialMediaManager = lazy(() => import('@/components/staff/SocialMediaManager').then((module) => ({ default: module.SocialMediaManager })));
+const CRMDashboard = lazy(() => import('@/components/staff/CRMDashboard').then((module) => ({ default: module.CRMDashboard })));
+const MarketingHub = lazy(() => import('@/components/staff/MarketingHub').then((module) => ({ default: module.MarketingHub })));
+const AnalyticsDashboard = lazy(() => import('@/components/staff/AnalyticsDashboard').then((module) => ({ default: module.AnalyticsDashboard })));
+const ManagementAssistant = lazy(() => import('@/components/staff/ManagementAssistant').then((module) => ({ default: module.ManagementAssistant })));
+const OperationsHub = lazy(() => import('@/components/staff/OperationsHub').then((module) => ({ default: module.OperationsHub })));
+const ModuleSettingsPanel = lazy(() => import('@/components/staff/ModuleSettingsPanel').then((module) => ({ default: module.ModuleSettingsPanel })));
+
+function ModuleLoadingState() {
+  return <div className="h-64 animate-pulse rounded-2xl border border-border bg-secondary/25" aria-label="Loading workspace" />;
+}
+
 const waitTimeOptions = ['15 mins', '20 mins', '30 mins', '45 mins', '60 mins'];
 
 type CardProvider = 'viva' | 'mypos';
+type CommandCenterTab = 'assistant' | 'operations' | 'customers' | 'marketing' | 'analytics' | 'social' | 'settings';
+const commandCenterTabs: CommandCenterTab[] = ['assistant', 'operations', 'customers', 'marketing', 'analytics', 'social', 'settings'];
 
 export default function CommandCenter() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<CommandCenterTab>(() => {
+    const requested = searchParams.get('tab');
+    return commandCenterTabs.includes(requested as CommandCenterTab)
+      ? requested as CommandCenterTab
+      : 'operations';
+  });
   const { isAdmin, loading } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useAppSettings();
   const { devModeEnabled, toggleDevMode, dbStoreOpen } = useStoreStatus();
@@ -102,7 +119,7 @@ export default function CommandCenter() {
   if (!isAdmin) return null;
 
   // Use effective store status (considers dev mode bypass)
-  const isStoreOpen = devModeEnabled ? true : (settings?.is_store_open ?? true);
+  const isStoreOpen = devModeEnabled ? true : (settings?.is_store_open ?? false);
   const activeProvider: CardProvider = (settings?.card_payment_provider === 'mypos' ? 'mypos' : 'viva');
   const onlinePaymentsEnabled = settings?.online_payments_enabled ?? true;
   const payOnCollectionEnabled = settings?.pay_on_collection_enabled ?? true;
@@ -124,18 +141,38 @@ export default function CommandCenter() {
             </Button>
             <h1 className="font-heading text-xl font-bold">COMMAND CENTER</h1>
           </div>
-          <div className={`px-3 py-1 rounded-full text-xs font-bold ${isStoreOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-            {isStoreOpen ? 'STORE OPEN' : 'STORE CLOSED'}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin/qr')} className="gap-2">
+              <QrCode className="h-4 w-4" />
+              <span className="hidden sm:inline">QR Hub</span>
+            </Button>
+            <div className={`px-3 py-1 rounded-full text-xs font-bold ${isStoreOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+              {isStoreOpen ? 'STORE OPEN' : 'STORE CLOSED'}
+            </div>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
-        <Tabs defaultValue="operations" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 max-w-3xl overflow-x-auto">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            const next = commandCenterTabs.includes(value as CommandCenterTab)
+              ? value as CommandCenterTab
+              : 'operations';
+            setActiveTab(next);
+            setSearchParams(next === 'operations' ? {} : { tab: next }, { replace: true });
+          }}
+          className="space-y-6"
+        >
+          <TabsList className="grid w-full grid-cols-7 max-w-6xl overflow-x-auto">
+            <TabsTrigger value="assistant" className="flex items-center gap-2">
+              <Bot className="w-4 h-4" />
+              <span className="hidden sm:inline">Assistant</span>
+            </TabsTrigger>
             <TabsTrigger value="operations" className="flex items-center gap-2">
               <Store className="w-4 h-4" />
-              <span className="hidden sm:inline">Store</span>
+              <span className="hidden sm:inline">Operations</span>
             </TabsTrigger>
             <TabsTrigger value="customers" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
@@ -153,10 +190,34 @@ export default function CommandCenter() {
               <Share2 className="w-4 h-4" />
               <span className="hidden sm:inline">Social</span>
             </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </TabsTrigger>
           </TabsList>
+
+          {/* Owner Assistant Tab */}
+          <TabsContent value="assistant">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ErrorBoundary>
+                <Suspense fallback={<ModuleLoadingState />}>
+                  <ManagementAssistant />
+                </Suspense>
+              </ErrorBoundary>
+            </motion.div>
+          </TabsContent>
 
           {/* Operations Tab */}
           <TabsContent value="operations" className="space-y-6">
+            <ErrorBoundary>
+              <Suspense fallback={<ModuleLoadingState />}>
+                <OperationsHub />
+              </Suspense>
+            </ErrorBoundary>
             {/* Store Status Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -367,8 +428,8 @@ export default function CommandCenter() {
               </Card>
             </motion.div>
 
-            {/* Dev Mode Card */}
-            <motion.div
+            {/* Dev Mode Card — development builds only */}
+            {import.meta.env.DEV && <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.25 }}
@@ -401,7 +462,7 @@ export default function CommandCenter() {
                   )}
                 </CardContent>
               </Card>
-            </motion.div>
+            </motion.div>}
 
             {/* Stock Manager */}
             <motion.div
@@ -422,7 +483,9 @@ export default function CommandCenter() {
               transition={{ duration: 0.3 }}
             >
               <ErrorBoundary>
-                <CRMDashboard />
+                <Suspense fallback={<ModuleLoadingState />}>
+                  <CRMDashboard />
+                </Suspense>
               </ErrorBoundary>
             </motion.div>
           </TabsContent>
@@ -435,7 +498,9 @@ export default function CommandCenter() {
               transition={{ duration: 0.3 }}
             >
               <ErrorBoundary>
-                <MarketingHub />
+                <Suspense fallback={<ModuleLoadingState />}>
+                  <MarketingHub />
+                </Suspense>
               </ErrorBoundary>
             </motion.div>
           </TabsContent>
@@ -448,7 +513,9 @@ export default function CommandCenter() {
               transition={{ duration: 0.3 }}
             >
               <ErrorBoundary>
-                <AnalyticsDashboard />
+                <Suspense fallback={<ModuleLoadingState />}>
+                  <AnalyticsDashboard />
+                </Suspense>
               </ErrorBoundary>
             </motion.div>
           </TabsContent>
@@ -461,7 +528,19 @@ export default function CommandCenter() {
               transition={{ duration: 0.3 }}
             >
               <ErrorBoundary>
-                <SocialMediaManager />
+                <Suspense fallback={<ModuleLoadingState />}>
+                  <SocialMediaManager />
+                </Suspense>
+              </ErrorBoundary>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+              <ErrorBoundary>
+                <Suspense fallback={<ModuleLoadingState />}>
+                  <ModuleSettingsPanel />
+                </Suspense>
               </ErrorBoundary>
             </motion.div>
           </TabsContent>

@@ -2,8 +2,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
 };
+
+function secretsMatch(received: string, expected: string): boolean {
+  if (received.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < received.length; index++) {
+    difference |= received.charCodeAt(index) ^ expected.charCodeAt(index);
+  }
+  return difference === 0;
+}
 
 interface UpdatePostPayload {
   post_id: string;
@@ -39,7 +48,23 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
+    const webhookSecret = Deno.env.get("N8N_WEBHOOK_SECRET");
+    const receivedSecret = req.headers.get("x-webhook-secret") ?? "";
+    if (!webhookSecret || !secretsMatch(receivedSecret, webhookSecret)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const payload: UpdatePostPayload = await req.json();
     console.log("Incoming payload keys:", Object.keys(payload), "post_id:", payload.post_id);
 
@@ -69,10 +94,11 @@ Deno.serve(async (req) => {
         const parsed = parseMediaUrls(payload.media_urls);
         console.log(`media_urls parsed: ${parsed.length} url(s)`);
         updateData.media_urls = parsed;
-      } catch (e) {
-        console.error("media_urls parse error:", e.message);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Invalid media URLs";
+        console.error("media_urls parse error:", message);
         return new Response(
-          JSON.stringify({ error: `Invalid media_urls: ${e.message}` }),
+          JSON.stringify({ error: `Invalid media_urls: ${message}` }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

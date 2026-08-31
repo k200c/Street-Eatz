@@ -114,8 +114,9 @@ export function IngredientPriceManager() {
       queryClient.invalidateQueries({ queryKey: ['product-ingredients'] });
       queryClient.invalidateQueries({ queryKey: ['product-ingredients-admin'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
-    } catch (err: any) {
-      toast.error(`Save failed: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Save failed: ${message}`);
     } finally {
       setIsSaving(false);
     }
@@ -190,7 +191,7 @@ export function IngredientPriceManager() {
                   <div key={ing.id} className={`grid grid-cols-[32px_1fr_80px_60px_60px] gap-1.5 items-center p-1.5 rounded border ${isDirty ? 'bg-primary/10 border-primary/30' : inStock ? 'bg-secondary/20 border-border/30' : 'bg-destructive/10 border-destructive/30'}`}>
                     <Switch
                       checked={inStock}
-                      onCheckedChange={v => updateEdit(ing.id, 'in_stock', v as any)}
+                      onCheckedChange={v => updateEdit(ing.id, 'in_stock', v)}
                       className="scale-75"
                     />
                     <Input

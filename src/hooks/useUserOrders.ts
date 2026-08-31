@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import type { Json } from '@/integrations/supabase/types';
+import { createRealtimeChannelName } from '@/lib/realtimeChannel';
 
 export interface OrderWithItems {
   id: string;
@@ -9,12 +11,14 @@ export interface OrderWithItems {
   payment_status: string | null;
   total: number;
   created_at: string;
+  fulfillment_type: string;
+  scheduled_for: string | null;
   items: {
     id: string;
     product_name: string | null;
     quantity: number | null;
     unit_price: number;
-    selected_modifiers: any;
+    selected_modifiers: Json;
   }[];
 }
 
@@ -34,6 +38,8 @@ export function useUserOrders() {
           payment_status,
           total,
           created_at,
+          fulfillment_type,
+          scheduled_for,
           order_items (
             id,
             product_name,
@@ -64,7 +70,7 @@ export function useUserOrders() {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel(`user-orders-${user.id}`)
+      .channel(createRealtimeChannelName(`user-orders-${user.id}`))
       .on(
         'postgres_changes',
         {

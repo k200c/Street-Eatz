@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, publicSupabase } from '@/integrations/supabase/client';
 import { Product, ProductCategory } from '@/types/database';
 import { useEffect } from 'react';
+import { createRealtimeChannelName } from '@/lib/realtimeChannel';
 
 export function useProducts(category?: ProductCategory | 'All') {
   const queryClient = useQueryClient();
@@ -9,7 +10,7 @@ export function useProducts(category?: ProductCategory | 'All') {
   // Subscribe to real-time updates
   useEffect(() => {
     const channel = supabase
-      .channel('products-realtime')
+      .channel(createRealtimeChannelName('products-realtime'))
       .on(
         'postgres_changes',
         {
@@ -88,7 +89,7 @@ export function useAllProducts(category?: ProductCategory | 'All') {
   // Subscribe to real-time updates
   useEffect(() => {
     const channel = supabase
-      .channel('all-products-realtime')
+      .channel(createRealtimeChannelName('all-products-realtime'))
       .on(
         'postgres_changes',
         {

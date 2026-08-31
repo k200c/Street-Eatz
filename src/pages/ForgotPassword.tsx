@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Mail, ArrowRight, ArrowLeft, Loader2, MailCheck, KeyRound } from 'lucide-react';
 import { z } from 'zod';
-import streetEatzLogo from '@/assets/street-eatz-logo-new.jpeg';
+import { clientAssets, clientConfig } from '@/config/client';
 
 const emailSchema = z.string().trim().email('Please enter a valid email').max(255, 'Email too long');
 
@@ -55,7 +55,7 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="p-4 flex justify-center">
-        <img src={streetEatzLogo} alt="Street Eatz" className="h-12 w-auto" />
+        <img src={clientAssets.logo} alt={clientConfig.brandName} className="h-12 w-auto" />
       </header>
 
       <main className="flex-1 flex items-center justify-center p-4">

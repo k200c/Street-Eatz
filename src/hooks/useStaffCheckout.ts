@@ -108,90 +108,24 @@ export function useStaffCheckout() {
     }
   };
 
-  /**
-   * Send order to kitchen via n8n webhook (for cash/collection payments)
-   */
-  const sendToKitchen = async (
-    orderResult: StaffOrderResult,
-    customerData: { name: string; phone: string; specialNotes?: string }
-  ): Promise<boolean> => {
-    if (items.length === 0) {
-      console.error("No items to send to kitchen");
-      return false;
-    }
-
+  /** Release the saved order through the database-canonical kitchen dispatcher. */
+  const sendToKitchen = async (orderResult: StaffOrderResult): Promise<boolean> => {
     setIsSendingToKitchen(true);
 
     try {
-      // Fetch current wait time
-      const { data: settings } = await supabase
-        .from("app_settings")
-        .select("current_wait_time")
-        .eq("id", 1)
-        .maybeSingle();
-
-      const waitTime = settings?.current_wait_time || "20 mins";
-      const totalAmount = getTotal();
-
-      // Build formatted items
-      const formattedItems = items.map((item) => {
-        const modifiers: string[] = [];
-        
-        if (item.removedIngredients?.length) {
-          item.removedIngredients.forEach((ing) => {
-            if (ing?.name) modifiers.push(`No ${ing.name}`);
-          });
-        }
-        
-        if (item.selectedModifiers?.length) {
-          item.selectedModifiers.forEach((mod) => {
-            if (mod?.name) modifiers.push(mod.name);
-          });
-        }
-
-        return {
-          name: item.product?.name || "Unknown Item",
-          quantity: item.quantity || 1,
-          price: item.totalPrice / item.quantity,
-          modifiers,
-        };
+      const { error: fnError } = await supabase.functions.invoke('send-to-kitchen', {
+        body: { order_id: orderResult.orderId },
       });
 
-      // Build STANDARDIZED payload for POSCash
-      const payload = {
-        order_id: orderResult.orderId,
-        display_id: orderResult.displayId,
-        total_amount: totalAmount,
-        payment_method: "cash",
-        paymenttype: "POSCash",           // Triggers 'POSCash' branch in n8n
-        payment_status: "paid",           // Cash is immediate
-        customer_name: customerData.name || "",
-        customer_phone: customerData.phone || "",
-        items: formattedItems,
-        timestamp: new Date().toISOString(),
-        order_source: "staff",
-        special_notes: customerData.specialNotes || '',
-        store_meta: {
-          wait_time: waitTime,
-        },
-      };
-
-      console.log("📦 Staff POS: Sending to kitchen via Edge Function:", payload);
-
-      const { data, error: fnError } = await supabase.functions.invoke('send-to-kitchen', {
-        body: payload,
-      });
-
-      if (!fnError) {
-        console.log("✅ Staff POS: Order sent to kitchen");
-        return true;
-      } else {
+      if (fnError) {
         console.error("❌ Staff POS: Kitchen edge function error:", fnError);
-        return true; // Still return true - order is saved in DB
+        return false;
       }
+
+      return true;
     } catch (error) {
       console.error("❌ Staff POS: Kitchen error:", error);
-      return true; // Still proceed - order is saved
+      return false;
     } finally {
       setIsSendingToKitchen(false);
     }

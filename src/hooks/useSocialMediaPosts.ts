@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { createRealtimeChannelName } from "@/lib/realtimeChannel";
 
 export interface SocialMediaPost {
   id: string;
@@ -28,8 +29,6 @@ interface CreatePostParams {
   referenceFiles?: File[]; // Changed from referenceFile to support multi-file
 }
 
-const N8N_GENERATE_WEBHOOK = "https://kyle2000.app.n8n.cloud/webhook/street-eatz-generate";
-
 export function useSocialMediaPosts() {
   const queryClient = useQueryClient();
 
@@ -38,7 +37,7 @@ export function useSocialMediaPosts() {
     console.log("🔌 Setting up Supabase Realtime subscription for social_media_posts...");
 
     const channel = supabase
-      .channel("social-media-posts-live")
+      .channel(createRealtimeChannelName("social-media-posts-live"))
       .on(
         "postgres_changes",
         {
@@ -296,21 +295,16 @@ export function useSocialMediaPosts() {
 
       console.log("🚀 STEP 5b: Triggering N8N webhook...");
       try {
-        const response = await fetch(N8N_GENERATE_WEBHOOK, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
+        const { data, error } = await supabase.functions.invoke("staff-automation", {
+          body: {
+            action: "social_generate",
+            payload: { post_id: newId, reference_image_urls: finalReferenceUrls },
           },
-          mode: "cors",
-          credentials: "omit",
-          body: JSON.stringify(webhookPayload),
         });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`❌ N8N Error (${response.status}):`, errorText);
-          toast.error(`AI request failed: ${response.status}`);
+        if (error || !data?.success) {
+          console.error("❌ Content workflow error:", error ?? data);
+          toast.error("AI request failed");
         } else {
           console.log("✅ STEP 5b WEBHOOK SUCCESS!");
           toast.success("✨ AI is writing your caption...");
@@ -465,34 +459,12 @@ export function useSocialMediaPosts() {
       if (fetchError) throw fetchError;
       if (!post) throw new Error("Post not found");
 
-      // Trigger the n8n webhook for instant posting
-      const response = await fetch("https://kyle2000.app.n8n.cloud/webhook-test/post-now-instant", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          post_id: postId,
-          content_idea: post.content_idea,
-          generated_caption: post.generated_caption,
-          media_urls: post.media_urls,
-          post_type: post.post_type,
-        }),
+      // Trigger the authenticated, database-canonical publishing workflow.
+      const { data, error } = await supabase.functions.invoke("staff-automation", {
+        body: { action: "social_publish", payload: { post_id: postId } },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("N8N Post Now error:", errorText);
-        throw new Error(`Failed to publish: ${response.status}`);
-      }
-
-      // Update status to published
-      const { error: updateError } = await supabase
-        .from("social_media_posts")
-        .update({ status: "published" })
-        .eq("id", postId);
-
-      if (updateError) throw updateError;
+      if (error || !data?.success) throw error ?? new Error("Failed to publish post");
 
       return post;
     },

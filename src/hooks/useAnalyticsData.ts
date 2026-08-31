@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { subDays, startOfWeek, endOfWeek, format, getHours, getDay } from 'date-fns';
 
 export interface HeatmapData {
   hour: number;
@@ -22,19 +21,88 @@ export interface RevenueKPIs {
   returningCustomerRate: number;
 }
 
+export interface OperationalInsights {
+  dailySales: Array<{
+    tradeDate: string;
+    orders: number;
+    revenue: number;
+    averageOrderValue: number;
+    cashOrders: number;
+    cardOrders: number;
+  }>;
+  channelMix: Array<{
+    channel: string;
+    orders: number;
+    revenue: number;
+    averageOrderValue: number;
+    orderShare: number;
+  }>;
+  prepTime: {
+    average: number;
+    median: number;
+    p90: number;
+  } | null;
+  modifierAttachRate: number | null;
+  dataHealth: Array<{ issue: string; affectedRows: number }>;
+}
+
+interface ManagementSnapshot {
+  kpis: {
+    revenue: number;
+    orders: number;
+    average_order_value: number;
+    previous_period_revenue: number;
+    period_change_pct: number;
+  };
+  customers: {
+    total: number;
+    returning: number;
+    returning_rate_pct: number;
+  };
+  daily_sales: Array<{
+    trade_date: string;
+    orders: number;
+    revenue: number;
+    avg_order_value: number;
+    cash_orders: number;
+    card_orders: number;
+  }>;
+  channel_mix: Array<{
+    channel: string;
+    orders: number;
+    revenue: number;
+    avg_order_value: number;
+    order_share_pct: number;
+  }>;
+  item_mix: Array<{
+    product_name: string;
+    units_sold: number;
+    revenue: number;
+  }>;
+  prep_time: {
+    average: number;
+    median: number;
+    p90: number;
+  } | null;
+  modifier_attach_rate_pct: number | null;
+  data_health: Array<{ issue: string; rows_affected: number }>;
+  heatmap: Array<{ hour: number; day: number; count: number }>;
+}
+
+async function getManagementSnapshot(days: number, mealPeriod = 'all'): Promise<ManagementSnapshot> {
+  const { data, error } = await supabase.rpc('get_management_business_snapshot', {
+    p_days: days,
+    p_meal_period: mealPeriod,
+  });
+  if (error) throw error;
+  return data as unknown as ManagementSnapshot;
+}
+
 export function useOrdersHeatmap() {
   return useQuery({
     queryKey: ['orders-heatmap'],
     queryFn: async () => {
-      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
-      
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('created_at')
-        .gte('created_at', thirtyDaysAgo)
-        .eq('status', 'completed');
-
-      if (error) throw error;
+      const snapshot = await getManagementSnapshot(30);
 
       // Initialize heatmap grid (24 hours x 7 days)
       const heatmap: HeatmapData[] = [];
@@ -45,13 +113,10 @@ export function useOrdersHeatmap() {
       }
 
       // Count orders by hour and day
-      orders?.forEach(order => {
-        const date = new Date(order.created_at);
-        const hour = getHours(date);
-        const day = getDay(date); // 0 = Sunday
+      snapshot.heatmap.forEach(({ hour, day, count }) => {
         const index = day * 24 + hour;
         if (heatmap[index]) {
-          heatmap[index].count++;
+          heatmap[index].count = Number(count ?? 0);
         }
       });
 
@@ -64,56 +129,12 @@ export function useItemLeaderboard(mealPeriod: 'all' | 'lunch' | 'dinner' = 'all
   return useQuery({
     queryKey: ['item-leaderboard', mealPeriod],
     queryFn: async () => {
-      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
-      
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('id, created_at')
-        .gte('created_at', thirtyDaysAgo)
-        .eq('status', 'completed');
-
-      if (ordersError) throw ordersError;
-
-      // Filter by meal period
-      let filteredOrderIds = orders?.map(o => o.id) || [];
-      
-      if (mealPeriod !== 'all' && orders) {
-        filteredOrderIds = orders
-          .filter(order => {
-            const hour = getHours(new Date(order.created_at));
-            if (mealPeriod === 'lunch') return hour >= 11 && hour < 15;
-            if (mealPeriod === 'dinner') return hour >= 17 && hour < 22;
-            return true;
-          })
-          .map(o => o.id);
-      }
-
-      if (filteredOrderIds.length === 0) return [];
-
-      const { data: items, error: itemsError } = await supabase
-        .from('order_items')
-        .select('product_name, quantity, unit_price')
-        .in('order_id', filteredOrderIds);
-
-      if (itemsError) throw itemsError;
-
-      // Aggregate by product
-      const aggregated: Record<string, { count: number; revenue: number }> = {};
-      items?.forEach(item => {
-        const name = item.product_name || 'Unknown';
-        if (!aggregated[name]) {
-          aggregated[name] = { count: 0, revenue: 0 };
-        }
-        aggregated[name].count += item.quantity || 1;
-        aggregated[name].revenue += (item.unit_price || 0) * (item.quantity || 1);
-      });
-
-      const leaderboard: ItemLeaderboardEntry[] = Object.entries(aggregated)
-        .map(([name, data]) => ({ name, ...data }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10);
-
-      return leaderboard;
+      const snapshot = await getManagementSnapshot(30, mealPeriod);
+      return snapshot.item_mix.map((item) => ({
+        name: item.product_name || 'Unknown',
+        count: Number(item.units_sold ?? 0),
+        revenue: Number(item.revenue ?? 0),
+      })) as ItemLeaderboardEntry[];
     },
   });
 }
@@ -122,58 +143,55 @@ export function useRevenueKPIs() {
   return useQuery({
     queryKey: ['revenue-kpis'],
     queryFn: async () => {
-      const now = new Date();
-      const thisWeekStart = startOfWeek(now);
-      const lastWeekStart = startOfWeek(subDays(now, 7));
-      const lastWeekEnd = endOfWeek(subDays(now, 7));
-
-      // Get this week's orders
-      const { data: thisWeekOrders, error: thisWeekError } = await supabase
-        .from('orders')
-        .select('total, customer_phone')
-        .gte('created_at', thisWeekStart.toISOString())
-        .eq('status', 'completed');
-
-      if (thisWeekError) throw thisWeekError;
-
-      // Get last week's orders
-      const { data: lastWeekOrders, error: lastWeekError } = await supabase
-        .from('orders')
-        .select('total')
-        .gte('created_at', lastWeekStart.toISOString())
-        .lte('created_at', lastWeekEnd.toISOString())
-        .eq('status', 'completed');
-
-      if (lastWeekError) throw lastWeekError;
-
-      // Get all customers
-      const { data: customers, error: customersError } = await supabase
-        .from('customers')
-        .select('phone_number, visit_count');
-
-      if (customersError) throw customersError;
-
-      const thisWeekRevenue = thisWeekOrders?.reduce((sum, o) => sum + (o.total || 0), 0) || 0;
-      const lastWeekRevenue = lastWeekOrders?.reduce((sum, o) => sum + (o.total || 0), 0) || 0;
-      
-      const weekOverWeekChange = lastWeekRevenue > 0 
-        ? ((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100 
-        : 0;
-
-      const totalOrders = thisWeekOrders?.length || 0;
-      const aov = totalOrders > 0 ? thisWeekRevenue / totalOrders : 0;
-
-      const totalCustomers = customers?.length || 0;
-      const returningCustomers = customers?.filter(c => c.visit_count > 1).length || 0;
-      const returningRate = totalCustomers > 0 ? (returningCustomers / totalCustomers) * 100 : 0;
+      const snapshot = await getManagementSnapshot(7);
 
       return {
-        totalRevenue: thisWeekRevenue,
-        weekOverWeekChange,
-        averageOrderValue: aov,
-        totalCustomers,
-        returningCustomerRate: returningRate,
+        totalRevenue: Number(snapshot.kpis.revenue ?? 0),
+        weekOverWeekChange: Number(snapshot.kpis.period_change_pct ?? 0),
+        averageOrderValue: Number(snapshot.kpis.average_order_value ?? 0),
+        totalCustomers: Number(snapshot.customers.total ?? 0),
+        returningCustomerRate: Number(snapshot.customers.returning_rate_pct ?? 0),
       } as RevenueKPIs;
+    },
+  });
+}
+
+export function useOperationalInsights() {
+  return useQuery({
+    queryKey: ['operational-insights'],
+    queryFn: async (): Promise<OperationalInsights> => {
+      const snapshot = await getManagementSnapshot(14);
+
+      return {
+        dailySales: snapshot.daily_sales.map((row) => ({
+          tradeDate: row.trade_date || '',
+          orders: Number(row.orders ?? 0),
+          revenue: Number(row.revenue ?? 0),
+          averageOrderValue: Number(row.avg_order_value ?? 0),
+          cashOrders: Number(row.cash_orders ?? 0),
+          cardOrders: Number(row.card_orders ?? 0),
+        })),
+        channelMix: snapshot.channel_mix.map((row) => ({
+          channel: row.channel || 'unknown',
+          orders: Number(row.orders ?? 0),
+          revenue: Number(row.revenue ?? 0),
+          averageOrderValue: Number(row.avg_order_value ?? 0),
+          orderShare: Number(row.order_share_pct ?? 0),
+        })),
+        prepTime: snapshot.prep_time ? {
+          average: Number(snapshot.prep_time.average ?? 0),
+          median: Number(snapshot.prep_time.median ?? 0),
+          p90: Number(snapshot.prep_time.p90 ?? 0),
+        } : null,
+        modifierAttachRate: snapshot.modifier_attach_rate_pct === null
+          || snapshot.modifier_attach_rate_pct === undefined
+          ? null
+          : Number(snapshot.modifier_attach_rate_pct),
+        dataHealth: snapshot.data_health.map((row) => ({
+          issue: row.issue || 'Unknown data issue',
+          affectedRows: Number(row.rows_affected ?? 0),
+        })),
+      };
     },
   });
 }

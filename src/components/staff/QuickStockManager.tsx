@@ -38,8 +38,8 @@ export function QuickStockManager() {
     return products.filter((p) => {
       if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
-      if (statusFilter === 'visible' && !(p as any).is_visible) return false;
-      if (statusFilter === 'hidden' && (p as any).is_visible !== false) return false;
+      if (statusFilter === 'visible' && !p.is_visible) return false;
+      if (statusFilter === 'hidden' && p.is_visible !== false) return false;
       if (statusFilter === 'available' && !p.is_available) return false;
       if (statusFilter === 'unavailable' && p.is_available) return false;
       return true;
@@ -51,8 +51,8 @@ export function QuickStockManager() {
     if (!products) return { total: 0, visible: 0, hidden: 0, unavailable: 0 };
     return {
       total: products.length,
-      visible: products.filter((p) => (p as any).is_visible !== false).length,
-      hidden: products.filter((p) => (p as any).is_visible === false).length,
+      visible: products.filter((p) => p.is_visible !== false).length,
+      hidden: products.filter((p) => p.is_visible === false).length,
       unavailable: products.filter((p) => !p.is_available).length,
     };
   }, [products]);
@@ -75,7 +75,7 @@ export function QuickStockManager() {
     try {
       const { error } = await supabase
         .from('products')
-        .update({ is_visible: isVisible } as any)
+        .update({ is_visible: isVisible })
         .eq('id', productId);
       if (error) throw error;
       invalidateAll();
@@ -86,10 +86,15 @@ export function QuickStockManager() {
   };
 
   const handleCategoryChange = async (productId: string, newCategory: string) => {
+    if (!ALL_CATEGORIES.includes(newCategory as ProductCategory)) {
+      toast.error('Invalid menu category');
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('products')
-        .update({ category: newCategory } as any)
+        .update({ category: newCategory as ProductCategory })
         .eq('id', productId);
       if (error) throw error;
       invalidateAll();
@@ -200,7 +205,7 @@ export function QuickStockManager() {
           ) : (
             <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
               {filtered.map((product) => {
-                const isVisible = (product as any).is_visible !== false;
+                const isVisible = product.is_visible !== false;
                 const isHidden = !isVisible;
 
                 return (

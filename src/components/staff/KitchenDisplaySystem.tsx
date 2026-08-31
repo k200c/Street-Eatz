@@ -14,24 +14,9 @@ import { PickupOrderCard } from './PickupOrderCard';
 import { StaffPaymentModal } from './StaffPaymentModal';
 import { PaymentStatusBadge } from './PaymentStatusBadge';
 import { StaffCheckoutModal } from './StaffCheckoutModal';
+import { isKitchenEligible, isPaymentSettled } from '@/lib/paymentState';
 
 type OrderStatus = 'pending' | 'cooking' | 'ready' | 'completed' | 'pending_payment';
-
-// SINGLE SOURCE OF TRUTH for payment state in this file.
-// Production `payment_status` values: paid, completed, pending, unpaid, processing, failed.
-// Only these two mean money has actually been taken.
-const PAID_STATUSES = ['paid', 'completed'];
-
-const isOrderPaid = (order: Pick<KitchenOrder, 'payment_status'>): boolean =>
-  PAID_STATUSES.includes(order.payment_status ?? '');
-
-// An order may be shown to the kitchen if it is paid, or if it is a cash /
-// pay-on-collection order, or if it came in via the voice channel.
-// Unpaid card orders are abandoned/in-progress web checkouts, not real orders.
-const isKitchenEligible = (order: KitchenOrder): boolean =>
-  isOrderPaid(order) ||
-  order.payment_method !== 'card' ||
-  (order as { order_channel?: string | null }).order_channel === 'voice';
 
 interface ColumnConfig {
   status: OrderStatus;
@@ -84,11 +69,11 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
       ? String(order.display_id).padStart(4, '0')
       : order.id.slice(-4).toUpperCase();
 
-    const isUnpaid = !isOrderPaid(order);
+    const isUnpaid = !isPaymentSettled(order.payment_status);
 
     // Parse modifiers from the structured payload
     interface ParsedModifiers {
-      regularModifiers: Array<{ name: string; price_adjustment?: number }>;
+      regularModifiers: Array<{ name: string; price_adjustment?: number; quantity?: number }>;
       removedIngredients: string[];
       addedExtras: string[];
     }
@@ -111,8 +96,12 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
           result.regularModifiers = mod.modifiers.map((m: unknown) => {
             if (typeof m === 'string') return { name: m };
             if (m && typeof m === 'object' && 'name' in m) {
-              const modObj = m as { name: string; price_adjustment?: number };
-              return { name: modObj.name, price_adjustment: modObj.price_adjustment };
+              const modObj = m as { name: string; price_adjustment?: number; quantity?: number };
+              return {
+                name: modObj.name,
+                price_adjustment: modObj.price_adjustment,
+                quantity: modObj.quantity,
+              };
             }
             return { name: '' };
           }).filter(m => m.name);
@@ -259,7 +248,7 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
                 <span className="font-bold text-lg">
                   #{displayNumber}
                 </span>
-                {(order as any).order_channel === 'voice' && (
+                {order.order_channel === 'voice' && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-600 text-white font-bold uppercase">
                     VOICE
                   </span>
@@ -344,7 +333,7 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
                         {/* Regular Modifiers - with special styling for flatbread */}
                         {parsed.regularModifiers.map((mod, i) => {
                           const isBreadSwap = mod.name?.toLowerCase().includes('flatbread');
-                          const qty = (mod as any).quantity || 1;
+                          const qty = mod.quantity || 1;
                           const displayName = qty > 1 ? `${mod.name} x${qty}` : mod.name;
                           return (
                             <span
@@ -506,7 +495,7 @@ export function KitchenDisplaySystem() {
   const filterOrders = (orders: KitchenOrder[]) => {
     const eligible = applyEligibility(orders);
     if (!showUnpaidOnly) return eligible;
-    return eligible.filter(order => !isOrderPaid(order));
+    return eligible.filter(order => !isPaymentSettled(order.payment_status));
   };
 
   const filteredOrdersByStatus = {
@@ -632,7 +621,7 @@ export function KitchenDisplaySystem() {
   const totalOrders = visibleCooking.length + visibleReady.length;
 
   const unpaidCount = [...visibleCooking, ...visibleReady]
-    .filter(o => !isOrderPaid(o)).length;
+    .filter(o => !isPaymentSettled(o.payment_status)).length;
 
   const pickupCount = ordersByStatus.pending_payment.length;
 

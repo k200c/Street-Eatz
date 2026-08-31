@@ -75,6 +75,16 @@ serve(async (req) => {
     const { action, ...data } = await req.json();
     console.log(`Viva Wallet action: ${action}`, data);
 
+    // Payment initiation and customer status checks moved to the authenticated,
+    // database-canonical payment-session function. Keep this legacy endpoint
+    // only for the shared-secret provider callback during staged migration.
+    if (data.type === 'online' || action === 'create-checkout' || action === 'verify') {
+      return new Response(
+        JSON.stringify({ error: 'Legacy payment route retired; use payment-session' }),
+        { status: 410, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // Handle direct online payment requests (new format with type: "online")
     if (data.type === 'online') {
       const { orderId, amount, customerEmail, customerPhone, customerName } = data as PaymentRequest;
@@ -179,7 +189,9 @@ serve(async (req) => {
         
         console.log('Webhook payload:', JSON.stringify(webhookPayload));
         
-        const webhookResponse = await fetch('https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment', {
+        const paymentWebhookUrl = Deno.env.get('N8N_PAYMENT_WEBHOOK_URL');
+        if (!paymentWebhookUrl) throw new Error('Payment workflow is not configured');
+        const webhookResponse = await fetch(paymentWebhookUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -317,7 +329,9 @@ serve(async (req) => {
         try {
           console.log('Sending payment request to n8n webhook...');
           
-          const webhookResponse = await fetch('https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment', {
+          const paymentWebhookUrl = Deno.env.get('N8N_PAYMENT_WEBHOOK_URL');
+          if (!paymentWebhookUrl) throw new Error('Payment workflow is not configured');
+          const webhookResponse = await fetch(paymentWebhookUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

@@ -19,9 +19,6 @@ import { KitchenOrder } from '@/hooks/useKitchenOrders';
 import { useAuth } from '@/hooks/useAuth';
 import { getActivePaymentProvider } from '@/lib/paymentProvider';
 
-// n8n Webhook URL for payment processing
-const N8N_PAYMENT_WEBHOOK = 'https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment';
-
 interface StaffCheckoutModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -179,30 +176,16 @@ export function StaffCheckoutModal({
         payment_provider: paymentProvider,
       };
 
-      // Send to n8n webhook - async fetch with immediate acknowledgment
-      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(webhookPayload),
+      const { data, error } = await supabase.functions.invoke('payment-session', {
+        body: {
+          action: 'start',
+          order_id: order.id,
+          payment_type: 'POSCash',
+          amount_tendered: tenderedValue,
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Webhook failed with status ${response.status}`);
-      }
-
-      // Update order status in database
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          status: 'pending',
-          payment_method: 'cash',
-          payment_status: 'paid',
-          cash_tendered: tenderedValue,
-          change_due: changeDue,
-        })
-        .eq('id', order.id);
-
-      if (error) throw error;
+      if (error || !data?.success) throw error ?? new Error('Cash workflow did not acknowledge payment');
 
       toast.success('Payment Recorded', {
         description: `Order #${displayNumber} paid with cash. Change: €${changeDue.toFixed(2)}`
@@ -235,31 +218,14 @@ export function StaffCheckoutModal({
         payment_provider: paymentProvider,
       };
 
-      // Send to n8n webhook - async fetch with immediate acknowledgment
-      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(webhookPayload),
+      const { data, error } = await supabase.functions.invoke('payment-session', {
+        body: { action: 'start', order_id: order.id, payment_type: 'terminal' },
       });
 
-      if (!response.ok) {
-        throw new Error(`Terminal webhook failed with status ${response.status}`);
-      }
+      if (error || !data?.success) throw error ?? new Error('Terminal workflow did not acknowledge payment');
 
-      // Update order status in database - payment_status pending until terminal handshake
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          status: 'pending',
-          payment_method: 'card',
-          payment_status: 'paid',
-        })
-        .eq('id', order.id);
-
-      if (error) throw error;
-
-      toast.success('Payment Recorded', {
-        description: `Order #${displayNumber} paid via terminal`
+      toast.success('Terminal Active', {
+        description: `Order #${displayNumber} is awaiting the terminal confirmation`
       });
       
       resetForm();
@@ -282,26 +248,11 @@ export function StaffCheckoutModal({
     setProcessingType('link');
 
     try {
-      // Send to n8n webhook to resend payment link
-      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_id: order.id,
-          payment_method: 'resend_link',
-          total_amount: total,
-          staff_id: user?.id || 'unknown',
-          items: buildItemsPayload(),
-          timestamp: new Date().toISOString(),
-          display_id: displayId,
-          customer_phone: order.customer_phone,
-          customer_name: order.customer_name
-        }),
+      const { data, error } = await supabase.functions.invoke('payment-session', {
+        body: { action: 'start', order_id: order.id, payment_type: 'payment_link' },
       });
 
-      if (!response.ok) {
-        throw new Error(`Webhook failed with status ${response.status}`);
-      }
+      if (error || !data?.success) throw error ?? new Error('Payment link workflow failed');
 
       toast.success(`Payment link sent to ${order.customer_phone}!`);
     } catch (error) {

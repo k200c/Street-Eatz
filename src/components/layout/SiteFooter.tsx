@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
-import { MapPin, Mail, Info } from "lucide-react";
+import { Download, MapPin, Mail, Info } from "lucide-react";
 import { AllergenModal } from "@/components/ui/allergen-modal";
-import { APP_VERSION } from "@/lib/pwa";
+import { clientConfig, clientMailto } from "@/config/client";
 // SVG Payment Icons as components for clean rendering
 const VisaIcon = () => (
   <svg viewBox="0 0 48 32" className="h-8 w-auto" aria-label="Visa">
@@ -54,22 +54,20 @@ export function SiteFooter() {
               BUSINESS INFORMATION
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p className="font-semibold text-foreground">Street Eatz Waterford</p>
+              <p className="font-semibold text-foreground">{clientConfig.legalName}</p>
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                 <span>
-                  Crystal Sports and Leisure Centre,<br />
-                  Cork Rd, Ballynaneashagh,<br />
-                  Waterford, X91 E6PX, Ireland
+                  {clientConfig.addressLines.map((line) => <span key={line}>{line}<br /></span>)}
                 </span>
               </div>
               <div className="flex items-center gap-2 pt-1">
                 <Mail className="w-4 h-4 text-primary flex-shrink-0" />
                 <a
-                  href="mailto:streeteatzwaterford@gmail.com"
+                  href={clientMailto}
                   className="hover:text-primary transition-colors break-all"
                 >
-                  streeteatzwaterford@gmail.com
+                  {clientConfig.email}
                 </a>
               </div>
             </div>
@@ -122,6 +120,13 @@ export function SiteFooter() {
               >
                 Privacy Policy
               </Link>
+              <Link
+                to="/install"
+                className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Install App
+              </Link>
               <AllergenModal
                 trigger={
                   <button className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors">
@@ -149,11 +154,9 @@ export function SiteFooter() {
 
             {/* Copyright & Version */}
             <p className="text-xs text-muted-foreground text-center md:text-right">
-              © {new Date().getFullYear()} Street Eatz Waterford. All rights reserved.
+              © {new Date().getFullYear()} {clientConfig.legalName}. All rights reserved.
               <br />
               <span className="text-primary/70">Made with ❤️ in Ireland 🇮🇪</span>
-              <br />
-              <span className="text-muted-foreground/50 text-[10px]">v{APP_VERSION}</span>
             </p>
           </div>
         </div>

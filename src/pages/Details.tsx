@@ -1,9 +1,9 @@
 import { Phone, Mail, MapPin, Clock, Instagram, Facebook } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
-import streetEatzLogo from '@/assets/street-eatz-logo-new.jpeg';
 import { Navbar } from '@/components/layout/Navbar';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { clientAssets, clientConfig, clientMailto } from '@/config/client';
 
 const getOpenStatus = () => {
   const now = new Date();
@@ -20,13 +20,6 @@ const getOpenStatus = () => {
   }
   return false;
 };
-
-const hours = [
-  { day: 'Thursday', time: '12pm - 7pm' },
-  { day: 'Friday', time: '12pm - 7pm' },
-  { day: 'Saturday', time: '1pm - 7pm' },
-  { day: 'Sunday', time: '1pm - 7pm' },
-];
 
 export default function Details() {
   const [isOpen, setIsOpen] = useState(getOpenStatus);
@@ -50,14 +43,14 @@ export default function Details() {
             className="text-center mb-10"
           >
             <img 
-              src={streetEatzLogo} 
-              alt="Street Eatz Logo" 
+              src={clientAssets.logo}
+              alt={`${clientConfig.brandName} logo`} 
               className="w-32 h-32 mx-auto mb-4 object-contain"
             />
             <h1 className="font-heading text-3xl font-bold text-foreground tracking-wider">
-              STREET <span className="text-primary">EATZ</span>
+              {clientConfig.brandName.toUpperCase()}
             </h1>
-            <p className="text-muted-foreground mt-2">Gourmet Street Food • Waterford</p>
+            <p className="text-muted-foreground mt-2">{clientConfig.category} • {clientConfig.city}</p>
             
             {/* Live Status Indicator */}
             <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-border">
@@ -82,7 +75,7 @@ export default function Details() {
             <h2 className="font-heading text-lg font-semibold text-foreground">Opening Hours</h2>
           </div>
           <div className="space-y-3">
-            {hours.map(({ day, time }) => (
+            {clientConfig.openingHours.map(({ day, time }) => (
               <div key={day} className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
                 <span className="text-foreground font-medium">{day}</span>
                 <span className="text-primary font-semibold">{time}</span>
@@ -101,7 +94,7 @@ export default function Details() {
           <h2 className="font-heading text-lg font-semibold text-foreground mb-4">Contact Us</h2>
           <div className="space-y-4">
             <a 
-              href="tel:0863619157" 
+              href={clientConfig.phoneHref} 
               className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
             >
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -109,11 +102,11 @@ export default function Details() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Phone</p>
-                <p className="text-foreground font-medium">086 361 9157</p>
+                <p className="text-foreground font-medium">{clientConfig.phoneDisplay}</p>
               </div>
             </a>
             <a 
-              href="mailto:streeteatzwaterford@gmail.com" 
+              href={clientMailto} 
               className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
             >
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -121,7 +114,7 @@ export default function Details() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Email</p>
-                <p className="text-foreground font-medium text-sm">streeteatzwaterford@gmail.com</p>
+                <p className="text-foreground font-medium text-sm">{clientConfig.email}</p>
               </div>
             </a>
           </div>
@@ -137,7 +130,7 @@ export default function Details() {
           <h2 className="font-heading text-lg font-semibold text-foreground mb-4">Follow Us</h2>
           <div className="flex gap-4">
             <a 
-              href="https://www.instagram.com/streeteatzwaterford" 
+              href={clientConfig.instagramUrl} 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex-1 flex items-center justify-center gap-3 p-4 rounded-lg bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30 transition-colors border border-purple-500/20"
@@ -146,7 +139,7 @@ export default function Details() {
               <span className="text-foreground font-medium">Instagram</span>
             </a>
             <a 
-              href="https://www.facebook.com/223559870839289" 
+              href={clientConfig.facebookUrl} 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex-1 flex items-center justify-center gap-3 p-4 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 transition-colors border border-blue-500/20"
@@ -171,20 +164,18 @@ export default function Details() {
             <h2 className="font-heading text-lg font-semibold text-foreground">Location</h2>
           </div>
           <p className="text-muted-foreground mb-4 leading-relaxed">
-            Crystal Sports and Leisure Centre,<br />
-            Cork Rd, Ballynaneashagh,<br />
-            Waterford, X91 E6PX
+            {clientConfig.addressLines.map((line) => <span key={line}>{line}<br /></span>)}
           </p>
           <div className="rounded-xl overflow-hidden border border-border">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2456.8976!2d-7.1347!3d52.2397!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4842c3c4f5f5f5f5%3A0x5f5f5f5f5f5f5f5f!2sCrystal%20Sports%20and%20Leisure%20Centre!5e0!3m2!1sen!2sie!4v1699999999999!5m2!1sen!2sie"
+              src={clientConfig.mapEmbedUrl}
               width="100%"
               height="250"
               style={{ border: 0 }}
               allowFullScreen
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              title="Street Eatz Location"
+              title={`${clientConfig.brandName} location`}
               className="grayscale hover:grayscale-0 transition-all duration-500"
             />
           </div>

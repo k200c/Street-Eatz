@@ -36,7 +36,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const waitTime = data?.current_wait_time || '20 mins';
+    const waitTime = data?.current_wait_time?.trim();
+    if (!waitTime) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Wait time is not configured' }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
     console.log('[get-wait-time] Returning wait time:', waitTime);
 
     return new Response(

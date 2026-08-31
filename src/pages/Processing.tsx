@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import confetti from "canvas-confetti";
+import { clientConfig } from "@/config/client";
 
 interface OrderItem {
   product_name: string | null;
   quantity: number | null;
   unit_price: number;
-  selected_modifiers: any;
+  selected_modifiers: unknown;
 }
 
 interface OrderData {
@@ -181,11 +182,17 @@ const Processing = () => {
   };
 
   // Format modifier display
-  const formatModifiers = (modifiers: any) => {
+  const formatModifiers = (modifiers: unknown) => {
     if (!modifiers || !Array.isArray(modifiers) || modifiers.length === 0) {
       return null;
     }
-    return modifiers.map((mod: any) => mod.name || mod).join(", ");
+    return modifiers.map((value: unknown) => {
+      if (typeof value === 'string') return value;
+      if (value && typeof value === 'object' && 'name' in value) {
+        return String((value as { name?: unknown }).name ?? '');
+      }
+      return '';
+    }).filter(Boolean).join(", ");
   };
 
   return (
@@ -370,7 +377,7 @@ const Processing = () => {
           transition={{ delay: 0.7 }}
           className="text-xs text-muted-foreground mt-8"
         >
-          Made with ❤️ in Waterford 🇮🇪
+          Made with ❤️ in {clientConfig.city} 🇮🇪
         </motion.p>
       </motion.div>
     </div>

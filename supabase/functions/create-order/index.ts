@@ -31,15 +31,43 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const orderData: CreateOrderRequest = await req.json();
 
-    console.log("Creating order:", JSON.stringify(orderData, null, 2));
+    console.log("Creating authenticated order", {
+      user_id: user.id,
+      item_count: Array.isArray(orderData.items) ? orderData.items.length : 0,
+      payment_method: orderData.payment_method,
+    });
 
     // Validation: Check required fields
     if (!orderData.items || orderData.items.length === 0) {
@@ -48,9 +76,35 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (orderData.items.length > 50) {
+      return new Response(JSON.stringify({ error: "Order contains too many line items" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!orderData.payment_method) {
       return new Response(JSON.stringify({ error: "Payment method is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!Number.isFinite(orderData.total) || orderData.total <= 0 || orderData.total > 10_000) {
+      return new Response(JSON.stringify({ error: "Invalid order total" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if ((orderData.customer_name?.length ?? 0) > 120 || (orderData.customer_phone?.length ?? 0) > 40) {
+      return new Response(JSON.stringify({ error: "Customer details are too long" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if ((orderData.special_notes?.length ?? 0) > 1_000) {
+      return new Response(JSON.stringify({ error: "Order notes are too long" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -103,8 +157,21 @@ serve(async (req) => {
         });
       }
 
-      if (item.quantity <= 0 || item.quantity > 100) {
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 100) {
         return new Response(JSON.stringify({ error: `Invalid quantity for ${product.name}` }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!Number.isFinite(item.unit_price) || item.unit_price <= 0 || item.unit_price > Number(product.price) + 100) {
+        return new Response(JSON.stringify({ error: `Invalid unit price for ${product.name}` }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!Array.isArray(item.selected_modifiers) || item.selected_modifiers.length > 50) {
+        return new Response(JSON.stringify({ error: `Invalid modifiers for ${product.name}` }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -122,17 +189,6 @@ serve(async (req) => {
       });
     }
 
-    // Get user ID from auth header if present
-    let userId = null;
-    const authHeader = req.headers.get("authorization");
-    if (authHeader) {
-      const token = authHeader.replace("Bearer ", "");
-      const {
-        data: { user },
-      } = await supabase.auth.getUser(token);
-      userId = user?.id || null;
-    }
-
     // Determine payment_status based on payment method
     // Card payments need to be verified via Viva Wallet callback
     // Cash/collection payments are unpaid until staff confirms
@@ -142,7 +198,7 @@ serve(async (req) => {
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
-        user_id: userId,
+        user_id: user.id,
         status: "pending",
         payment_method: orderData.payment_method,
         payment_status: paymentStatus,
@@ -168,7 +224,7 @@ serve(async (req) => {
     const orderItems = orderData.items.map((item) => ({
       order_id: order.id,
       product_id: item.product_id,
-      product_name: item.product_name,
+      product_name: productMap.get(item.product_id)?.name ?? "Unknown Item",
       quantity: item.quantity,
       unit_price: item.unit_price,
       selected_modifiers: item.selected_modifiers,
@@ -199,8 +255,7 @@ serve(async (req) => {
     );
   } catch (error: unknown) {
     console.error("Create order error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

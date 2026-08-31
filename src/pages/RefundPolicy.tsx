@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { FooterInfoBar } from "@/components/layout/FooterInfoBar";
+import { clientConfig, clientLegalLastUpdated, clientMailto } from "@/config/client";
 
 const RefundPolicy = () => {
   return (
@@ -14,14 +15,14 @@ const RefundPolicy = () => {
           </h1>
 
           <p className="text-muted-foreground text-sm mb-8">
-            Last updated: {new Date().toLocaleDateString('en-IE', { month: 'long', day: 'numeric', year: 'numeric' })}
+            Last updated: {clientLegalLastUpdated}
           </p>
 
           <div className="space-y-8 text-foreground">
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">1. OVERVIEW</h2>
               <p className="text-muted-foreground leading-relaxed">
-                At Street Eatz Waterford we take pride in serving fresh, made-to-order food. This policy explains
+                At {clientConfig.legalName} we take pride in serving fresh, made-to-order food. This policy explains
                 when refunds and cancellations are possible, how to request one, and how long it will take.
                 Nothing in this policy affects your statutory rights as a consumer under Irish or EU law.
               </p>
@@ -52,8 +53,8 @@ const RefundPolicy = () => {
               <h2 className="font-heading text-xl text-primary mb-3">4. HOW TO REQUEST A REFUND</h2>
               <p className="text-muted-foreground leading-relaxed mb-2">
                 To request a refund, please email us at{" "}
-                <a href="mailto:streeteatzwaterford@gmail.com" className="text-primary hover:underline">
-                  streeteatzwaterford@gmail.com
+                <a href={clientMailto} className="text-primary hover:underline">
+                  {clientConfig.email}
                 </a>{" "}
                 within <strong className="text-foreground">24 hours</strong> of collection or delivery and include:
               </p>
@@ -88,11 +89,9 @@ const RefundPolicy = () => {
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">7. CONTACT</h2>
               <div className="mt-3 p-4 bg-card/50 border border-border rounded-lg">
-                <p className="text-foreground font-semibold">Street Eatz Waterford</p>
-                <p className="text-muted-foreground">Crystal Sports and Leisure Centre</p>
-                <p className="text-muted-foreground">Cork Rd, Ballynaneashagh</p>
-                <p className="text-muted-foreground">Waterford, X91 E6PX, Ireland</p>
-                <p className="text-primary mt-2">streeteatzwaterford@gmail.com</p>
+                <p className="text-foreground font-semibold">{clientConfig.legalName}</p>
+                {clientConfig.addressLines.map((line) => <p key={line} className="text-muted-foreground">{line}</p>)}
+                <p className="text-primary mt-2">{clientConfig.email}</p>
               </div>
             </section>
           </div>

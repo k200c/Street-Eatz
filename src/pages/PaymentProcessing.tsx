@@ -3,6 +3,8 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { UtensilsCrossed } from "lucide-react";
 import { LoadingRecovery } from "@/components/LoadingRecovery";
+import { supabase } from "@/integrations/supabase/client";
+import { getPaymentOutcome } from "@/lib/paymentState";
 
 const MAX_ATTEMPTS = 20;
 const POLL_INTERVAL = 3000;
@@ -22,26 +24,26 @@ const PaymentProcessing = () => {
       if (!mountedRef.current) return;
 
       try {
-        const response = await fetch(
-          `https://kyle2000.app.n8n.cloud/webhook/check-payment-status?orderCode=${orderCode}`
-        );
-        
-        if (!response.ok) {
-          console.error("Payment status check failed:", response.status);
+        const { data, error } = await supabase.functions.invoke("payment-session", {
+          body: { action: "status", order_code: orderCode },
+        });
+
+        if (error || !data) {
+          console.error("Payment status check failed:", error);
           return;
         }
-
-        const data = await response.json();
         
         if (!mountedRef.current) return;
 
-        if (data.status === "paid") {
+        const paymentOutcome = getPaymentOutcome(data.status);
+
+        if (paymentOutcome === "settled") {
           if (pollingRef.current) clearInterval(pollingRef.current);
           navigate("/success", { replace: true });
           return;
         }
 
-        if (data.status === "failed") {
+        if (paymentOutcome === "failed") {
           if (pollingRef.current) clearInterval(pollingRef.current);
           navigate("/error?reason=declined", { replace: true });
           return;

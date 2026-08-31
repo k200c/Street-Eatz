@@ -5,16 +5,17 @@ import { HeroSection } from "@/components/customer/HeroSection";
 import { MenuSection } from "@/components/customer/MenuSection";
 import { FloatingCartButton } from "@/components/customer/FloatingCartButton";
 import { MarketingBanner } from "@/components/customer/MarketingBanner";
+import { clientConfig } from "@/config/client";
 
 function AboutSection() {
   return (
     <section id="about" className="py-6 sm:py-16 px-4">
       <div className="max-w-3xl mx-auto">
         <h2 className="font-heading text-3xl md:text-4xl text-foreground mb-6 text-center">
-          ABOUT STREETEATZ
+          ABOUT {clientConfig.wordmark.toUpperCase()}
         </h2>
         <p className="text-muted-foreground text-lg leading-relaxed text-center mb-10">
-          Welcome to StreetEatz. Born in Waterford, we believe in bold flavors,
+          Welcome to {clientConfig.wordmark}. Born in {clientConfig.city}, we believe in bold flavors,
           fresh ingredients, and the perfect smash burger. Whether you're grabbing
           a quick lunch or a late-night feast, we bring the gourmet street food
           experience straight to your hands.
@@ -25,7 +26,7 @@ function AboutSection() {
             <h3 className="font-heading text-xl text-primary mb-2">Smash Burgers</h3>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Our signature smash burgers are hand-pressed on the griddle and
-              loaded with fresh toppings. The best burgers in Waterford, made
+              loaded with fresh toppings. The best burgers in {clientConfig.city}, made
               the way street food should be.
             </p>
           </div>
@@ -33,14 +34,14 @@ function AboutSection() {
             <h3 className="font-heading text-xl text-primary mb-2">Gourmet Flatbreads</h3>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Freshly grilled flatbreads packed with bold fillings and house sauces.
-              A Waterford food truck favourite you won't find anywhere else.
+              A {clientConfig.city} food truck favourite you won't find anywhere else.
             </p>
           </div>
           <div>
             <h3 className="font-heading text-xl text-primary mb-2">Loaded Fries</h3>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Handcut chips and loaded fries piled high with toppings. From truffle
-              parmesan to sloppy fries — the best loaded fries in Waterford.
+              parmesan to sloppy fries — the best loaded fries in {clientConfig.city}.
             </p>
           </div>
         </div>

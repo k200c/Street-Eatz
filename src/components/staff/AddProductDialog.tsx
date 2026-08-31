@@ -51,6 +51,18 @@ interface AddProductDialogProps {
   onProductAdded: () => void;
 }
 
+interface ProductMutationError {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+}
+
+const getProductMutationError = (error: unknown): ProductMutationError => {
+  if (error && typeof error === 'object') return error as ProductMutationError;
+  return { message: error instanceof Error ? error.message : String(error) };
+};
+
 export function AddProductDialog({ onProductAdded }: AddProductDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -148,7 +160,7 @@ export function AddProductDialog({ onProductAdded }: AddProductDialogProps) {
         description: values.description?.trim() || null,
         is_available: values.is_available,
         image_url: imageUrl,
-      } as any);
+      });
 
       if (error) {
         console.error('❌ DB Error:', error);
@@ -161,17 +173,18 @@ export function AddProductDialog({ onProductAdded }: AddProductDialogProps) {
       setImagePreview(null);
       setOpen(false);
       onProductAdded();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const mutationError = getProductMutationError(error);
       console.error('Failed to add product:', {
-        code: error?.code,
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
+        code: mutationError.code,
+        message: mutationError.message,
+        details: mutationError.details,
+        hint: mutationError.hint,
       });
-      if (error?.code === '23505') {
+      if (mutationError.code === '23505') {
         toast.error('A product with this name already exists.');
       } else {
-        toast.error(error?.message || 'Failed to add product. Please try again.');
+        toast.error(mutationError.message || 'Failed to add product. Please try again.');
       }
     } finally {
       setIsSubmitting(false);

@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       // Race against a 5-second timeout to prevent profileLoading from hanging
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
       );
       
@@ -92,10 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.from('profiles').select('full_name, phone').eq('id', userId).maybeSingle(),
       ]);
 
-      const [adminCheck, profileResult] = await Promise.race([
-        dataPromise,
-        timeoutPromise.then(() => { throw new Error('Profile fetch timeout'); }),
-      ]) as [any, any];
+      const [adminCheck, profileResult] = await Promise.race([dataPromise, timeoutPromise]);
 
       if (!isMounted.current) return;
 
@@ -185,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED' as any) {
+        if (event === 'SIGNED_OUT') {
           setState({
             user: null,
             session: null,

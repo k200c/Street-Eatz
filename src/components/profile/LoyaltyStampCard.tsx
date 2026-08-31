@@ -3,22 +3,24 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface LoyaltyStampCardProps {
-  completedOrders: number;
-  rewardThreshold?: number;
+  pointsBalance: number;
+  lifetimePoints: number;
+  rewardsRedeemed: number;
+  rewardCost: number;
+  rewardLabel: string;
 }
 
-export function LoyaltyStampCard({ completedOrders, rewardThreshold = 5 }: LoyaltyStampCardProps) {
-  // Calculate current progress (resets after each reward claim)
-  const currentProgress = completedOrders % rewardThreshold;
-  const rewardsEarned = Math.floor(completedOrders / rewardThreshold);
-  const isComplete = currentProgress === 0 && completedOrders > 0;
-  const isAlmostComplete = currentProgress === rewardThreshold - 1;
+export function LoyaltyStampCard({ pointsBalance, lifetimePoints, rewardsRedeemed, rewardCost, rewardLabel }: LoyaltyStampCardProps) {
+  const currentProgress = Math.min(pointsBalance, rewardCost);
+  const rewardsAvailable = Math.floor(pointsBalance / rewardCost);
+  const isComplete = rewardsAvailable > 0;
+  const isAlmostComplete = currentProgress === rewardCost - 1;
 
   // Create stamps array
-  const stamps = Array.from({ length: rewardThreshold }, (_, i) => {
+  const stamps = Array.from({ length: rewardCost }, (_, i) => {
     const position = i + 1;
-    const isGiftPosition = position === rewardThreshold;
-    const isFilled = isComplete || i < currentProgress;
+    const isGiftPosition = position === rewardCost;
+    const isFilled = i < currentProgress;
     
     return { position, isGiftPosition, isFilled };
   });
@@ -38,7 +40,7 @@ export function LoyaltyStampCard({ completedOrders, rewardThreshold = 5 }: Loyal
             <h3 className="font-heading text-lg text-foreground">Loyalty Rewards</h3>
           </div>
           <span className="text-sm text-muted-foreground bg-secondary px-2 py-1 rounded-full">
-            {currentProgress}/{rewardThreshold}
+            {pointsBalance} point{pointsBalance === 1 ? '' : 's'}
           </span>
         </div>
 
@@ -101,21 +103,21 @@ export function LoyaltyStampCard({ completedOrders, rewardThreshold = 5 }: Loyal
               🎉 Congrats! You've earned a reward!
             </p>
             <p className="text-sm text-primary/80 mt-1">
-              Show this screen to staff for Free Fries or a Drink
+              {rewardsAvailable} × {rewardLabel} ready to redeem with staff
             </p>
           </motion.div>
         ) : (
           <p className="text-center text-muted-foreground text-sm">
-            Order <span className="text-primary font-semibold">{rewardThreshold - currentProgress}</span> more 
-            {rewardThreshold - currentProgress === 1 ? ' time' : ' times'} to unlock Free Fries or a Drink!
+            Earn <span className="text-primary font-semibold">{rewardCost - currentProgress}</span> more
+            {rewardCost - currentProgress === 1 ? ' point' : ' points'} to unlock {rewardLabel}.
           </p>
         )}
 
-        {/* Total rewards earned badge */}
-        {rewardsEarned > 0 && (
+        {(lifetimePoints > 0 || rewardsRedeemed > 0) && (
           <div className="mt-3 text-center">
             <span className="text-xs text-muted-foreground">
-              Total rewards earned: <span className="text-primary font-semibold">{rewardsEarned}</span>
+              Lifetime points: <span className="text-primary font-semibold">{lifetimePoints}</span>
+              {' · '}Redeemed: <span className="text-primary font-semibold">{rewardsRedeemed}</span>
             </span>
           </div>
         )}

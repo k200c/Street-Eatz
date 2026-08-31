@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Minus, Plus, X, Flame } from 'lucide-react';
+import { AlertTriangle, Minus, Plus, X, Flame } from 'lucide-react';
 import { Product, Modifier, SelectedModifier, RemovedIngredient, ProductCategory } from '@/types/database';
 import { ModifierGroupWithModifiers } from '@/hooks/useProductModifiers';
 import { ProductIngredientWithDetails } from '@/hooks/useProductIngredients';
@@ -100,7 +100,7 @@ export function ProductSheet({
   const { data: loadedFriesProducts } = useLoadedFries();
   const { data: drinksProducts } = useDrinks();
   const { data: saucesProducts } = useSauces();
-  const { data: allergenData } = useProductAllergens(product?.id || null);
+  const { data: allergenData, isLoading: allergenLoading } = useProductAllergens(product?.id || null);
   const { lookupPrice, isInStock } = useIngredientPriceLookup();
   const { data: appSettings } = useAppSettings();
 
@@ -194,7 +194,7 @@ export function ProductSheet({
         setIngredientStates(initStates);
       }
     }
-  }, [product?.id, ingredients, editMode, initialItem]);
+  }, [product, ingredients, editMode, initialItem]);
 
   if (!product) return null;
 
@@ -448,7 +448,7 @@ export function ProductSheet({
             {/* Allergen Badges */}
             {allergenData && allergenData.allergen_numbers && allergenData.allergen_numbers.length > 0 && (
               <div className="flex items-center gap-2 mb-6">
-                <AllergenBadges allergenNumbers={allergenData.allergen_numbers} size="md" />
+                <AllergenBadges allergenNumbers={allergenData.allergen_numbers} size="md" showTooltip={false} showNames />
                 <AllergenModal
                   trigger={
                     <button className="text-xs text-muted-foreground hover:text-primary underline">
@@ -456,6 +456,12 @@ export function ProductSheet({
                     </button>
                   }
                 />
+              </div>
+            )}
+            {!allergenLoading && !allergenData && (
+              <div className="mb-6 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>Allergen details for this item are being verified. Please ask a member of staff before ordering if you have an allergy.</span>
               </div>
             )}
 

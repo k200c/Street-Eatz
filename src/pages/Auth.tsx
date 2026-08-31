@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { User, Mail, Phone, ArrowRight, Loader2, CheckCircle, Lock } from 'lucide-react';
 import { z } from 'zod';
-import streetEatzLogo from '@/assets/street-eatz-logo-new.jpeg';
+import { clientAssets, clientConfig } from '@/config/client';
 
 // Validation schemas
 const emailSchema = z.string().trim().email('Please enter a valid email').max(255, 'Email too long');
@@ -99,8 +99,8 @@ export default function Auth() {
       if (error) throw error;
 
       toast.success('Signed in successfully!');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to sign in');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to sign in');
     } finally {
       setSubmitting(false);
     }
@@ -139,11 +139,12 @@ export default function Auth() {
       setIsSignUp(false);
       setPassword('');
       setConfirmPassword('');
-    } catch (error: any) {
-      if (error.message?.includes('already registered')) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('already registered')) {
         toast.error('An account with this email already exists. Please sign in.');
       } else {
-        toast.error(error.message || 'Failed to create account');
+        toast.error(message || 'Failed to create account');
       }
     } finally {
       setSubmitting(false);
@@ -208,7 +209,8 @@ export default function Auth() {
           navigate(from, { replace: true });
         }
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      console.error('Profile completion failed:', error);
       toast.error('Failed to update profile. You can try again later.');
       // Navigate anyway after error
       setTimeout(() => {
@@ -237,8 +239,8 @@ export default function Auth() {
       {/* Header */}
       <header className="p-4 flex justify-center">
         <img 
-          src={streetEatzLogo} 
-          alt="Street Eatz" 
+          src={clientAssets.logo}
+          alt={clientConfig.brandName}
           className="h-12 w-auto"
         />
       </header>
@@ -268,7 +270,7 @@ export default function Auth() {
                       {isSignUp ? 'CREATE ACCOUNT' : 'WELCOME BACK'}
                     </h1>
                     <p className="text-muted-foreground text-sm mt-1">
-                      {isSignUp ? 'Join Street Eatz for faster checkout' : 'Sign in with your email and password'}
+                      {isSignUp ? `Join ${clientConfig.brandName} for faster checkout` : 'Sign in with your email and password'}
                     </p>
                   </div>
 

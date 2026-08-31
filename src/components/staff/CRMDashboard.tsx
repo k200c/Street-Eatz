@@ -15,6 +15,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { createRealtimeChannelName } from '@/lib/realtimeChannel';
 
 type FilterType = 'all' | 'vip' | 'lapsed' | 'new';
 
@@ -41,16 +42,17 @@ function GuestCard({ customer, onClose }: { customer: CustomerWithStats; onClose
   const handleSendMessage = async () => {
     setIsSendingMessage(true);
     try {
-      const response = await fetch('https://n8n.lovable.dev/webhook/send-customer-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'personalized_message',
-          phone: customer.phone_number,
-          name: customer.name || 'Valued Customer',
-        }),
+      const { data, error } = await supabase.functions.invoke('staff-automation', {
+        body: {
+          action: 'crm_message',
+          payload: {
+            type: 'personalized_message',
+            phone: customer.phone_number,
+            name: customer.name || 'Valued Customer',
+          },
+        },
       });
-      if (response.ok) {
+      if (!error && data?.success) {
         toast.success('Message sent successfully');
       } else {
         toast.error('Failed to send message');
@@ -253,7 +255,7 @@ export function CRMDashboard() {
   // Real-time subscription for customers
   useEffect(() => {
     const channel = supabase
-      .channel('crm-customers-realtime')
+      .channel(createRealtimeChannelName('crm-customers-realtime'))
       .on(
         'postgres_changes',
         {

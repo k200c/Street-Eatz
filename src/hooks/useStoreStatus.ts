@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSettings } from './useAppSettings';
+import { deriveStoreStatus } from '@/lib/storeStatus';
 
 const DEV_MODE_KEY = 'dev_mode_bypass';
 
@@ -11,13 +12,13 @@ export function useStoreStatus() {
   const { data: appSettings, isLoading, error, refetch } = useAppSettings();
   const [devModeEnabled, setDevModeEnabled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return localStorage.getItem(DEV_MODE_KEY) === 'true';
+    return import.meta.env.DEV && localStorage.getItem(DEV_MODE_KEY) === 'true';
   });
 
   // Listen for localStorage changes (e.g., from other tabs or components)
   useEffect(() => {
     const handleStorageChange = () => {
-      const value = localStorage.getItem(DEV_MODE_KEY) === 'true';
+      const value = import.meta.env.DEV && localStorage.getItem(DEV_MODE_KEY) === 'true';
       setDevModeEnabled(value);
     };
 
@@ -37,6 +38,7 @@ export function useStoreStatus() {
 
   // Toggle dev mode and dispatch event
   const toggleDevMode = useCallback(() => {
+    if (!import.meta.env.DEV) return false;
     const newValue = !devModeEnabled;
     localStorage.setItem(DEV_MODE_KEY, newValue.toString());
     setDevModeEnabled(newValue);
@@ -47,32 +49,32 @@ export function useStoreStatus() {
 
   // Explicitly enable/disable dev mode
   const setDevMode = useCallback((enabled: boolean) => {
+    if (!import.meta.env.DEV) return;
     localStorage.setItem(DEV_MODE_KEY, enabled.toString());
     setDevModeEnabled(enabled);
     window.dispatchEvent(new Event('devModeChanged'));
   }, []);
 
-  // The effective store status - dev mode bypasses database value
-  const dbStoreOpen = appSettings?.is_store_open ?? true;
-  const isStoreOpen = devModeEnabled ? true : dbStoreOpen;
+  const status = deriveStoreStatus(appSettings, devModeEnabled, import.meta.env.DEV);
 
   return {
     // Core status
-    isStoreOpen,
+    isStoreOpen: status.isStoreOpen,
+    isStatusAvailable: status.isStatusAvailable,
     isLoading,
     error,
     refetch,
     
     // Dev mode controls
-    devModeEnabled,
+    devModeEnabled: status.devModeEnabled,
     toggleDevMode,
     setDevMode,
     
     // Raw database value (for display purposes)
-    dbStoreOpen,
+    dbStoreOpen: status.dbStoreOpen,
     
     // App settings pass-through
-    currentWaitTime: appSettings?.current_wait_time ?? '20 mins',
+    currentWaitTime: status.currentWaitTime,
     appSettings,
   };
 }

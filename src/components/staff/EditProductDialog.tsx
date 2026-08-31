@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Product } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { Loader2, Save, Upload, X } from 'lucide-react';
 import { ProductIngredientManager } from './ProductIngredientManager';
@@ -19,6 +20,18 @@ interface EditProductDialogProps {
   onOpenChange: (open: boolean) => void;
   onProductUpdated: () => void;
 }
+
+interface ProductMutationError {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+}
+
+const getProductMutationError = (error: unknown): ProductMutationError => {
+  if (error && typeof error === 'object') return error as ProductMutationError;
+  return { message: error instanceof Error ? error.message : String(error) };
+};
 
 export function EditProductDialog({ product, open, onOpenChange, onProductUpdated }: EditProductDialogProps) {
   const [name, setName] = useState('');
@@ -110,7 +123,7 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
         imageUrl = null;
       }
 
-      const updateData: Record<string, any> = {
+      const updateData: Database['public']['Tables']['products']['Update'] = {
         name: name.trim(),
         price: priceValue,
         description: description.trim() || null,
@@ -135,17 +148,18 @@ export function EditProductDialog({ product, open, onOpenChange, onProductUpdate
       });
       onProductUpdated();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const mutationError = getProductMutationError(error);
       console.error('Failed to update product:', {
-        code: error?.code,
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
+        code: mutationError.code,
+        message: mutationError.message,
+        details: mutationError.details,
+        hint: mutationError.hint,
       });
-      if (error?.code === '23505') {
+      if (mutationError.code === '23505') {
         toast.error('A product with this name already exists.');
       } else {
-        toast.error(error?.message || 'Failed to update product. Please try again.');
+        toast.error(mutationError.message || 'Failed to update product. Please try again.');
       }
     } finally {
       setIsSaving(false);

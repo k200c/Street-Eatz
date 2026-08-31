@@ -67,6 +67,7 @@ function checkRateLimit(identifier: string): boolean {
 // Type definitions
 type Audience = "customers" | "staff" | "customers_and_staff";
 type Channel = "sms" | "email" | "both";
+type SupabaseAdminClient = ReturnType<typeof createClient>;
 
 interface QueryParams {
   audience: Audience;
@@ -284,8 +285,7 @@ function parseQueryParams(searchParams: URLSearchParams): QueryParams {
 }
 
 async function fetchCustomers(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
+  supabase: SupabaseAdminClient,
   params: QueryParams
 ): Promise<{ data: CustomerRecord[]; total: number | null }> {
   const offset = (params.page - 1) * params.pageSize;
@@ -333,8 +333,7 @@ async function fetchCustomers(
 }
 
 async function fetchStaff(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
+  supabase: SupabaseAdminClient,
   params: QueryParams
 ): Promise<{ data: StaffRecord[]; total: number | null } | null> {
   // Check if staff_contacts table exists by attempting a limited query

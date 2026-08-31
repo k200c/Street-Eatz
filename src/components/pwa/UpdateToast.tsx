@@ -10,7 +10,7 @@ export function UpdateToast() {
 
   useEffect(() => {
     // Subscribe to update notifications
-    onNeedRefresh((needRefresh) => {
+    return onNeedRefresh((needRefresh) => {
       setShowUpdate(needRefresh);
     });
   }, []);

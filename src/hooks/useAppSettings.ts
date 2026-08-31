@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, publicSupabase } from '@/integrations/supabase/client';
 import { useEffect } from 'react';
+import { createRealtimeChannelName } from '@/lib/realtimeChannel';
 
 export interface AppSettings {
   id: number;
@@ -13,6 +14,18 @@ export interface AppSettings {
   online_payments_enabled: boolean;
   pay_on_collection_enabled: boolean;
   flatbread_addon_enabled: boolean;
+  preorders_enabled: boolean;
+  preorder_min_notice_minutes: number;
+  preorder_max_days: number;
+  preorder_slot_interval_minutes: number;
+  preorder_slot_capacity: number;
+  preorder_kitchen_lead_minutes: number;
+  preorder_hours: Record<string, { start: string; end: string }>;
+  loyalty_enabled: boolean;
+  loyalty_points_per_order: number;
+  loyalty_reward_cost: number;
+  loyalty_reward_label: string;
+  google_review_url: string | null;
 }
 
 export function useAppSettings() {
@@ -36,7 +49,7 @@ export function useAppSettings() {
   // Subscribe to realtime updates
   useEffect(() => {
     const channel = supabase
-      .channel('app-settings-changes')
+      .channel(createRealtimeChannelName('app-settings-changes'))
       .on(
         'postgres_changes',
         {
@@ -62,7 +75,7 @@ export function useUpdateAppSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (updates: Partial<Pick<AppSettings, 'is_store_open' | 'current_wait_time' | 'marketing_banner_text' | 'marketing_banner_enabled' | 'card_payment_provider' | 'online_payments_enabled' | 'pay_on_collection_enabled' | 'flatbread_addon_enabled'>>) => {
+    mutationFn: async (updates: Partial<Pick<AppSettings, 'is_store_open' | 'current_wait_time' | 'marketing_banner_text' | 'marketing_banner_enabled' | 'card_payment_provider' | 'online_payments_enabled' | 'pay_on_collection_enabled' | 'flatbread_addon_enabled' | 'preorders_enabled' | 'preorder_min_notice_minutes' | 'preorder_max_days' | 'preorder_slot_interval_minutes' | 'preorder_slot_capacity' | 'preorder_kitchen_lead_minutes' | 'preorder_hours' | 'loyalty_enabled' | 'loyalty_points_per_order' | 'loyalty_reward_cost' | 'loyalty_reward_label' | 'google_review_url'>>) => {
       const { data, error } = await supabase
         .from('app_settings')
         .update({ ...updates, updated_at: new Date().toISOString() })

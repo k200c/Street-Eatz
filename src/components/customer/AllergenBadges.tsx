@@ -12,13 +12,15 @@ interface AllergenBadgesProps {
   size?: 'sm' | 'md';
   className?: string;
   showTooltip?: boolean;
+  showNames?: boolean;
 }
 
 export function AllergenBadges({ 
   allergenNumbers, 
   size = 'sm',
   className,
-  showTooltip = true
+  showTooltip = true,
+  showNames = false,
 }: AllergenBadgesProps) {
   if (!allergenNumbers || allergenNumbers.length === 0) {
     return null;
@@ -26,9 +28,9 @@ export function AllergenBadges({
 
   const sortedAllergens = [...allergenNumbers].sort((a, b) => a - b);
 
-  const badgeSize = size === 'sm' 
-    ? 'w-4 h-4 text-[9px]' 
-    : 'w-5 h-5 text-[10px]';
+  const badgeSize = showNames
+    ? size === 'sm' ? 'min-h-5 px-1.5 text-[9px]' : 'min-h-7 px-2.5 text-xs'
+    : size === 'sm' ? 'w-4 h-4 text-[9px]' : 'w-5 h-5 text-[10px]';
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -45,7 +47,7 @@ export function AllergenBadges({
                     badgeSize
                   )}
                 >
-                  {num}
+                  {showNames ? `${num} ${ALLERGEN_KEY[num] || `Allergen ${num}`}` : num}
                 </span>
               </TooltipTrigger>
               <TooltipContent 
@@ -65,7 +67,7 @@ export function AllergenBadges({
                 badgeSize
               )}
             >
-              {num}
+              {showNames ? `${num} ${ALLERGEN_KEY[num] || `Allergen ${num}`}` : num}
             </span>
           )
         ))}

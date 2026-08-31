@@ -15,29 +15,23 @@ interface AuthGuardProps {
 export function AuthGuard({ children, requireAuth = true, allowedRoles }: AuthGuardProps) {
   const { user, role, loading, profileLoading } = useAuth();
   const location = useLocation();
-  const [authTimeout, setAuthTimeout] = useState(false);
   const [showEmergencyReset, setShowEmergencyReset] = useState(false);
 
-  // Auth timeout - force through after 3 seconds to prevent infinite loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (loading || profileLoading) {
-        console.warn('[AuthGuard] Auth timeout - forcing through');
-        setAuthTimeout(true);
-      }
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [loading, profileLoading]);
+  // A restored session arrives before its role lookup. Treat that gap as
+  // loading; defaulting a still-unknown role to customer causes valid admins
+  // to be redirected away from deep links such as /admin/qr on refresh.
+  const roleLoading = Boolean(user && allowedRoles && role === null);
+  const authLoading = loading || profileLoading || roleLoading;
 
   // Show emergency reset button after 5 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (loading || profileLoading) {
+      if (authLoading) {
         setShowEmergencyReset(true);
       }
     }, 5000);
     return () => clearTimeout(timer);
-  }, [loading, profileLoading]);
+  }, [authLoading]);
 
   // Emergency reset function - nuclear option
   const handleEmergencyReset = () => {
@@ -47,8 +41,7 @@ export function AuthGuard({ children, requireAuth = true, allowedRoles }: AuthGu
     window.location.href = '/';
   };
 
-  // Show loading spinner ONLY if still loading AND timeout hasn't occurred
-  if ((loading || profileLoading) && !authTimeout) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />

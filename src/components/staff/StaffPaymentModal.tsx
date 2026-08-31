@@ -9,9 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getActivePaymentProvider } from "@/lib/paymentProvider";
 
-// n8n Webhook URL - unified endpoint for all staff payments
-const N8N_PAYMENT_WEBHOOK = "https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment";
-
 interface OrderItem {
   id?: string;
   product_name: string | null;
@@ -141,29 +138,16 @@ export function StaffPaymentModal({
         payment_provider: paymentProvider,
       };
       
-      // Send to n8n webhook
-      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(webhookPayload),
+      const { data, error } = await supabase.functions.invoke("payment-session", {
+        body: {
+          action: "start",
+          order_id: orderId,
+          payment_type: "POSCash",
+          amount_tendered: tenderedValue,
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Webhook failed with status ${response.status}`);
-      }
-
-      // Update order status in database
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          payment_method: "cash",
-          payment_status: "paid",
-          cash_tendered: tenderedValue,
-          change_due: changeDue,
-        })
-        .eq("id", orderId);
-
-      if (error) throw error;
+      if (error || !data?.success) throw error ?? new Error("Cash workflow did not acknowledge payment");
 
       toast.success(`Order #${String(displayId).padStart(4, "0")} paid with cash!`);
       resetForm();
@@ -192,29 +176,13 @@ export function StaffPaymentModal({
         payment_provider: paymentProvider,
       };
       
-      // Send to n8n webhook for terminal
-      const response = await fetch(N8N_PAYMENT_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(webhookPayload),
+      const { data, error } = await supabase.functions.invoke("payment-session", {
+        body: { action: "start", order_id: orderId, payment_type: "terminal" },
       });
 
-      if (!response.ok) {
-        throw new Error(`Terminal webhook failed with status ${response.status}`);
-      }
+      if (error || !data?.success) throw error ?? new Error("Terminal workflow did not acknowledge payment");
 
       toast.info("Tap Card on Terminal...");
-
-      // Update order status - payment_status stays pending until terminal confirms
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          payment_method: "card",
-          payment_status: "pending",
-        })
-        .eq("id", orderId);
-
-      if (error) throw error;
 
       toast.success(`Order #${String(displayId).padStart(4, "0")} sent to terminal!`);
       resetForm();

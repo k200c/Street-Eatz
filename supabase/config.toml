@@ -1,19 +1,25 @@
-project_id = "ftzinsesuiuqcjfpbaur"
+project_id = "svbilfaanpiyieyxbsss"
 
 [functions.viva-wallet]
 verify_jwt = false
 
 [functions.create-order]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-to-kitchen]
-verify_jwt = false
+verify_jwt = true
+
+[functions.payment-session]
+verify_jwt = true
 
 [functions.update-order-status]
 verify_jwt = false
 
 [functions.update-social-post]
 verify_jwt = false
+
+[functions.staff-automation]
+verify_jwt = true
 
 [functions.confirm-payment]
 verify_jwt = false
@@ -49,4 +55,25 @@ verify_jwt = false
 # link from an order SMS. The feedback token is the credential, validated inside
 # the function by SECURITY DEFINER RPCs. No order_id/phone/display_id lookup.
 [functions.feedback]
+verify_jwt = false
+
+[functions.send-broadcast]
+verify_jwt = true
+
+# Service-to-service functions use their own N8N/voice shared secret in the
+# function body, so the Supabase JWT gateway remains disabled intentionally.
+[functions.complete-message-context]
+verify_jwt = false
+
+[functions.create-voice-order]
+verify_jwt = false
+
+[functions.find-active-review-context-by-phone]
+verify_jwt = false
+
+[functions.store-google-review-rating]
+verify_jwt = false
+
+# Public read-only opening-hours endpoint used by ordering assistants.
+[functions.get-hours]
 verify_jwt = false

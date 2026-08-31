@@ -93,11 +93,14 @@ Deno.serve(async (req) => {
 
     let dbQuery = supabase
       .from("products")
-      .select("name, price, description, category, is_available")
+      .select("name, price, description, category, is_available, is_sold_out, is_visible")
+      .eq("is_visible", true)
       .order("name");
 
     if (!includeUnavailable) {
-      dbQuery = dbQuery.eq("is_available", true);
+      dbQuery = dbQuery
+        .eq("is_available", true)
+        .eq("is_sold_out", false);
     }
 
     if (normalizedCategory) {
@@ -124,6 +127,8 @@ Deno.serve(async (req) => {
       description: p.description || "",
       category: p.category || "",
       is_available: p.is_available ?? true,
+      is_sold_out: p.is_sold_out ?? false,
+      is_visible: p.is_visible ?? true,
     }));
 
     console.log(

@@ -13,6 +13,12 @@ export interface Broadcast {
   revenue_generated: number;
   recipients_count: number;
   created_at: string;
+  metrics_verified?: boolean;
+  metrics_source?: string;
+  accepted_recipients?: number;
+  delivered_recipients?: number;
+  failed_recipients?: number;
+  delivery_status?: string;
 }
 
 export interface CommunityVote {
@@ -64,19 +70,15 @@ export function useSendBroadcast() {
         throw new Error("Failed to send broadcast");
       }
 
-      // Simulated metrics (in production, n8n would return these)
-      const simulatedRecipients = Math.floor(Math.random() * 200) + 50;
-      const simulatedOpenRate = Math.floor(Math.random() * 40) + 30;
-      const simulatedRevenue = Math.floor(Math.random() * 500) + 100;
-
-      // Save to database
+      // Save an honest delivery record. Engagement and attributed revenue remain
+      // zero until provider callbacks or order attribution supply real evidence.
       const { error } = await supabase.from("broadcasts").insert({
         title: broadcast.title,
         message: broadcast.message,
         image_url: broadcast.image_url || null,
-        recipients_count: simulatedRecipients,
-        open_rate: simulatedOpenRate,
-        revenue_generated: simulatedRevenue,
+        recipients_count: Number.isInteger(data?.recipients_count) ? data.recipients_count : 0,
+        open_rate: 0,
+        revenue_generated: 0,
       });
 
       if (error) throw error;

@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { hardResetApp } from '@/lib/resetApp';
 import { postFormToUrl } from '@/lib/postFormToUrl';
 import { Link } from 'react-router-dom';
+import { SchedulePicker } from '@/components/checkout/SchedulePicker';
 
 interface CustomerCheckoutModalProps {
   open: boolean;
@@ -36,6 +37,8 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [specialNotes, setSpecialNotes] = useState('');
+  const [fulfillmentType, setFulfillmentType] = useState<'asap' | 'scheduled'>('asap');
+  const [scheduledFor, setScheduledFor] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<number | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showRetryButton, setShowRetryButton] = useState(false);
@@ -58,6 +61,8 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
         setOrderNumber(null);
         setIsProcessingPayment(false);
         setSpecialNotes('');
+        setFulfillmentType('asap');
+        setScheduledFor(null);
         setShowRetryButton(false);
       }, 300);
     }
@@ -92,35 +97,13 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
     }
   }, [isProcessingPayment, step]);
 
-  const canProceed = customerName.trim() && customerPhone.trim();
+  const canProceed = Boolean(
+    customerName.trim() &&
+    customerPhone.trim() &&
+    (fulfillmentType === 'asap' || scheduledFor)
+  );
   const isButtonDisabled = isSubmitting || isProcessingPayment;
   const [paymentError, setPaymentError] = useState<string | null>(null);
-
-  // Helper function to format phone with country code
-  const formatPhoneWithCountryCode = (phone: string): string => {
-    if (!phone) return '';
-    
-    // Remove all spaces, dashes, and parentheses
-    const cleaned = phone.replace(/[\s\-()]/g, '');
-    
-    // If starts with 0, replace with +353 (Irish format)
-    if (cleaned.startsWith('0')) {
-      return '+353' + cleaned.substring(1);
-    }
-    
-    // If already has country code
-    if (cleaned.startsWith('+')) {
-      return cleaned;
-    }
-    
-    // If starts with 353 without +
-    if (cleaned.startsWith('353')) {
-      return '+' + cleaned;
-    }
-    
-    // Default: add +353
-    return '+353' + cleaned;
-  };
 
   // Validate email format
   const isValidEmail = (email: string): boolean => {
@@ -182,6 +165,8 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
         customerPhone: trimmedPhone,
         customerEmail: trimmedEmail,
         specialNotes: specialNotes.trim() || undefined,
+        fulfillmentType,
+        scheduledFor,
       });
 
       if (!orderResult) {
@@ -204,106 +189,25 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      // Step 3: Build items array with removed_ingredients and modifiers for KDS
-      const formattedItems = items.map((item) => {
-        const modifiers: string[] = [];
-        
-        // Add removed ingredients (prefixed with "No ")
-        if (item.removedIngredients && Array.isArray(item.removedIngredients)) {
-          item.removedIngredients.forEach((ing) => {
-            if (ing?.name) modifiers.push(`No ${ing.name}`);
-          });
-        }
-
-        // Add extra ingredients and regular modifiers
-        if (item.selectedModifiers && Array.isArray(item.selectedModifiers)) {
-          item.selectedModifiers.forEach((mod) => {
-            if (mod?.name) modifiers.push(mod.name);
-          });
-        }
-
-        return {
-          name: item.product?.name || 'Unknown Item',
-          quantity: item.quantity || 1,
-          price: item.totalPrice / item.quantity,
-          modifiers: modifiers,
-          removed_ingredients: item.removedIngredients?.map((i) => i.name) || [],
-        };
-      });
-
-      // Step 4: Build EXACT payload structure for n8n webhook
-      const formattedPhone = formatPhoneWithCountryCode(trimmedPhone);
-      const { getActivePaymentProvider } = await import('@/lib/paymentProvider');
-      const paymentProvider = await getActivePaymentProvider();
-      const payload = {
-        order_id: orderResult.orderId,           // UUID - n8n uses this to update Supabase
-        display_id: orderResult.displayId,       // 4-digit number
-        total_amount: total,                     // Number in euros (NOT cents)
-        user_id: user?.id || null,               // Supabase auth.uid() for customer tracking
-        payment_method: 'card',
-        paymenttype: 'online',                   // Triggers 'Online' branch in n8n
-        payment_status: 'pending',
-        customer_name: trimmedName,
-        customer_email: trimmedEmail,
-        customer_phone: formattedPhone,
-        items: formattedItems,
-        timestamp: new Date().toISOString(),
-        order_source: 'web',                     // Required field
-        special_notes: specialNotes.trim() || '',
-        payment_provider: paymentProvider,        // 'viva' | 'mypos' — routes n8n provider switch
-      };
-
-      console.log('🚀 Direct n8n payment request:', JSON.stringify(payload, null, 2));
-
-      // Step 5: POST directly to n8n webhook (bypass Edge Function)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-      const response = await fetch('https://kyle2000.app.n8n.cloud/webhook/street-eatz-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Step 5: create the provider session through the authenticated server boundary.
+      const { data, error: paymentFnError } = await supabase.functions.invoke('payment-session', {
+        body: {
+          action: 'start',
+          order_id: orderResult.orderId,
+          payment_type: 'online',
+          customer_email: trimmedEmail,
         },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
-      console.log('📡 n8n response status:', response.status);
-
-      // Enhanced error handling for n8n responses
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('n8n error response:', response.status, errorText);
-        
-        // Parse error if JSON
-        let errorMessage = 'Payment service unavailable';
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch { 
-          // Not JSON, use default message
-        }
-        
-        // Show specific error for different status codes
-        if (response.status === 404) {
-          setPaymentError("We couldn't initialize your payment. Please try again or contact support.");
-        } else if (response.status >= 500) {
-          setPaymentError("Payment service is temporarily unavailable. Please try again in a moment.");
-        } else {
-          setPaymentError(errorMessage);
-        }
-        
+      if (paymentFnError || !data) {
+        const errorMessage = paymentFnError?.message || 'Payment service unavailable';
+        console.error('Payment session error:', paymentFnError);
+        setPaymentError("Payment service is temporarily unavailable. Please try again in a moment.");
         toast.error("Payment Error: " + errorMessage);
         setStep('payment');
         setIsProcessingPayment(false);
-        return; // Don't throw, just return to payment step
+        return;
       }
-
-      // Parse response - validate structure
-      const data = await response.json();
-      console.log('📡 n8n response data:', data);
 
       // Validate response has success flag
       if (!data.success) {
@@ -376,10 +280,6 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
     setIsProcessingPayment(true);
 
     try {
-      // IMPORTANT: Save cart data BEFORE submitOrder (cart won't be cleared now, but snapshot for safety)
-      const cartSnapshot = [...items];
-      const totalSnapshot = total;
-
       // Show "Sending to Kitchen" spinner
       setStep('sending');
 
@@ -389,21 +289,14 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim(),
         specialNotes: specialNotes.trim() || undefined,
+        fulfillmentType,
+        scheduledFor,
       });
 
       if (result) {
-        // Send to n8n webhook for cash/collection payments (marked as web order)
-        const kitchenSuccess = await sendToKitchen(
-          result,
-          {
-            name: customerName.trim(),
-            phone: customerPhone.trim(),
-            email: customerEmail.trim(),
-            specialNotes: specialNotes.trim(),
-          },
-          cartSnapshot,
-          totalSnapshot,
-          'web'
+        // Release the saved order through the database-canonical kitchen dispatcher.
+        const kitchenSuccess = fulfillmentType === 'scheduled' ? true : await sendToKitchen(
+          result
         );
 
         // Only clear cart AFTER kitchen confirmation
@@ -504,6 +397,13 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                 </div>
 
                 {/* Special Request / Notes */}
+                <SchedulePicker
+                  mode={fulfillmentType}
+                  value={scheduledFor}
+                  onModeChange={setFulfillmentType}
+                  onChange={setScheduledFor}
+                />
+
                 <div className="space-y-2">
                   <Label htmlFor="specialNotes" className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4" />
@@ -573,6 +473,14 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                       <span className="truncate max-w-[180px]">{customerEmail}</span>
                     </div>
                   )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Collection</span>
+                    <span>
+                      {scheduledFor
+                        ? new Intl.DateTimeFormat('en-IE', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(scheduledFor))
+                        : 'As soon as possible'}
+                    </span>
+                  </div>
                   <div className="border-t border-border pt-2 mt-2 flex justify-between">
                     <span className="font-heading">Total</span>
                     <span className="font-heading text-xl text-primary">€{total.toFixed(2)}</span>

@@ -186,7 +186,7 @@ export function StaffProductSheet({
         setIngredientStates(initStates);
       }
     }
-  }, [product?.id, ingredients, editMode, initialItem]);
+  }, [product, ingredients, editMode, initialItem]);
 
   if (!product) return null;
 

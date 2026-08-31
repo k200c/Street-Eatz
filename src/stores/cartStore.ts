@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { CartItem, Product, SelectedModifier, RemovedIngredient } from '@/types/database';
 import { getModifierTotal } from '@/lib/pricingRules';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 // Generate a unique guest session ID
 const getGuestSessionId = (): string => {
@@ -118,7 +119,7 @@ export const useCartStore = create<CartStore>()((set, get) => ({
         return;
       }
 
-      const items: CartItem[] = (data || []).map((item: any) => {
+      const items: CartItem[] = (data || []).map((item) => {
         const modifiers = (item.selected_modifiers || []) as SelectedModifier[];
         const modifiersTotal = modifiers.reduce((sum, m) => sum + getModifierTotal(m), 0);
         
@@ -151,9 +152,9 @@ export const useCartStore = create<CartStore>()((set, get) => ({
           user_id: userId,
           product_id: item.product.id,
           quantity: item.quantity,
-          selected_modifiers: item.selectedModifiers as any,
-          removed_ingredients: item.removedIngredients as any,
-        } as any);
+          selected_modifiers: item.selectedModifiers as unknown as Json,
+          removed_ingredients: item.removedIngredients as unknown as Json,
+        });
       }
 
       // Clear guest cart after successful merge
@@ -185,9 +186,9 @@ export const useCartStore = create<CartStore>()((set, get) => ({
             user_id: userId,
             product_id: product.id,
             quantity,
-            selected_modifiers: modifiers as any,
-            removed_ingredients: removedIngredients as any,
-          } as any)
+            selected_modifiers: modifiers as unknown as Json,
+            removed_ingredients: removedIngredients as unknown as Json,
+          })
           .select()
           .single();
 
@@ -237,8 +238,8 @@ export const useCartStore = create<CartStore>()((set, get) => ({
           .update({
             product_id: product.id,
             quantity,
-            selected_modifiers: modifiers as any,
-            removed_ingredients: removedIngredients as any,
+            selected_modifiers: modifiers as unknown as Json,
+            removed_ingredients: removedIngredients as unknown as Json,
           })
           .eq('id', existingItem.dbId);
 

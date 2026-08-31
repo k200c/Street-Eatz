@@ -10,6 +10,8 @@ interface ActiveOrderCardProps {
     payment_status?: string | null;
     total: number;
     created_at: string;
+    fulfillment_type?: string;
+    scheduled_for?: string | null;
     items: {
       product_name: string | null;
       quantity: number | null;
@@ -101,6 +103,11 @@ export function ActiveOrderCard({ order }: ActiveOrderCardProps) {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">{timeAgo}</p>
+              {order.fulfillment_type === 'scheduled' && order.scheduled_for && (
+                <p className="mt-1 text-xs font-semibold text-primary">
+                  Collection {new Intl.DateTimeFormat('en-IE', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(order.scheduled_for))}
+                </p>
+              )}
             </div>
           </div>
           <span className={cn(

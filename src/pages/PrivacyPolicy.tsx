@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { FooterInfoBar } from "@/components/layout/FooterInfoBar";
+import { clientConfig, clientLegalLastUpdated } from "@/config/client";
 
 const PrivacyPolicy = () => {
   return (
@@ -14,20 +15,19 @@ const PrivacyPolicy = () => {
           </h1>
           
           <p className="text-muted-foreground text-sm mb-8">
-            Last updated: {new Date().toLocaleDateString('en-IE', { month: 'long', day: 'numeric', year: 'numeric' })}
+            Last updated: {clientLegalLastUpdated}
           </p>
 
           <div className="space-y-8 text-foreground">
             <section>
               <h2 className="font-heading text-xl text-primary mb-3">1. WHO WE ARE</h2>
               <p className="text-muted-foreground leading-relaxed">
-                Street Eatz Waterford is a food service business operating from Crystal Sports and Leisure Centre,
-                Cork Rd, Ballynaneashagh, Waterford, X91 E6PX, Ireland. We are committed to protecting your personal data
+                {clientConfig.legalName} is a food service business operating from {clientConfig.addressLines.join(', ')}. We are committed to protecting your personal data
                 in compliance with the General Data Protection Regulation (GDPR) and the Irish Data Protection 
                 Acts 1988-2018.
               </p>
               <p className="text-muted-foreground leading-relaxed mt-2">
-                <strong className="text-foreground">Contact:</strong> streeteatzwaterford@gmail.com
+                <strong className="text-foreground">Contact:</strong> {clientConfig.email}
               </p>
             </section>
 
@@ -107,11 +107,9 @@ const PrivacyPolicy = () => {
                 please contact us at:
               </p>
               <div className="mt-3 p-4 bg-card/50 border border-border rounded-lg">
-                <p className="text-foreground font-semibold">Street Eatz Waterford</p>
-                <p className="text-muted-foreground">Crystal Sports and Leisure Centre</p>
-                <p className="text-muted-foreground">Cork Rd, Ballynaneashagh</p>
-                <p className="text-muted-foreground">Waterford, X91 E6PX, Ireland</p>
-                <p className="text-primary mt-2">streeteatzwaterford@gmail.com</p>
+                <p className="text-foreground font-semibold">{clientConfig.legalName}</p>
+                {clientConfig.addressLines.map((line) => <p key={line} className="text-muted-foreground">{line}</p>)}
+                <p className="text-primary mt-2">{clientConfig.email}</p>
               </div>
             </section>
           </div>

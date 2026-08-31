@@ -1,5 +1,5 @@
 /**
- * Image optimization utilities for the Street Eatz menu.
+ * Image optimization utilities for the client menu.
  *
  * Strategy:
  *  - getOptimizedImageUrl: pass-through — returns the stored URL unchanged.

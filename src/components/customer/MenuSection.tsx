@@ -164,7 +164,7 @@ export function MenuSection() {
             {/* Left gradient indicator */}
             <div 
               className={cn(
-                "absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/90 to-transparent pointer-events-none z-10 transition-opacity duration-200",
+                "absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/90 to-transparent pointer-events-none z-10 transition-opacity duration-200 md:hidden",
                 showLeftGradient ? "opacity-100" : "opacity-0"
               )}
             />
@@ -173,7 +173,7 @@ export function MenuSection() {
             <div 
               ref={categoryScrollRef}
               onScroll={handleCategoryScroll}
-              className="flex gap-2 overflow-x-auto no-scrollbar category-scroll px-1"
+              className="flex gap-2 overflow-x-auto no-scrollbar category-scroll px-1 md:flex-wrap md:justify-center md:overflow-visible"
             >
               {categories.map((category) => (
                 <button
@@ -194,7 +194,7 @@ export function MenuSection() {
             {/* Right gradient indicator */}
             <div 
               className={cn(
-                "absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/90 to-transparent pointer-events-none z-10 transition-opacity duration-200",
+                "absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/90 to-transparent pointer-events-none z-10 transition-opacity duration-200 md:hidden",
                 showRightGradient ? "opacity-100" : "opacity-0"
               )}
             />

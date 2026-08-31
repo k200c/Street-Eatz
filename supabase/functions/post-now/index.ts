@@ -105,6 +105,15 @@ Deno.serve(async (req) => {
     // ── Build payload ─────────────────────────────────────────────
     const mediaUrls = parseMediaUrls(post.media_urls);
 
+    const brandName = Deno.env.get("BUSINESS_BRAND_NAME");
+    const locationName = Deno.env.get("BUSINESS_LOCATION_NAME");
+    if (!brandName || !locationName) {
+      return new Response(JSON.stringify({ error: "Business identity not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const payload = {
       event: "post_now",
       source: "lovable_command_center",
@@ -119,8 +128,8 @@ Deno.serve(async (req) => {
         post_type: post.post_type || "single",
         platforms: ["instagram", "facebook"],
         account: {
-          location_name: "Street Eatz Waterford",
-          brand: "Street Eatz",
+          location_name: locationName,
+          brand: brandName,
         },
         meta: {
           created_by: userId,
