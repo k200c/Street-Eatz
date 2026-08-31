@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-IE">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>StreetEatz | Gourmet Street Food Waterford</title>
-    <meta name="description" content="StreetEatz Waterford — premium smash burgers, flatbreads, and loaded fries from Waterford's favourite food truck. Order online for pickup!" />
-    <meta name="author" content="StreetEatz" />
-    
+    <title>Street Eatz Waterford | Smash Burgers, Loaded Fries &amp; Flatbreads</title>
+    <meta name="description" content="Street Eatz is a gourmet food truck on the Cork Road in Waterford, Ireland. Dry-aged smash burgers, loaded fries and flatbreads made from local products and producers. Order online for collection." />
+    <meta name="author" content="Street Eatz Waterford" />
+    <link rel="canonical" href="https://streeteatzwaterford.ie/" />
+
     <!-- Preconnect to critical origins — improves FCP by starting connections early -->
     <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
     <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
@@ -17,41 +18,52 @@
     <meta name="theme-color" content="#0A0A0A" />
     <meta name="msapplication-TileColor" content="#0A0A0A" />
     <meta name="msapplication-navbutton-color" content="#0A0A0A" />
-    
+
     <!-- iOS PWA Support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Street Eatz" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="application-name" content="Street Eatz" />
-    
+
     <!-- Mobile Web App Icons -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v2.png" />
-    
+
     <!-- Icons -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32-v2.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16-v2.png" />
 
     <!-- Installable web app manifest -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    
+
     <!-- Open Graph -->
-    <meta property="og:title" content="StreetEatz | Gourmet Street Food Waterford" />
-    <meta property="og:description" content="StreetEatz Waterford — premium smash burgers, flatbreads, and loaded fries from Waterford's favourite food truck. Order online for pickup!" />
+    <meta property="og:title" content="Street Eatz Waterford | Smash Burgers, Loaded Fries &amp; Flatbreads" />
+    <meta property="og:description" content="Gourmet food truck on the Cork Road in Waterford, Ireland. Dry-aged smash burgers, loaded fries and flatbreads. Order online for collection." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://streeteatzwaterford.ie/app-icon-1024-v2.png" />
-    <meta property="og:site_name" content="StreetEatz" />
-    
-    <!-- Twitter -->
+    <meta property="og:url" content="https://streeteatzwaterford.ie/" />
+    <meta property="og:locale" content="en_IE" />
+    <meta property="og:site_name" content="Street Eatz Waterford" />
+
+    <!-- Twitter. No twitter:site — the previous @StreetEatzWaterford handle is 19
+         characters and handles cap at 15, so it resolved to nothing. -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@StreetEatzWaterford" />
-    <meta name="twitter:title" content="StreetEatz | Gourmet Street Food Waterford" />
-    <meta name="twitter:description" content="Order premium smash burgers, flatbreads, and loaded fries from StreetEatz Waterford." />
+    <meta name="twitter:title" content="Street Eatz Waterford | Smash Burgers, Loaded Fries &amp; Flatbreads" />
+    <meta name="twitter:description" content="Gourmet food truck on the Cork Road in Waterford, Ireland. Order online for collection." />
+
+    <!-- Social share image. scripts/generate-seo.mjs rewrites the block between
+         these markers with live food photography from the menu. The values below
+         are the committed fallback used when generation is skipped or fails. -->
+    <!-- SEO:SOCIAL_IMAGE:START -->
+    <meta property="og:image" content="https://streeteatzwaterford.ie/app-icon-1024-v2.png" />
     <meta name="twitter:image" content="https://streeteatzwaterford.ie/app-icon-1024-v2.png" />
-    
-    <!-- Prevent phone number detection -->
-    <meta name="format-detection" content="telephone=no" />
-    
+    <!-- SEO:SOCIAL_IMAGE:END -->
+
+    <!-- schema.org Restaurant + Menu, generated at build time from
+         seo_restaurant_jsonld(). Empty here on purpose: the source of truth is
+         the live menu, never a hardcoded copy in this file. -->
+    <!-- SEO:JSONLD:START -->
+    <!-- SEO:JSONLD:END -->
+
     <!-- Critical inline styles — enables first paint before CSS bundle loads -->
     <style>
       * { -webkit-tap-highlight-color: transparent; }

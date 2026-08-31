@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/validate-environment.mjs",
+    "prebuild": "node scripts/validate-environment.mjs && node scripts/generate-seo.mjs",
     "build": "vite build",
-    "postbuild": "node scripts/create-spa-fallback.mjs",
+    "postbuild": "node scripts/create-spa-fallback.mjs && node scripts/prerender.mjs",
     "build:dev": "vite build --mode development",
     "audit:architecture": "node scripts/architecture-audit.mjs",
     "audit:assistant-db": "node scripts/assistant-db-contract-audit.mjs",
@@ -18,7 +18,7 @@
     "ios:add": "cap add ios",
     "ios:sync": "npm run build && cap sync ios",
     "ios:open": "cap open ios",
-    "test": "node --experimental-strip-types --test src/lib/googleReviewUrl.test.ts src/lib/managementAssistant.test.ts src/lib/orderSource.test.ts src/lib/paymentState.test.ts src/lib/preorderSlots.test.ts src/lib/realtimeChannel.test.ts src/lib/storeStatus.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/googleReviewUrl.test.ts src/lib/managementAssistant.test.ts src/lib/orderSource.test.ts src/lib/paymentState.test.ts src/lib/preorderSlots.test.ts src/lib/realtimeChannel.test.ts src/lib/storeStatus.test.ts src/lib/seoPages.test.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },

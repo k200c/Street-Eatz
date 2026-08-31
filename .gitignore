@@ -29,6 +29,12 @@ media/
 .netlify/
 supabase/.temp/
 
+# Written by scripts/generate-seo.mjs at build time from live data.
+# robots.txt is deliberately NOT ignored: it is deterministic, so it only
+# changes when routes change, and that is worth seeing in a diff.
+public/sitemap.xml
+public/llms.txt
+
 # Environment configuration must be supplied by the deployment platform.
 .env
 .env.*

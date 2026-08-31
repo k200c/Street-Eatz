@@ -10,6 +10,9 @@ import { UpdateToast } from "@/components/pwa/UpdateToast";
 import { InstallAppPrompt } from "@/components/pwa/InstallAppPrompt";
 import { OrderSourceCapture } from "@/components/customer/OrderSourceCapture";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+// Eager, not lazy: these routes ship prerendered HTML. A lazy chunk would swap
+// real crawled content for a Suspense spinner the moment React mounts.
+import MarketingPage from "./pages/MarketingPage";
 const Index = lazy(() => import("./pages/Index"));
 const Menu = lazy(() => import("./pages/Menu"));
 const Cart = lazy(() => import("./pages/Cart"));
@@ -88,6 +91,17 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/menu" element={<Menu />} />
+
+                {/* Prerendered marketing routes. scripts/prerender.mjs writes real
+                    HTML for these so crawlers and AI answer engines get dish text
+                    without running JS; React then takes over for a human.
+                    /menu is deliberately absent — it keeps the ordering page and
+                    receives its prerendered HTML as a crawlable floor only. */}
+                <Route path="/burgers" element={<MarketingPage />} />
+                <Route path="/flatbreads" element={<MarketingPage />} />
+                <Route path="/loaded-fries" element={<MarketingPage />} />
+                <Route path="/allergens" element={<MarketingPage />} />
+                <Route path="/catering" element={<MarketingPage />} />
                 <Route path="/qr/order" element={<QrOrderEntry />} />
                 <Route path="/install" element={<InstallApp />} />
 

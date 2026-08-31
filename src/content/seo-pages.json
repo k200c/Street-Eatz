@@ -1,0 +1,223 @@
+{
+  "_note": "Single source of truth for the prerendered marketing pages. Read by scripts/prerender.mjs (Node) and by src/pages/MarketingPage.tsx (React) so the crawled HTML and the rendered app cannot drift. Evergreen prose only — dish names, descriptions and prices are injected from the live menu at build time and must never be duplicated here.",
+  "pages": [
+    {
+      "route": "/menu",
+      "title": "Street Eatz Waterford Menu | Smash Burgers, Loaded Fries & Flatbreads",
+      "description": "The full Street Eatz menu, Cork Road, Waterford, Ireland. Dry-aged smash burgers, loaded fries, flatbreads, kids meals and sauces, with prices. Order online for collection.",
+      "h1": "The Street Eatz Waterford menu",
+      "intro": "Street Eatz is a gourmet food truck on the Cork Road in Waterford city, Ireland. This is the full menu, with current prices, taken straight from the till system — so what you read here is what you pay at the hatch. Everything is cooked to order, which is why we quote a wait time rather than pretending food appears instantly.",
+      "categories": ["Burgers", "Flatbreads", "Fries", "Specials", "Kids Menu", "Sauces", "Drinks"],
+      "sections": [
+        {
+          "h2": "Fresh, local, gourmet street food",
+          "body": "Our positioning is simple and we hold ourselves to it: fresh, local, gourmet street food made from local products and producers. The beef is dry-aged and smashed to order on the griddle. The sauces are made in-house rather than squeezed out of a catering bottle. That costs more and takes longer than the alternative, and it is the whole reason people cross the city for it."
+        },
+        {
+          "h2": "How ordering works",
+          "body": "Order online from this site for collection at the truck and pay by card, or pay when you collect. You will get a text when the order is ready, so there is no standing around guessing. Every order is given a number that matches the ticket on the kitchen screen. If you would rather have food delivered, we are also listed on Just Eat, though ordering direct is cheaper for us and usually quicker for you."
+        },
+        {
+          "h2": "Where to find us",
+          "body": "We trade from the Cork Road in Waterford city, in the south east of Ireland — County Waterford, not Waterford in Wisconsin or Connecticut. Opening hours are listed below and are kept up to date from the same system that takes the orders, so if the truck is closed the site will say so rather than taking an order we cannot cook."
+        }
+      ],
+      "faq": [
+        {
+          "q": "Where is Street Eatz in Waterford?",
+          "a": "Street Eatz trades from the Cork Road in Waterford city, County Waterford, Ireland."
+        },
+        {
+          "q": "Can I order Street Eatz online?",
+          "a": "Yes. You can order online from streeteatzwaterford.ie for collection, paying by card online or when you collect. Delivery is available separately through Just Eat."
+        },
+        {
+          "q": "Does Street Eatz do vegetarian food?",
+          "a": "The menu changes, so check the current items above. Most items can be customised at the point of ordering, including removing ingredients."
+        }
+      ]
+    },
+    {
+      "route": "/burgers",
+      "title": "Best Burger in Waterford? | Dry-Aged Smash Burgers at Street Eatz",
+      "description": "Dry-aged smash burgers from Street Eatz, a gourmet food truck on the Cork Road in Waterford, Ireland. See the current burger menu and prices, and order online for collection.",
+      "h1": "Smash burgers in Waterford",
+      "intro": "A smash burger is not a thinner version of a pub burger. The patty goes onto a hot griddle and is pressed hard and fast, so the surface caramelises into a crust while the inside stays juicy. That crust is the entire point, and it is why a smash burger cannot be cooked in advance and held under a lamp.",
+      "categories": ["Burgers"],
+      "sections": [
+        {
+          "h2": "Why dry-aged beef",
+          "body": "We use dry-aged beef patties. Dry-ageing draws moisture out of the beef and concentrates the flavour, which is why a dry-aged patty tastes beefier than a standard mince patty of the same weight. It is a more expensive way to buy beef and a slower one, and it is the single biggest difference between our burgers and a cheaper burger bought elsewhere in Waterford."
+        },
+        {
+          "h2": "Built to order, not built in advance",
+          "body": "Every burger is put together when you order it. You can add extras such as bacon, cheese or an additional patty, and you can take things off — no onions, no sauce, whatever you need. Those changes are printed on the kitchen ticket rather than passed on verbally, so what you asked for is what gets made. If you have an allergy, tell us at the point of ordering and check the allergen page first."
+        },
+        {
+          "h2": "Ordering burgers for collection in Waterford",
+          "body": "Order from this site and collect at the truck on the Cork Road. Because the patties are smashed to order there is a genuine cook time, and the site shows the current wait before you commit. You will get a text when your food is ready. For a group, order everything on one ticket so the kitchen cooks it together and it all lands hot at the same time."
+        }
+      ],
+      "faq": [
+        {
+          "q": "What makes a smash burger different?",
+          "a": "The patty is pressed onto a hot griddle so the surface caramelises into a crust. It gives a beefier, crisper edge than a thick pub-style burger and has to be cooked to order."
+        },
+        {
+          "q": "Can I add extra patties or bacon?",
+          "a": "Yes. Extras including bacon, cheese and additional dry-aged patties can be added when you order, and ingredients can be removed."
+        },
+        {
+          "q": "Where can I get a good burger in Waterford?",
+          "a": "Street Eatz serves dry-aged smash burgers from a food truck on the Cork Road in Waterford city, available to order online for collection."
+        }
+      ]
+    },
+    {
+      "route": "/flatbreads",
+      "title": "Flatbreads in Waterford | Street Eatz Food Truck",
+      "description": "Freshly grilled flatbreads from Street Eatz on the Cork Road in Waterford, Ireland. See current flatbread fillings and prices, and order online for collection.",
+      "h1": "Flatbreads in Waterford",
+      "intro": "Our flatbreads are the option for people who want the same fillings and the same house sauces as the burgers, without the bun. They are grilled to order and wrapped so they travel well, which makes them the sensible choice if you are eating in the car or walking back to work.",
+      "categories": ["Flatbreads"],
+      "sections": [
+        {
+          "h2": "Grilled to order",
+          "body": "The flatbread goes on the griddle when the order comes in, so it arrives warm and pliable rather than stiff. Fillings are loaded generously and dressed with the same sauces we make in-house for the burgers. It is street food, so it is designed to be eaten with your hands and to survive the walk."
+        },
+        {
+          "h2": "A lighter way to eat the same food",
+          "body": "Plenty of customers want the flavours of a loaded burger without a brioche bun and a pile of fries alongside. A flatbread does that job. You can still customise it — add extras, leave things out — and the changes go through to the kitchen ticket exactly as they do for the burgers."
+        },
+        {
+          "h2": "Swap a burger for a flatbread",
+          "body": "Several burgers on the menu can be switched to a flatbread when you order, so you are not limited to the items listed on this page. Choose the burger you want, then select the flatbread option before adding it to your order. Prices for the current flatbread items are listed above and come straight from the live menu."
+        }
+      ],
+      "faq": [
+        {
+          "q": "What is in a Street Eatz flatbread?",
+          "a": "Flatbreads are grilled to order and filled with the same meats, salads and house sauces used on the burgers. The current fillings and prices are listed on this page."
+        },
+        {
+          "q": "Can I have a burger as a flatbread instead?",
+          "a": "Yes. Several burgers can be swapped to a flatbread at the point of ordering."
+        },
+        {
+          "q": "Do flatbreads travel well?",
+          "a": "Better than a burger, yes. A flatbread is wrapped rather than stacked, so it holds together if you are eating in the car or carrying it back to work rather than eating at the truck."
+        }
+      ]
+    },
+    {
+      "route": "/loaded-fries",
+      "title": "Loaded Fries in Waterford | Street Eatz Food Truck",
+      "description": "Hand-cut loaded fries from Street Eatz on the Cork Road in Waterford, Ireland. Current loaded fries, toppings and prices. Order online for collection.",
+      "h1": "Loaded fries in Waterford",
+      "intro": "Loaded fries are the item people come back for. Hand-cut chips, cooked properly so they hold up under a topping, then piled with meat, cheese and sauce. The engineering matters more than it sounds: a soggy chip under a wet topping is a waste of everyone's time, which is why the chips are cut and cooked to take the weight.",
+      "categories": ["Fries"],
+      "sections": [
+        {
+          "h2": "Hand-cut, not out of a bag",
+          "body": "The chips are hand-cut. That means they vary slightly in size, they taste of potato, and they crisp on the outside while staying fluffy inside. It is more work than opening a frozen sack, and it is the difference between chips that carry a topping and chips that collapse under one."
+        },
+        {
+          "h2": "Add loaded fries to any order",
+          "body": "As well as the loaded fries listed here, most main items can have loaded fries added when you order — a smaller portion designed to go alongside a burger or flatbread rather than replace it. If you are ordering for a group this is usually the cheapest way to get everyone fed without over-ordering full portions."
+        },
+        {
+          "h2": "Collection in Waterford city",
+          "body": "Loaded fries are best eaten within a few minutes of leaving the fryer, so we cook them last and hand them over hot. Order online from this site for collection at the truck on the Cork Road, Waterford, and you will get a text the moment the order is ready rather than waiting around."
+        }
+      ],
+      "faq": [
+        {
+          "q": "Are the chips at Street Eatz hand-cut?",
+          "a": "Yes. The chips are hand-cut, which is why they hold up under loaded toppings rather than going soft."
+        },
+        {
+          "q": "Can I add loaded fries to a burger order?",
+          "a": "Yes. Most main items offer a smaller loaded fries portion as an add-on when you order."
+        },
+        {
+          "q": "Are loaded fries big enough to share?",
+          "a": "A full portion is generous and two people often share one alongside a burger each. If you are ordering for a group, the smaller add-on portions usually work out better value than several full ones."
+        }
+      ]
+    },
+    {
+      "route": "/allergens",
+      "title": "Allergen Information | Street Eatz Waterford",
+      "description": "Allergen information for every item on the Street Eatz menu in Waterford, Ireland, using the 14 EU allergen categories. Check before you order.",
+      "h1": "Allergen information",
+      "intro": "Below is the allergen information for the current Street Eatz menu, listed against the 14 allergen categories used across the EU and Ireland. It is generated from the same records the kitchen works from, so it changes when the menu changes rather than going stale on a printed sheet.",
+      "categories": [],
+      "renderAllergenTable": true,
+      "sections": [
+        {
+          "h2": "Please tell us before you order",
+          "body": "If you have an allergy or intolerance, tell us when you place the order rather than at collection. You can add a note to any online order, and it is printed on the kitchen ticket. That gives the kitchen the chance to change how your food is prepared instead of finding out once it is already on the griddle."
+        },
+        {
+          "h2": "About cross-contamination",
+          "body": "Street Eatz is a food truck. It is a single, compact kitchen where the same griddle, fryer and preparation surfaces are used for many different items throughout service. We take allergies seriously and will tell you honestly what we can and cannot do, but we cannot guarantee that any item is free from traces of an allergen handled elsewhere in the truck. If your allergy is severe, please speak to us directly before ordering."
+        },
+        {
+          "h2": "If an item is not listed",
+          "body": "Where an item does not yet show confirmed allergen data below, that means it has not been signed off, not that it is free from allergens. Treat anything unlisted as unknown and ask us. We would rather answer the question than have you guess."
+        }
+      ],
+      "faq": [
+        {
+          "q": "Does Street Eatz provide allergen information?",
+          "a": "Yes. Allergen information for every menu item is published on this page against the 14 EU allergen categories, and is generated from the kitchen's own records."
+        },
+        {
+          "q": "Can Street Eatz guarantee an allergen-free meal?",
+          "a": "No. It is a single compact food truck kitchen with shared equipment, so traces cannot be ruled out. Tell us about any allergy when ordering and we will tell you honestly what we can do."
+        }
+      ]
+    },
+    {
+      "route": "/catering",
+      "title": "Food Truck Hire Waterford | Street Eatz Event Catering",
+      "description": "Hire the Street Eatz food truck for weddings, parties and corporate events in Waterford and the south east of Ireland. Gourmet street food catering, cooked on site.",
+      "h1": "Food truck hire and event catering in Waterford",
+      "intro": "Street Eatz can bring the truck to your event anywhere in Waterford and the south east of Ireland. Weddings, birthdays, corporate days, club functions and festivals — the food is cooked on site and handed over hot, which is the part a buffet cannot do. Guests eat street food at its best rather than something that has been sitting in a tray since the speeches.",
+      "categories": [],
+      "showEnquiryForm": true,
+      "sections": [
+        {
+          "h2": "What you get",
+          "body": "A fully equipped food truck, staffed, cooking your chosen menu to order in front of your guests. We agree the menu with you in advance and can build it around the event: a tight two-item menu for speed at a wedding, or a wider selection for a longer corporate day. Dry-aged smash burgers, flatbreads and loaded fries are the core, and we can adapt around dietary requirements if you tell us early."
+        },
+        {
+          "h2": "Weddings",
+          "body": "Late-night food at a wedding is the thing guests actually remember, and it is the point in the evening when a hot burger does more work than another round of sandwiches. We arrive, set up out of the way, and serve when you want us to — usually after the band starts. Because everything is cooked to order there is no chafing dish and no lukewarm compromise."
+        },
+        {
+          "h2": "Corporate and community events",
+          "body": "For staff days, open days, sports clubs and local festivals we can work to a headcount and a fixed budget, either billed to you or sold directly to attendees. We will be straight with you about how many covers we can turn out per hour, because an under-resourced food offering at an event is worse than none at all."
+        },
+        {
+          "h2": "Getting a quote",
+          "body": "Tell us the date, the location, roughly how many people, and what time you want food served. We will come back with a price and what is realistic for that headcount. Booking early matters for weekend dates in summer, and we would rather tell you we are already booked than take a deposit we cannot honour."
+        }
+      ],
+      "faq": [
+        {
+          "q": "Does Street Eatz do wedding catering in Waterford?",
+          "a": "Yes. The Street Eatz food truck can be hired for weddings across Waterford and the south east of Ireland, cooking to order on site."
+        },
+        {
+          "q": "How far will Street Eatz travel for an event?",
+          "a": "We cover Waterford and the surrounding south east of Ireland. Send the location with your enquiry and we will confirm whether we can reach it."
+        },
+        {
+          "q": "How much does food truck hire cost?",
+          "a": "It depends on headcount, menu and location, so we quote per event. Send the date, location, guest numbers and serving time and we will come back with a price."
+        }
+      ]
+    }
+  ]
+}

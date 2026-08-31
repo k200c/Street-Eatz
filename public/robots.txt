@@ -1,14 +1,23 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+# Street Eatz Waterford
+#
+# AI crawlers are deliberately NOT blocked. Being quotable in an AI answer is
+# the point of publishing this content; blocking GPTBot, ClaudeBot,
+# PerplexityBot or Google-Extended would forfeit that for no gain.
 
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /rate
+Disallow: /cart
+Disallow: /account
+Disallow: /profile
+Disallow: /processing
+Disallow: /order-success
+Disallow: /order-failed
+Disallow: /success
+Disallow: /error
+Disallow: /auth
+Disallow: /forgot-password
+Disallow: /reset-password
+
+Sitemap: https://streeteatzwaterford.ie/sitemap.xml
