@@ -86,8 +86,15 @@ export function HeroSection() {
         </div>
 
         {/* Tagline */}
-        <p className="text-muted-foreground text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.3em] uppercase mb-2 sm:mb-8">
+        <p className="text-muted-foreground text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.3em] uppercase mb-1">
           {clientConfig.tagline}
+        </p>
+
+        {/* Finding 2: the full location was not in text above the fold. Real
+            text rather than an image, so it counts for local search too, and
+            it comes from client config rather than being hardcoded here. */}
+        <p className="text-muted-foreground/80 text-xs sm:text-sm mb-2 sm:mb-8">
+          {clientConfig.addressLines[1]}, {clientConfig.city}
         </p>
 
         {/* CTA Buttons */}

@@ -1,80 +1,114 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase, publicSupabase } from '@/integrations/supabase/client';
+import { normaliseStoreStatus, type StoreStatusPayload } from '@/lib/storeStatus';
 import { useAppSettings } from './useAppSettings';
-import { deriveStoreStatus } from '@/lib/storeStatus';
 
 const DEV_MODE_KEY = 'dev_mode_bypass';
 
 /**
- * Hook that provides store open/closed status with optional dev mode bypass.
- * When dev_mode_bypass is 'true' in localStorage, isStoreOpen always returns true.
+ * The single source of store status for the whole app.
+ *
+ * Calls public.get_store_status(), which resolves the manual toggle, today's
+ * opening hours and the wait time together in Europe/Dublin. Nothing here
+ * recomputes from is_store_open or opening_hours — three components doing that
+ * independently is what produced "open with a 20 minute wait", "Closed" and
+ * "STORE OPEN" simultaneously on 1 September.
+ *
+ * Status is time-dependent, so it refetches every 60s: a truck that opens at
+ * 12:00 should start taking orders without the customer reloading.
  */
 export function useStoreStatus() {
-  const { data: appSettings, isLoading, error, refetch } = useAppSettings();
-  const [devModeEnabled, setDevModeEnabled] = useState<boolean>(() => {
+  const queryClient = useQueryClient();
+  const [devModeRequested, setDevModeRequested] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return import.meta.env.DEV && localStorage.getItem(DEV_MODE_KEY) === 'true';
   });
 
-  // Listen for localStorage changes (e.g., from other tabs or components)
   useEffect(() => {
     const handleStorageChange = () => {
-      const value = import.meta.env.DEV && localStorage.getItem(DEV_MODE_KEY) === 'true';
-      setDevModeEnabled(value);
+      setDevModeRequested(import.meta.env.DEV && localStorage.getItem(DEV_MODE_KEY) === 'true');
     };
-
-    // Check on mount
     handleStorageChange();
-
-    // Listen for custom event (for same-tab updates)
     window.addEventListener('devModeChanged', handleStorageChange);
-    // Listen for storage event (for cross-tab updates)
     window.addEventListener('storage', handleStorageChange);
-
     return () => {
       window.removeEventListener('devModeChanged', handleStorageChange);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
-  // Toggle dev mode and dispatch event
   const toggleDevMode = useCallback(() => {
     if (!import.meta.env.DEV) return false;
-    const newValue = !devModeEnabled;
+    const newValue = !devModeRequested;
     localStorage.setItem(DEV_MODE_KEY, newValue.toString());
-    setDevModeEnabled(newValue);
-    // Dispatch custom event for same-tab listeners
+    setDevModeRequested(newValue);
     window.dispatchEvent(new Event('devModeChanged'));
     return newValue;
-  }, [devModeEnabled]);
+  }, [devModeRequested]);
 
-  // Explicitly enable/disable dev mode
   const setDevMode = useCallback((enabled: boolean) => {
     if (!import.meta.env.DEV) return;
     localStorage.setItem(DEV_MODE_KEY, enabled.toString());
-    setDevModeEnabled(enabled);
+    setDevModeRequested(enabled);
     window.dispatchEvent(new Event('devModeChanged'));
   }, []);
 
-  const status = deriveStoreStatus(appSettings, devModeEnabled, import.meta.env.DEV);
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['store-status'],
+    queryFn: async () => {
+      // Public client: this is read logged-out on every customer surface.
+      // types.ts predates get_store_status(); regenerating types removes the cast.
+      const { data: payload, error: rpcError } = await publicSupabase.rpc(
+        'get_store_status' as never,
+      );
+      if (rpcError) throw rpcError;
+      return (payload ?? null) as StoreStatusPayload | null;
+    },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  // A staff toggle must show up immediately rather than after the next poll.
+  useEffect(() => {
+    const channel = supabase
+      .channel('store-status-settings')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_settings' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['store-status'] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  // An error must not read as "open" — normalise(null) fails closed.
+  const status = normaliseStoreStatus(
+    error ? null : data,
+    devModeRequested,
+    import.meta.env.DEV,
+  );
+
+  // Settings remain available to the admin editors that write them. They are
+  // NOT used to decide open/closed anywhere.
+  const { data: appSettings } = useAppSettings();
 
   return {
-    // Core status
-    isStoreOpen: status.isStoreOpen,
-    isStatusAvailable: status.isStatusAvailable,
+    ...status,
+    /** @deprecated use waitTime — kept so existing callers keep compiling */
+    currentWaitTime: status.waitTime,
     isLoading,
     error,
     refetch,
-    
-    // Dev mode controls
-    devModeEnabled: status.devModeEnabled,
     toggleDevMode,
     setDevMode,
-    
-    // Raw database value (for display purposes)
-    dbStoreOpen: status.dbStoreOpen,
-    
-    // App settings pass-through
-    currentWaitTime: status.currentWaitTime,
     appSettings,
   };
 }

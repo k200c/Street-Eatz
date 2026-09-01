@@ -88,6 +88,8 @@ const [queryClient] = useState(() => new QueryClient({
                 {/* Public routes */}
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                {/* Finding 28: /login 404'd. It is a route people type. */}
+                <Route path="/login" element={<Navigate to="/auth" replace />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/menu" element={<Menu />} />

@@ -95,10 +95,9 @@ export function MenuSection() {
   const { data: products, isLoading, isError, refetch } = useProducts(selectedCategory);
   const { data: modifierGroups } = useProductModifiers(selectedProduct?.id);
   const { data: ingredients } = useProductIngredients(selectedProduct?.id);
-  const { isStoreOpen, currentWaitTime } = useStoreStatus();
+  const { isStoreOpen, waitTime } = useStoreStatus();
   const isMobile = useIsMobile();
 
-  const waitTime = currentWaitTime;
 
   // Handle category scroll to show/hide gradients
   const handleCategoryScroll = () => {

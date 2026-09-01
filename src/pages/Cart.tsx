@@ -39,7 +39,7 @@ export default function Cart() {
   // Edit item state
   const [editingItem, setEditingItem] = useState<{ index: number; item: CartItem } | null>(null);
 
-  const { isStoreOpen, isStatusAvailable } = useStoreStatus();
+  const { acceptingOrders, isStatusAvailable, message: storeMessage } = useStoreStatus();
   
   // Fetch modifiers and ingredients for the product being edited
   const { data: editModifierGroups } = useProductModifiers(editingItem?.item.product.id);
@@ -85,9 +85,9 @@ export default function Cart() {
       return;
     }
 
-    if (!isStoreOpen) {
-      toast.error("We are currently closed!", {
-        description: "You can browse, but ordering opens Thu 12pm.",
+    if (!acceptingOrders) {
+      toast.error(storeMessage || "We are currently closed", {
+        description: "You can browse now and order when we reopen.",
       });
       return;
     }
@@ -291,15 +291,15 @@ export default function Cart() {
             )}
             <Button
               className={`w-full h-16 md:h-14 text-lg md:text-base font-bold tracking-wider ${
-                isStatusAvailable && isStoreOpen && !hasUnavailableItems ? 'btn-glow' : 'bg-muted text-muted-foreground cursor-not-allowed'
+                isStatusAvailable && acceptingOrders && !hasUnavailableItems ? 'btn-glow' : 'bg-muted text-muted-foreground cursor-not-allowed'
               }`}
               onClick={handleCheckoutClick}
-              disabled={!isStatusAvailable || !isStoreOpen || hasUnavailableItems}
+              disabled={!isStatusAvailable || !acceptingOrders || hasUnavailableItems}
             >
               {!isStatusAvailable
                 ? "ORDERING TEMPORARILY UNAVAILABLE"
-                : !isStoreOpen 
-                ? "STORE CLOSED (Opens Thu 12pm)"
+                : !acceptingOrders
+                ? (storeMessage || "STORE CLOSED").toUpperCase()
                 : hasUnavailableItems
                 ? "REMOVE SOLD OUT ITEMS"
                 : `CHECKOUT - €${total.toFixed(2)}`

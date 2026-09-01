@@ -45,7 +45,8 @@ export default function CommandCenter() {
   });
   const { isAdmin, loading } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useAppSettings();
-  const { devModeEnabled, toggleDevMode, dbStoreOpen } = useStoreStatus();
+  const { devModeEnabled, toggleDevMode, isStoreOpen, message: storeStatusMessage } =
+    useStoreStatus();
   const updateSettings = useUpdateAppSettings();
 
   useEffect(() => {
@@ -119,7 +120,8 @@ export default function CommandCenter() {
   if (!isAdmin) return null;
 
   // Use effective store status (considers dev mode bypass)
-  const isStoreOpen = devModeEnabled ? true : (settings?.is_store_open ?? false);
+  // isStoreOpen comes from get_store_status(). Admin showing "STORE OPEN" while
+  // the customer site said closed is exactly what recomputing here caused.
   const activeProvider: CardProvider = (settings?.card_payment_provider === 'mypos' ? 'mypos' : 'viva');
   const onlinePaymentsEnabled = settings?.online_payments_enabled ?? true;
   const payOnCollectionEnabled = settings?.pay_on_collection_enabled ?? true;

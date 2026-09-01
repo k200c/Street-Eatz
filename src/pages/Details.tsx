@@ -1,35 +1,15 @@
 import { Phone, Mail, MapPin, Clock, Instagram, Facebook } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { clientAssets, clientConfig, clientMailto } from '@/config/client';
-
-const getOpenStatus = () => {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon, ..., 4=Thu, 5=Fri, 6=Sat
-  const hour = now.getHours();
-  
-  // Thu=4, Fri=5: 12pm-7pm (12-19)
-  // Sat=6, Sun=0: 1pm-7pm (13-19)
-  if (day === 4 || day === 5) {
-    return hour >= 12 && hour < 19;
-  }
-  if (day === 6 || day === 0) {
-    return hour >= 13 && hour < 19;
-  }
-  return false;
-};
+import { useStoreStatus } from '@/hooks/useStoreStatus';
 
 export default function Details() {
-  const [isOpen, setIsOpen] = useState(getOpenStatus);
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIsOpen(getOpenStatus());
-    }, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, []);
+  // This used to compute open/closed from the browser clock against hardcoded
+  // hours, which is why /details said "Closed" while the homepage was taking
+  // orders. get_store_status() is now the only authority.
+  const { isStoreOpen: isOpen, message, isStatusAvailable } = useStoreStatus();
 
   return (
     <>
@@ -54,9 +34,25 @@ export default function Details() {
             
             {/* Live Status Indicator */}
             <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-border">
-              <span className={`w-3 h-3 rounded-full ${isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-              <span className={`font-semibold ${isOpen ? 'text-green-500' : 'text-red-500'}`}>
-                {isOpen ? 'Open Now' : 'Closed'}
+              <span
+                className={`w-3 h-3 rounded-full ${
+                  !isStatusAvailable
+                    ? 'bg-muted-foreground'
+                    : isOpen
+                      ? 'bg-green-500 animate-pulse'
+                      : 'bg-red-500'
+                }`}
+              />
+              <span
+                className={`font-semibold ${
+                  !isStatusAvailable
+                    ? 'text-muted-foreground'
+                    : isOpen
+                      ? 'text-green-500'
+                      : 'text-red-500'
+                }`}
+              >
+                {!isStatusAvailable ? 'Status unavailable' : isOpen ? 'Open Now' : message}
               </span>
             </div>
           </motion.div>

@@ -117,7 +117,7 @@ export function ProductCardHorizontal({
               onClick={handleQuickAdd}
               disabled={isSoldOut}
               className={cn(
-                'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center',
+                'w-11 h-11 rounded-full flex items-center justify-center shrink-0',
                 'bg-primary text-primary-foreground transition-all',
                 'active:scale-95 touch-manipulation',
                 isSoldOut && 'cursor-not-allowed opacity-50'
@@ -306,13 +306,28 @@ export function ProductCardHorizontal({
           <p className="text-muted-foreground text-xs line-clamp-2 mt-1 flex-1">
             {product.description || 'Delicious street food'}
           </p>
+
+          {/* Allergen disclosure must precede purchase. Quick-add on this card
+              adds straight to the cart, so the tags cannot live only in the
+              product sheet — Irish and EU law requires the information to be
+              available before the customer buys. */}
+          <div className="mt-2">
+            {allergenNumbers.length > 0 && (
+              <AllergenBadges allergenNumbers={allergenNumbers} size="sm" showNames />
+            )}
+            {!allergensLoading && allergenNumbers.length === 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-amber-400">
+                <AlertTriangle className="h-3 w-3 shrink-0" />Allergens: ask staff
+              </span>
+            )}
+          </div>
           <div className="flex items-center justify-between mt-3">
             <span className="price-badge">€{product.price.toFixed(2)}</span>
             <button
               onClick={handleQuickAdd}
               disabled={isSoldOut}
               className={cn(
-                'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                'h-11 w-11 rounded-full flex items-center justify-center transition-all shrink-0',
                 'bg-primary text-primary-foreground hover:scale-110',
                 isSoldOut && 'cursor-not-allowed opacity-50'
               )}
@@ -385,7 +400,7 @@ export function ProductCardHorizontal({
               onClick={handleQuickAdd}
               disabled={isSoldOut}
               className={cn(
-                'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                'h-11 w-11 rounded-full flex items-center justify-center transition-all shrink-0',
                 'bg-primary text-primary-foreground hover:scale-110',
                 isSoldOut && 'cursor-not-allowed opacity-50'
               )}
