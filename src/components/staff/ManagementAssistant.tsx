@@ -12,6 +12,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { callAssistant, isAssistantFailure } from '@/lib/assistantClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,24 +63,20 @@ function ProposalCard({
     if (!session?.access_token || status !== 'pending') return;
     setIsConfirming(true);
     try {
-      const apiResponse = await fetch('/api/management-assistant', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      const outcome = await callAssistant<{
+        result?: Record<string, unknown> & { ok?: boolean; error?: string };
+      }>(
+        {
           action: 'confirm',
           proposalId: proposal.id,
           proposalType: proposal.proposal_type,
-        }),
-      });
-      const payload = await apiResponse.json() as {
-        result?: Record<string, unknown> & { ok?: boolean; error?: string };
-        error?: string;
-      };
-      if (!apiResponse.ok || !payload.result || payload.result.ok === false) {
-        throw new Error(payload.result?.error || payload.error || 'The change could not be confirmed.');
+        },
+        session.access_token,
+      );
+      if (isAssistantFailure(outcome)) throw new Error(outcome.message);
+      const payload = outcome.payload;
+      if (!payload.result || payload.result.ok === false) {
+        throw new Error(payload.result?.error || 'The change could not be confirmed.');
       }
       setStatus('applied');
       onConfirmed(proposal, payload.result);
@@ -160,16 +157,12 @@ export function ManagementAssistant() {
     scrollToEnd();
 
     try {
-      const apiResponse = await fetch('/api/management-assistant', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ action: 'chat', messages: nextHistory }),
-      });
-      const payload = await apiResponse.json() as ManagementAssistantResponse & { error?: string };
-      if (!apiResponse.ok) throw new Error(payload.error || 'The assistant is unavailable right now.');
+      const outcome = await callAssistant<ManagementAssistantResponse>(
+        { action: 'chat', messages: nextHistory },
+        session.access_token,
+      );
+      if (isAssistantFailure(outcome)) throw new Error(outcome.message);
+      const payload = outcome.payload;
 
       setEntries((current) => [...current, {
         id: crypto.randomUUID(),

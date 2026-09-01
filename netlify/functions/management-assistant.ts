@@ -52,6 +52,35 @@ const tools = [
   {
     type: 'function',
     function: {
+      name: 'get_management_insight',
+      description:
+        'Read verified business analytics. This is the primary source for any question about '
+        + 'numbers, trends or performance — prefer it over the narrower tools below. '
+        + "If you are unsure which topic answers the question, call this first with topic='topics' "
+        + 'to list what is available, then call again with the topic you need. '
+        + 'Topics: ' + 'sales, trading_rhythm, item_mix, basket_pairs, wait_time, channels, customers, cohorts, feedback, review_coverage, inventory, addons, payments_health, qa_status, allergens, loyalty, data_health, store_status, roster, content, broadcasts, competitive, enquiries, seo' + '. '
+        + 'Every figure is measured from settled records; report what it returns and never estimate '
+        + 'a number it does not give you.',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: {
+            type: 'string',
+            description: "A topic name, or 'topics' to list the available topics.",
+          },
+          days: {
+            type: 'integer',
+            description: 'Look-back window in days. Defaults to 30.',
+          },
+        },
+        required: ['topic'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_operating_status',
       description: 'Get the live store-open state and quoted wait time used by customer, staff and voice ordering.',
       parameters: {
@@ -259,6 +288,24 @@ async function executeTool(
     args = JSON.parse(rawArguments || '{}') as Record<string, unknown>;
   } catch {
     return { ok: false, error: 'Tool arguments were invalid.' };
+  }
+
+  if (name === 'get_management_insight') {
+    const topic = String(args.topic || '').trim().slice(0, 60);
+    if (!topic) return { ok: false, error: "A topic is required. Call with topic='topics' to list them." };
+    const daysRaw = Number(args.days);
+    const days = Number.isFinite(daysRaw) ? Math.min(Math.max(Math.trunc(daysRaw), 1), 365) : 30;
+
+    // Scoped client: get_management_insight is granted to `authenticated`, not
+    // `anon`, and is SECURITY DEFINER. It already guarantees no topic returns a
+    // phone number, email or named individual, and that `broadcasts` exposes
+    // measured uplift only — do not restate those rules in the prompt.
+    const { data, error } = await supabase.rpc('get_management_insight', {
+      p_topic: topic,
+      p_days: days,
+    });
+    if (error) return { ok: false, error: 'Business analytics are temporarily unavailable.' };
+    return { ok: true, ...(data as Record<string, unknown>) };
   }
 
   if (name === 'search_menu_products') {
