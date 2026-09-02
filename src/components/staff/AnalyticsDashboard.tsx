@@ -3,7 +3,6 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
-  Clock3,
   Compass,
   DollarSign,
   Flame,
@@ -24,6 +23,15 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts';
 import { CompetitorIntelligence } from '@/components/staff/CompetitorIntelligence';
 import { useFoodOSModules } from '@/hooks/useFoodOSModules';
+import {
+  ServiceSpeedPanel,
+  DemandForecastPanel,
+  MenuEngineeringPanel,
+  ItemTrendPanel,
+  CustomersPanel,
+  LabourPanel,
+  MarketingRoiPanel,
+} from '@/components/staff/InsightSections';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -392,21 +400,16 @@ export function AnalyticsDashboard() {
             <SectionHeading icon={Activity} title="Operations & service speed" description="Prep times, add-ons and reporting health" />
           </AccordionTrigger>
           <AccordionContent className="pt-2">
+            {/* Reads v_prep_time and v_wait_time_accuracy directly. The 14-day
+                snapshot below returned prep_time: null through the closure, which
+                is what the browse test saw as "No average prep time". */}
+            <div className="mb-4"><ServiceSpeedPanel /></div>
+
             {operationsLoading && <div className="h-64 animate-pulse rounded-lg bg-secondary/30" />}
             {operationsError && <AnalyticsError onRetry={() => void refetchOperations()} />}
             {!operationsLoading && !operationsError && operations && (
               <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-card border-border">
-              <CardContent className="p-4 flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Average Prep Time</p>
-                  <p className="text-2xl font-bold">{operations.prepTime ? `${operations.prepTime.average.toFixed(1)} min` : 'No data'}</p>
-                  {operations.prepTime && <p className="text-xs text-muted-foreground">Median {operations.prepTime.median.toFixed(1)} · P90 {operations.prepTime.p90.toFixed(1)} min</p>}
-                </div>
-                <Clock3 className="w-8 h-8 text-cyan-400 opacity-60" />
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="bg-card border-border">
               <CardContent className="p-4 flex items-start justify-between">
                 <div>
@@ -529,6 +532,41 @@ export function AnalyticsDashboard() {
               <CardContent><ItemLeaderboardChart /></CardContent>
             </Card>
           </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="forecast" className="overflow-hidden rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="gap-3 py-4 hover:no-underline">
+            <SectionHeading icon={TrendingUp} title="Demand forecast" description="Next 14 days by weekday, with confidence" />
+          </AccordionTrigger>
+          <AccordionContent className="pt-2"><DemandForecastPanel /></AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="menu-engineering" className="overflow-hidden rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="gap-3 py-4 hover:no-underline">
+            <SectionHeading icon={Lightbulb} title="Menu engineering" description="Stars, workhorses, puzzles and dogs" />
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pt-2"><MenuEngineeringPanel /><ItemTrendPanel /></AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="customers" className="overflow-hidden rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="gap-3 py-4 hover:no-underline">
+            <SectionHeading icon={Users} title="Customers" description="Repeat rate, cohorts and what sells together" />
+          </AccordionTrigger>
+          <AccordionContent className="pt-2"><CustomersPanel /></AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="labour" className="overflow-hidden rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="gap-3 py-4 hover:no-underline">
+            <SectionHeading icon={Activity} title="Labour" description="Cost against revenue, cover against demand" />
+          </AccordionTrigger>
+          <AccordionContent className="pt-2"><LabourPanel /></AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="marketing-roi" className="overflow-hidden rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="gap-3 py-4 hover:no-underline">
+            <SectionHeading icon={DollarSign} title="Marketing return" description="Blended return and measured broadcast uplift" />
+          </AccordionTrigger>
+          <AccordionContent className="pt-2"><MarketingRoiPanel /></AccordionContent>
         </AccordionItem>
 
         {showCompetitors && <AccordionItem value="competitors" className="overflow-hidden rounded-xl border border-border bg-card px-4">
