@@ -138,7 +138,7 @@ export default function Profile() {
               pointsBalance={loyaltyBalance?.pointsBalance ?? 0}
               lifetimePoints={loyaltyBalance?.lifetimePoints ?? 0}
               rewardsRedeemed={loyaltyBalance?.rewardsRedeemed ?? 0}
-              rewardCost={appSettings?.loyalty_reward_cost ?? 5}
+              rewardCost={loyaltyBalance?.pointsPerReward ?? appSettings?.loyalty_reward_cost ?? 7}
               rewardLabel={appSettings?.loyalty_reward_label ?? 'Free Fries or a Drink'}
             />
           )}

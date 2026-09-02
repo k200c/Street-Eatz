@@ -5,6 +5,7 @@ import { HeroSection } from "@/components/customer/HeroSection";
 import { MenuSection } from "@/components/customer/MenuSection";
 import { FloatingCartButton } from "@/components/customer/FloatingCartButton";
 import { MarketingBanner } from "@/components/customer/MarketingBanner";
+import { LoyaltyGuestPrompt } from "@/components/customer/LoyaltyGuestPrompt";
 import { clientConfig } from "@/config/client";
 
 function AboutSection() {
@@ -68,6 +69,8 @@ export default function Index() {
       <Navbar />
       <HeroSection />
       <MenuSection />
+      {/* 53% of orders are guest orders and points only accrue to accounts. Signed-out only. */}
+      <LoyaltyGuestPrompt />
       <AboutSection />
       <SiteFooter />
       <FloatingCartButton />

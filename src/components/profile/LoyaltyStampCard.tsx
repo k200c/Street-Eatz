@@ -103,7 +103,7 @@ export function LoyaltyStampCard({ pointsBalance, lifetimePoints, rewardsRedeeme
               🎉 Congrats! You've earned a reward!
             </p>
             <p className="text-sm text-primary/80 mt-1">
-              {rewardsAvailable} × {rewardLabel} ready to redeem with staff
+              {rewardsAvailable} × {rewardLabel} ready — tell staff at the truck to redeem
             </p>
           </motion.div>
         ) : (
@@ -112,6 +112,11 @@ export function LoyaltyStampCard({ pointsBalance, lifetimePoints, rewardsRedeeme
             {rewardCost - currentProgress === 1 ? ' point' : ' points'} to unlock {rewardLabel}.
           </p>
         )}
+
+        {/* No self-serve redeem button exists yet. Say so, so nobody hunts for one. */}
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Points bank on every signed-in order. Redemption happens with staff at the truck.
+        </p>
 
         {(lifetimePoints > 0 || rewardsRedeemed > 0) && (
           <div className="mt-3 text-center">
