@@ -13,6 +13,7 @@
     "audit:assistant-db": "node scripts/assistant-db-contract-audit.mjs",
     "audit:assistant-function": "node scripts/assistant-function-contract-audit.mjs",
     "audit:kitchen-dispatch": "node scripts/kitchen-dispatch-contract-audit.mjs",
+    "audit:voice-config": "node scripts/voice-agent-config-audit.mjs",
     "audit:voice-order": "node scripts/voice-order-contract-audit.mjs",
     "audit:pwa": "node scripts/pwa-audit.mjs && node --check public/sw.js",
     "ios:add": "cap add ios",

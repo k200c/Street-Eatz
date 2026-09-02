@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contractVersion": "1.0.0",
+  "assistant": {
+    "provider": "vapi",
+    "assistantId": "cfd26aaf-116d-4c4c-856b-1e8de806fbee",
+    "displayName": "SE - Test",
+    "brandSpelling": "Street Eatz"
+  },
+  "endpoint": {
+    "reference": "N8N_STREETEATZ_WEBHOOK_URL",
+    "authenticationRequired": true,
+    "secretReference": "VAPI_N8N_SERVER_CREDENTIAL"
+  },
+  "routing": {
+    "type": "exact-tool-name-switch",
+    "breakingChangeWarning": "Tool names, field names, spaces, capitalisation and nesting must not change without a coordinated Vapi and n8n versioned release."
+  },
+  "tools": [
+    {
+      "name": "MenuFAQ_Query",
+      "lifecycle": "existing-reported-working",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "minLength": 1, "maxLength": 500 }
+        }
+      }
+    },
+    {
+      "name": "order",
+      "lifecycle": "existing-backend-hardening-required",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["customer_name", "customer_phone", "order_items", "payment_method", "special_notes"],
+        "properties": {
+          "customer_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "customer_phone": { "type": "string", "minLength": 7, "maxLength": 30 },
+          "order_items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "payment_method": { "type": "string" },
+          "special_notes": { "type": "string", "maxLength": 1000 }
+        }
+      },
+      "boundaryNote": "n8n must transform order_items to the Supabase create-voice-order items shape; this mapping requires an exported workflow contract test."
+    },
+    {
+      "name": "send_app_link",
+      "lifecycle": "existing-reported-working",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["Name", "Number"],
+        "properties": {
+          "Name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "Number": { "type": "string", "minLength": 7, "maxLength": 30 }
+        }
+      }
+    },
+    {
+      "name": "OrderStatus",
+      "lifecycle": "existing-reported-working",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["Name", "Phone Number"],
+        "properties": {
+          "Name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "Phone Number": { "type": "string", "minLength": 7, "maxLength": 30 }
+        }
+      }
+    },
+    {
+      "name": "request_human",
+      "lifecycle": "planned-confirm-n8n-switch-before-creating",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["Name", "Phone Number"],
+        "properties": {
+          "Name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "Phone Number": { "type": "string", "minLength": 7, "maxLength": 30 }
+        }
+      }
+    }
+  ],
+  "response": {
+    "type": "object",
+    "required": ["ok", "code", "spoken_message", "retryable"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "code": { "type": "string", "minLength": 1, "maxLength": 80 },
+      "spoken_message": { "type": "string", "minLength": 1, "maxLength": 500 },
+      "reference": { "type": ["string", "null"], "maxLength": 120 },
+      "retryable": { "type": "boolean" }
+    },
+    "additionalProperties": false
+  }
+}
