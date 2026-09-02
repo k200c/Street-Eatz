@@ -453,26 +453,72 @@ async function executeTool(
   return { ok: false, error: 'Unknown tool.' };
 }
 
+/**
+ * Thrown when the AI provider answers with something that is not a usable
+ * JSON completion — an HTML error page from a gateway, a 5xx, a timeout.
+ * Carries what the UI needs to say plainly; the body sample is logged, never
+ * returned.
+ */
+class UpstreamUnreachableError extends Error {
+  status: number | null;
+  contentType: string | null;
+  constructor(status: number | null, contentType: string | null, message: string) {
+    super(message);
+    this.name = 'UpstreamUnreachableError';
+    this.status = status;
+    this.contentType = contentType;
+  }
+}
+
+/** Thrown when no provider key is configured. This needs a person, not code. */
+class ProviderNotConfiguredError extends Error {
+  constructor() {
+    super('The FoodOS AI service is not enabled for this site yet. No AI provider key is configured.');
+    this.name = 'ProviderNotConfiguredError';
+  }
+}
+
 async function callGateway(messages: unknown[]) {
   const providerApiKey = Netlify.env.get('OPENAI_API_KEY');
   const apiKey = providerApiKey || Netlify.env.get('NETLIFY_AI_GATEWAY_KEY');
   const baseUrl = Netlify.env.get('OPENAI_BASE_URL')
     || (providerApiKey ? 'https://api.openai.com/v1' : Netlify.env.get('NETLIFY_AI_GATEWAY_BASE_URL'));
   if (!apiKey || !baseUrl) {
-    throw new Error('The FoodOS AI service is not enabled for this site yet.');
+    throw new ProviderNotConfiguredError();
   }
 
   const client = new OpenAI({
     apiKey,
     baseURL: baseUrl.replace(/\/$/, ''),
   });
-  return client.chat.completions.create({
-    model: Netlify.env.get('MANAGEMENT_ASSISTANT_MODEL') || 'gpt-5.4-mini',
-    messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-    tools: tools as OpenAI.Chat.Completions.ChatCompletionTool[],
-    tool_choice: 'auto',
-    max_completion_tokens: 1_200,
-  });
+
+  try {
+    return await client.chat.completions.create({
+      model: Netlify.env.get('MANAGEMENT_ASSISTANT_MODEL') || 'gpt-5.4-mini',
+      messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+      tools: tools as OpenAI.Chat.Completions.ChatCompletionTool[],
+      tool_choice: 'auto',
+      max_completion_tokens: 1_200,
+    });
+  } catch (error) {
+    // The SDK parses the response for us. If the provider returned HTML (a
+    // gateway error page) or a non-2xx, it throws an APIError. Log the first
+    // 200 characters server-side so the cause is diagnosable, and surface a
+    // structured error rather than a parse failure or a raw stack.
+    if (error instanceof OpenAI.APIError) {
+      const status = typeof error.status === 'number' ? error.status : null;
+      const headers = error.headers as Record<string, string> | undefined;
+      const contentType = headers?.['content-type'] ?? null;
+      const sample = String(error.message ?? '').slice(0, 200);
+      console.error(`[management-assistant] provider responded ${status ?? '?'} ${contentType ?? ''}: ${sample}`);
+      throw new UpstreamUnreachableError(status, contentType, 'Assistant service unreachable');
+    }
+    if (error instanceof Error && /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|aborted/i.test(error.message)) {
+      console.error(`[management-assistant] provider network error: ${error.message.slice(0, 200)}`);
+      throw new UpstreamUnreachableError(null, null, 'Assistant service unreachable');
+    }
+    throw error;
+  }
 }
 
 async function runConversation(
@@ -561,7 +607,27 @@ export default async (request: Request) => {
     return response(200, { ...result, requestId });
   } catch (error) {
     console.error(`[management-assistant:${requestId}]`, safeErrorMessage(error));
+
+    // The provider gave us something other than a JSON completion. Structured,
+    // never a parse error, and the body sample stays in the server log.
+    if (error instanceof UpstreamUnreachableError) {
+      return response(502, {
+        error: 'Assistant service unreachable',
+        status: error.status,
+        contentType: error.contentType,
+        code: 'upstream_unreachable',
+        requestId,
+      });
+    }
+
+    // No key in the environment. This is configuration, not a fault the user
+    // or a retry can fix, so it gets its own code and a 503.
+    if (error instanceof ProviderNotConfiguredError) {
+      return response(503, { error: error.message, code: 'provider_not_configured', requestId });
+    }
+
     const message = safeErrorMessage(error);
+    // Three messages from requireAdmin: no token, expired session, not admin.
     const status = /sign in|session|Administrator/.test(message) ? 401 : 500;
     return response(status, { error: message, requestId });
   }
