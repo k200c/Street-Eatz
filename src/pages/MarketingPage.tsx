@@ -5,6 +5,7 @@ import { SiteFooter } from '@/components/layout/SiteFooter';
 import { useProducts } from '@/hooks/useProducts';
 import { useAllProductAllergens, ALLERGEN_KEY } from '@/hooks/useProductAllergens';
 import { useBusinessProfile } from '@/hooks/useBusinessProfile';
+import { CateringEnquiryForm } from '@/components/customer/CateringEnquiryForm';
 import seoPages from '@/content/seo-pages.json';
 import type { Product, ProductCategory } from '@/types/database';
 
@@ -275,7 +276,7 @@ export default function MarketingPage() {
           </section>
         ))}
 
-        {page.showEnquiryForm && <CateringContact />}
+        {page.showEnquiryForm && (<><CateringContact /><CateringEnquiryForm /></>)}
 
         {(page.categories?.length ?? 0) > 0 && (
           <Link

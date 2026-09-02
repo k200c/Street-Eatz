@@ -77,3 +77,9 @@ verify_jwt = false
 # Public read-only opening-hours endpoint used by ordering assistants.
 [functions.get-hours]
 verify_jwt = false
+
+# Public by design: the /catering enquiry form. No anon INSERT policy exists;
+# writes go through submit_enquiry() (service role) which validates and
+# rate-limits per contact. This function adds an origin allow-list and per-IP limit.
+[functions.enquiry]
+verify_jwt = false
