@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { Send, Image, Loader2, Mail, DollarSign, Users, Vote, Calendar, Trophy, Tag, Percent, Trash2, Plus, ShieldCheck, BarChart3, Gift, Link2 } from 'lucide-react';
-import { useBroadcasts, useSendBroadcast, useCommunityVotes, useCreateVote } from '@/hooks/useBroadcasts';
+import { Image, Mail, DollarSign, Users, Calendar, Trophy, Tag, Percent, Trash2, Plus, ShieldCheck, BarChart3, Gift, Link2 } from 'lucide-react';
+import { useBroadcasts, useCommunityVotes } from '@/hooks/useBroadcasts';
+import { BroadcastComposer } from '@/components/staff/BroadcastComposer';
+import { useModuleLayout } from '@/hooks/useModuleLayout';
 import { usePromotions, useCreatePromotion, useUpdatePromotion, useDeletePromotion } from '@/hooks/usePromotions';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -17,35 +19,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { useFoodOSModules, useMarketingMetrics } from '@/hooks/useFoodOSModules';
+import { useMarketingMetrics } from '@/hooks/useFoodOSModules';
 
 export function MarketingHub() {
   const [activeTab, setActiveTab] = useState('broadcasts');
-  const { data: modules = [] } = useFoodOSModules();
-  const enabled = new Set(modules.filter((module) => module.enabled).map((module) => module.module_key));
+  // Tab order follows foodos_module_settings.display_order. SMS, email and
+  // community vote all share the one composer, so they map to a single tab.
+  const layout = useModuleLayout('marketing');
+  const modules = layout.modules;
+  const enabled = new Set(layout.enabledModules.map((module) => module.module_key));
   const visible = (moduleKey: string) => modules.length === 0 || enabled.has(moduleKey);
-  const tabs = [
-    visible('marketing_sms') || visible('marketing_community') ? { value: 'broadcasts', label: '📢 Broadcasts' } : null,
-    visible('marketing_email') ? { value: 'email', label: '✉️ Email' } : null,
-    visible('marketing_ads') ? { value: 'ads', label: '📊 Ads' } : null,
-    visible('marketing_loyalty') ? { value: 'loyalty', label: '🎁 Loyalty' } : null,
-    visible('marketing_coupons') ? { value: 'coupons', label: '🏷️ Coupons' } : null,
-    visible('marketing_banner') ? { value: 'banner', label: '🖼️ Banner' } : null,
-  ].filter((tab): tab is { value: string; label: string } => Boolean(tab));
+  const TAB_FOR: Record<string, { value: string; label: string }> = {
+    marketing_sms: { value: 'broadcasts', label: '📢 Messages' },
+    marketing_email: { value: 'broadcasts', label: '📢 Messages' },
+    marketing_community: { value: 'broadcasts', label: '📢 Messages' },
+    marketing_ads: { value: 'ads', label: '📊 Ads' },
+    marketing_loyalty: { value: 'loyalty', label: '🎁 Loyalty' },
+    marketing_coupons: { value: 'coupons', label: '🏷️ Coupons' },
+    marketing_banner: { value: 'banner', label: '🖼️ Banner' },
+  };
+  const orderedKeys = modules.length > 0 ? modules.map((module) => module.module_key) : Object.keys(TAB_FOR);
+  const tabs: Array<{ value: string; label: string }> = [];
+  for (const key of orderedKeys) {
+    const tab = TAB_FOR[key];
+    if (!tab || !visible(key) || tabs.some((existing) => existing.value === tab.value)) continue;
+    tabs.push(tab);
+  }
+  const messagesVisible = visible('marketing_sms') || visible('marketing_email') || visible('marketing_community');
 
   return (
     <div className="space-y-6">
@@ -54,10 +56,9 @@ export function MarketingHub() {
           {tabs.map((tab) => <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">{tab.label}</TabsTrigger>)}
         </TabsList>
 
-        {(visible('marketing_sms') || visible('marketing_community')) && <TabsContent value="broadcasts" className="mt-4">
+        {messagesVisible && <TabsContent value="broadcasts" className="mt-4">
           <BroadcastsTab />
         </TabsContent>}
-        {visible('marketing_email') && <TabsContent value="email" className="mt-4"><MarketingConnectionPanel channel="email" /></TabsContent>}
         {visible('marketing_ads') && <TabsContent value="ads" className="mt-4"><MarketingConnectionPanel channel="ads" /></TabsContent>}
         {visible('marketing_loyalty') && <TabsContent value="loyalty" className="mt-4"><LoyaltyMarketingPanel /></TabsContent>}
         {visible('marketing_coupons') && <TabsContent value="coupons" className="mt-4">
@@ -72,62 +73,8 @@ export function MarketingHub() {
 }
 
 function BroadcastsTab() {
-  const [broadcastTitle, setBroadcastTitle] = useState('');
-  const [broadcastMessage, setBroadcastMessage] = useState('');
-  const [broadcastImageUrl, setBroadcastImageUrl] = useState('');
-  const [voteTitle, setVoteTitle] = useState('');
-  const [voteOptions, setVoteOptions] = useState<string[]>(['', '']);
-  const [closingDate, setClosingDate] = useState<Date>();
-
   const { data: broadcasts, isLoading: broadcastsLoading } = useBroadcasts();
   const { data: votes, isLoading: votesLoading } = useCommunityVotes();
-  const sendBroadcast = useSendBroadcast();
-  const createVote = useCreateVote();
-
-  const handleSendBroadcast = async () => {
-    if (!broadcastTitle.trim() || !broadcastMessage.trim()) return;
-    await sendBroadcast.mutateAsync({ title: broadcastTitle, message: broadcastMessage, image_url: broadcastImageUrl || undefined });
-    setBroadcastTitle(''); setBroadcastMessage(''); setBroadcastImageUrl('');
-  };
-
-  const updateVoteOption = (index: number, value: string) => {
-    setVoteOptions((prev) => prev.map((o, i) => (i === index ? value : o)));
-  };
-  const startCommunityVote = async () => {
-    const cleanOptions = voteOptions
-      .map((option) => String(option).trim())
-      .filter(Boolean)
-      .slice(0, 2);
-
-    if (!voteTitle.trim()) {
-      toast.error('Please enter a vote title.');
-      return;
-    }
-    if (cleanOptions.length < 2) {
-      toast.error('Please add at least two vote options.');
-      return;
-    }
-
-    if (!closingDate) {
-      toast.error('Please choose a closing date.');
-      return;
-    }
-    try {
-      await createVote.mutateAsync({
-        title: voteTitle.trim(),
-        option_a: cleanOptions[0],
-        option_b: cleanOptions[1],
-        closing_date: closingDate.toISOString(),
-      });
-      setVoteTitle('');
-      setVoteOptions(['', '']);
-      setClosingDate(undefined);
-      toast.success('Vote created. Distribution will stay off until a verified SMS or email connection is selected.');
-    } catch (error) {
-      console.error('Community vote start failed:', error);
-      toast.error('Community vote could not be started. Check the voting workflow and try again.');
-    }
-  };
 
   const verifiedBroadcasts = broadcasts?.filter((broadcast) => broadcast.metrics_verified === true) ?? [];
   const confirmedAccepted = verifiedBroadcasts.reduce(
@@ -136,10 +83,6 @@ function BroadcastsTab() {
   );
   const confirmedDelivered = verifiedBroadcasts.reduce(
     (total, broadcast) => total + (broadcast.delivered_recipients ?? 0),
-    0,
-  );
-  const confirmedRevenue = verifiedBroadcasts.reduce(
-    (total, broadcast) => total + (broadcast.revenue_generated ?? 0),
     0,
   );
   const deliveryRate = confirmedAccepted > 0
@@ -159,7 +102,7 @@ function BroadcastsTab() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -196,196 +139,9 @@ function BroadcastsTab() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Attributed Revenue</p>
-                <p className="text-2xl font-bold text-primary">{verifiedBroadcasts.length > 0 ? `€${confirmedRevenue.toFixed(2)}` : '—'}</p>
-                <p className="text-xs text-muted-foreground">paid orders with campaign evidence</p>
-              </div>
-              <DollarSign className="w-8 h-8 text-primary opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Broadcast Hub */}
-        <Card className="bg-card border-border">
-          <CardHeader className="bg-gradient-to-r from-primary/10 to-transparent border-b border-border">
-            <CardTitle className="flex items-center gap-2">
-              📢 Weekly Broadcast
-            </CardTitle>
-            <CardDescription>Send marketing messages to your customer base</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="broadcast-title">Title</Label>
-              <Input
-                id="broadcast-title"
-                placeholder="e.g., This week's Street Eatz offer"
-                value={broadcastTitle}
-                onChange={(e) => setBroadcastTitle(e.target.value)}
-                className="bg-background/50"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="broadcast-message">Message</Label>
-              <Textarea
-                id="broadcast-message"
-                placeholder="Write your promotional message here..."
-                value={broadcastMessage}
-                onChange={(e) => setBroadcastMessage(e.target.value)}
-                className="min-h-[100px] bg-background/50"
-              />
-              <div className="flex justify-between gap-3 text-xs text-muted-foreground">
-                <span>A “Reply STOP to opt out” footer is added automatically.</span>
-                <span>{broadcastMessage.length}/1600</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="broadcast-image" className="flex items-center gap-2">
-                <Image className="w-4 h-4" />
-                Image URL (optional)
-              </Label>
-              <Input
-                id="broadcast-image"
-                placeholder="https://..."
-                value={broadcastImageUrl}
-                onChange={(e) => setBroadcastImageUrl(e.target.value)}
-                className="bg-background/50"
-              />
-            </div>
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  disabled={sendBroadcast.isPending || !broadcastTitle.trim() || !broadcastMessage.trim()}
-                  className="w-full bg-primary hover:bg-primary/90"
-                >
-                  {sendBroadcast.isPending ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
-                  ) : (
-                    <><Send className="w-4 h-4 mr-2" />Review & Send</>
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Send this marketing broadcast now?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This can contact every eligible customer with recorded marketing consent and cannot be undone. Sending is blocked outside the configured Ireland contact window.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-4">
-                  <p className="font-semibold">{broadcastTitle.trim()}</p>
-                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{broadcastMessage.trim()}</p>
-                  <p className="text-xs text-amber-300">Reply STOP to opt out. (added automatically)</p>
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Go back</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void handleSendBroadcast()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Confirm broadcast
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
-
-        {/* Community Vote */}
-        <Card className="bg-card border-border">
-          <CardHeader className="bg-gradient-to-r from-violet-500/10 to-transparent border-b border-border">
-            <CardTitle className="flex items-center gap-2">
-              <Vote className="w-5 h-5 text-violet-400" />
-              Community Vote
-            </CardTitle>
-            <CardDescription>Create a two-option customer vote. Sending stays separate until a verified channel is connected.</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <div className="space-y-2">
-              <Label>Vote Title</Label>
-              <Input
-                placeholder="e.g., Next Week's Special Fries"
-                value={voteTitle}
-                onChange={(e) => setVoteTitle(e.target.value)}
-                className="bg-background/50"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Vote options</Label>
-              <div className="space-y-2">
-                {voteOptions.map((option, index) => (
-                  <div key={index} className="flex gap-2 items-center">
-                    <Input
-                      placeholder={`Option ${index + 1} (e.g., Taco Fries)`}
-                      value={option}
-                      onChange={(e) => updateVoteOption(index, e.target.value)}
-                      className="bg-background/50 border-violet-500/30"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Closing Date
-              </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal bg-background/50",
-                      !closingDate && "text-muted-foreground"
-                    )}
-                  >
-                    {closingDate ? format(closingDate, "PPP") : "Pick a closing date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <CalendarComponent
-                    mode="single"
-                    selected={closingDate}
-                    onSelect={setClosingDate}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <Button
-              onClick={startCommunityVote}
-              disabled={
-                createVote.isPending ||
-                !voteTitle.trim() ||
-                voteOptions.filter((o) => o.trim()).length < 2 ||
-                !closingDate
-              }
-              className="w-full bg-violet-600 hover:bg-violet-700"
-            >
-              {createVote.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Starting vote...
-                </>
-              ) : (
-                <>
-                  <Vote className="w-4 h-4 mr-2" />
-                  Start Vote
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <BroadcastComposer />
 
       {/* History Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -415,7 +171,10 @@ function BroadcastsTab() {
                     className="p-4 rounded-lg bg-secondary/20 border border-border"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-semibold">{broadcast.title}</h4>
+                      <h4 className="font-semibold">
+                        {broadcast.title}
+                        {broadcast.channels?.length ? <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">{broadcast.channels.join(' + ')}</span> : null}
+                      </h4>
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(broadcast.sent_at), 'MMM d, h:mm a')}
                       </span>
@@ -429,10 +188,6 @@ function BroadcastsTab() {
                         </span>
                         <span className="flex items-center gap-1 text-muted-foreground">
                           {broadcast.failed_recipients ?? 0} failed
-                        </span>
-                        <span className="flex items-center gap-1 text-primary">
-                          <DollarSign className="w-3 h-3" />
-                          €{(broadcast.revenue_generated ?? 0).toFixed(2)} attributed
                         </span>
                         <Badge variant="outline" className="text-[10px]">{broadcast.metrics_source ?? 'verified'}</Badge>
                       </div>
