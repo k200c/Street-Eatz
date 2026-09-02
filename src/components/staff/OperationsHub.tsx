@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useFoodOSModules, useOperationsSnapshot } from '@/hooks/useFoodOSModules';
+import { useOperationsSnapshot } from '@/hooks/useFoodOSModules';
+import { useModuleLayout } from '@/hooks/useModuleLayout';
 
 const operationsModuleKeys = [
   'operations_inventory',
@@ -22,7 +23,11 @@ const operationsModuleKeys = [
 ] as const;
 
 export function OperationsHub() {
-  const { data: modules = [] } = useFoodOSModules();
+  // Order and initial open/closed state come from foodos_module_settings
+  // (display_order, default_expanded). Manual toggles persist for the session
+  // and never write back to the table.
+  const layout = useModuleLayout('operations');
+  const modules = layout.modules;
   const { data, isLoading, error } = useOperationsSnapshot();
   const [itemName, setItemName] = useState('');
   const [itemUnit, setItemUnit] = useState('each');
@@ -76,6 +81,8 @@ export function OperationsHub() {
   if (isLoading) return <div className="h-56 animate-pulse rounded-xl bg-secondary/30" />;
   if (error) return <p className="rounded-xl border border-destructive/40 bg-destructive/10 p-4">Operations data could not be loaded.</p>;
 
+  const sections = buildSections();
+
   return (
     <section className="space-y-4">
       <div>
@@ -90,9 +97,18 @@ export function OperationsHub() {
         {(show('operations_haccp') || show('operations_food_safety')) && <SummaryCard icon={ShieldCheck} label="Checks today" value={String(data?.safetyLogs.length ?? 0)} note={`${data?.failedSafetyChecks ?? 0} failed checks`} tone={(data?.failedSafetyChecks ?? 0) > 0 ? 'warning' : 'normal'} />}
       </div>
 
-      <Accordion type="multiple" defaultValue={[show('operations_inventory') ? 'inventory' : '', show('operations_food_safety') ? 'safety' : ''].filter(Boolean)} className="space-y-3">
-        {show('operations_inventory') && (
-          <AccordionItem value="inventory" className="rounded-xl border border-border bg-card px-4">
+      <Accordion type="multiple" value={layout.expandedKeys} onValueChange={layout.setExpandedKeys} className="space-y-3">
+        {layout.modules.map((module) => sections[module.module_key] ?? null)}
+      </Accordion>
+    </section>
+  );
+
+  // Sections keyed by module_key so they render in display_order. HACCP and
+  // food safety share one log, shown under whichever key sorts first.
+  function buildSections(): Record<string, JSX.Element | null> {
+    return {
+      operations_inventory: show('operations_inventory') ? (
+          <AccordionItem key="operations_inventory" value="operations_inventory" className="rounded-xl border border-border bg-card px-4">
             <AccordionTrigger className="hover:no-underline"><span className="flex items-center gap-2"><Boxes className="h-5 w-5 text-primary" />Inventory & stock</span></AccordionTrigger>
             <AccordionContent className="space-y-5 pt-2">
               <div className="grid gap-3 md:grid-cols-4">
@@ -115,10 +131,9 @@ export function OperationsHub() {
               )}
             </AccordionContent>
           </AccordionItem>
-        )}
-
-        {(show('operations_haccp') || show('operations_food_safety')) && (
-          <AccordionItem value="safety" className="rounded-xl border border-border bg-card px-4">
+      ) : null,
+      operations_haccp: (show('operations_haccp') || show('operations_food_safety')) ? (
+          <AccordionItem key="operations_haccp" value="operations_haccp" className="rounded-xl border border-border bg-card px-4">
             <AccordionTrigger className="hover:no-underline"><span className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />HACCP & food-safety log</span></AccordionTrigger>
             <AccordionContent className="space-y-5 pt-2">
               <div className="grid gap-3 lg:grid-cols-3">
@@ -133,13 +148,13 @@ export function OperationsHub() {
               <p className="text-xs text-muted-foreground">Saved records are time-stamped and append-only. Failed checks require a corrective action.</p>
             </AccordionContent>
           </AccordionItem>
-        )}
-
-        {show('operations_roster') && <RoadmapSection value="roster" icon={CalendarDays} title="Rostering & scheduling" status="MVP foundation" text="Shift records and secure staff visibility are active. Staff assignment, availability and publishing controls will be enabled after Danny confirms the operating process." />}
-        {show('operations_end_of_day') && <RoadmapSection value="eod" icon={ReceiptText} title="End of day" status="Planned" text="Cash, card, tips, refunds and variance reconciliation will use payment and till evidence. It will not estimate missing figures." />}
-      </Accordion>
-    </section>
-  );
+      ) : null,
+      // Merged into operations_haccp above.
+      operations_food_safety: null,
+      operations_roster: show('operations_roster') ? <RoadmapSection key="operations_roster" value="operations_roster" icon={CalendarDays} title="Rostering & scheduling" status="MVP foundation" text="Shift records and secure staff visibility are active. Staff assignment, availability and publishing controls will be enabled after Danny confirms the operating process." /> : null,
+      operations_end_of_day: show('operations_end_of_day') ? <RoadmapSection key="operations_end_of_day" value="operations_end_of_day" icon={ReceiptText} title="End of day" status="Planned" text="Cash, card, tips, refunds and variance reconciliation will use payment and till evidence. It will not estimate missing figures." /> : null,
+    };
+  }
 }
 
 function SummaryCard({ icon: Icon, label, value, note, tone = 'normal' }: { icon: typeof Boxes; label: string; value: string; note: string; tone?: 'normal' | 'warning' }) {
