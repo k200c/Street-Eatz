@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { isGuestUser } from '@/lib/guestCheckout';
 import { toast } from 'sonner';
 
 const navLinks = [
@@ -110,7 +111,7 @@ export function Navbar() {
           {/* Right Side */}
           <div className="flex items-center gap-3">
             {/* User Profile / Auth - Desktop */}
-            {user ? (
+            {user && !isGuestUser(user) ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -238,7 +239,7 @@ export function Navbar() {
               ))}
               
               <div className="border-t border-white/10 pt-4">
-                {user ? (
+                {user && !isGuestUser(user) ? (
                   <>
                     <button
                       onClick={() => { navigate('/profile'); setIsOpen(false); }}

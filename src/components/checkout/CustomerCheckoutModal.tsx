@@ -15,6 +15,7 @@ import { hardResetApp } from '@/lib/resetApp';
 import { postFormToUrl } from '@/lib/postFormToUrl';
 import { Link } from 'react-router-dom';
 import { SchedulePicker } from '@/components/checkout/SchedulePicker';
+import { ensureCheckoutSession, GUEST_CHECKOUT_UNAVAILABLE } from '@/lib/guestCheckout';
 
 interface CustomerCheckoutModalProps {
   open: boolean;
@@ -118,14 +119,6 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
     // Clear previous errors
     setPaymentError(null);
 
-    // Verify session before proceeding
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      setPaymentError('Session expired. Please log in again.');
-      toast.error('Session expired. Please log in again.');
-      return;
-    }
-
     // Validation before attempting payment
     const trimmedName = customerName.trim();
     const trimmedPhone = customerPhone.trim();
@@ -149,6 +142,15 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
     }
     if (total <= 0) {
       setPaymentError('Invalid order total');
+      return;
+    }
+
+    // Guests order without an account: a signed-in customer keeps their
+    // session, anyone else gets a guest session here. See src/lib/guestCheckout.ts.
+    const checkoutSession = await ensureCheckoutSession(supabase.auth);
+    if (!checkoutSession.ok) {
+      setPaymentError(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
+      toast.error(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
       return;
     }
 
@@ -270,10 +272,9 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       return;
     }
 
-    // Verify session before proceeding
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      toast.error('Session expired. Please log in again.');
+    const checkoutSession = await ensureCheckoutSession(supabase.auth);
+    if (!checkoutSession.ok) {
+      toast.error(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
       return;
     }
 
