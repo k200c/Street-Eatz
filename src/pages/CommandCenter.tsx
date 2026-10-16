@@ -5,6 +5,9 @@ import { Store, Clock, ArrowLeft, Users, Share2, Bug, BarChart3, Megaphone, Cred
 import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
+import { StaffStoreStatusBadge } from '@/components/staff/StaffStoreStatusBadge';
+import { storeToggleFailureMessage, StaffActionError } from '@/lib/staffConnection';
+import { publicSupabase } from '@/integrations/supabase/client';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -43,9 +46,9 @@ export default function CommandCenter() {
       ? requested as CommandCenterTab
       : 'operations';
   });
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, loading, signOut } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useAppSettings();
-  const { devModeEnabled, toggleDevMode, isStoreOpen, message: storeStatusMessage } =
+  const { devModeEnabled, toggleDevMode, isStoreOpen, message: storeStatusMessage, refetch: refetchStoreStatus } =
     useStoreStatus();
   const updateSettings = useUpdateAppSettings();
 
@@ -55,12 +58,28 @@ export default function CommandCenter() {
     }
   }, [loading, isAdmin, navigate]);
 
+  const [storeToggleError, setStoreToggleError] = useState<{ title: string; description: string } | null>(null);
+
+  // Opening the store is only reported once the server confirms customers can
+  // order. Any failure is loud and stays on screen. See src/lib/staffConnection.ts.
   const handleStoreToggle = async (isOpen: boolean) => {
+    setStoreToggleError(null);
     try {
       await updateSettings.mutateAsync({ is_store_open: isOpen });
-      toast.success(isOpen ? 'Store is now OPEN' : 'Store is now CLOSED');
+
+      const { data: confirmed, error: confirmError } = await publicSupabase.rpc('get_store_status' as never);
+      const confirmedOpen = (confirmed as { is_open?: boolean } | null)?.is_open === true;
+      // Closing must read back closed. Opening outside scheduled hours still
+      // reads open (manual override), so open must read back open too.
+      if (confirmError || confirmedOpen !== isOpen) {
+        throw new StaffActionError('Store status did not change', 'not_confirmed');
+      }
+      await refetchStoreStatus();
+      toast.success(isOpen ? 'Store is OPEN — customers can order' : 'Store is CLOSED — online ordering stopped');
     } catch (error) {
-      toast.error('Failed to update store status');
+      const message = storeToggleFailureMessage(error, isOpen);
+      setStoreToggleError(message);
+      toast.error(message.title, { description: message.description, duration: 30_000 });
     }
   };
 
@@ -148,9 +167,7 @@ export default function CommandCenter() {
               <QrCode className="h-4 w-4" />
               <span className="hidden sm:inline">QR Hub</span>
             </Button>
-            <div className={`px-3 py-1 rounded-full text-xs font-bold ${isStoreOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-              {isStoreOpen ? 'STORE OPEN' : 'STORE CLOSED'}
-            </div>
+            <StaffStoreStatusBadge />
           </div>
         </div>
       </header>
@@ -260,6 +277,20 @@ export default function CommandCenter() {
                       </span>
                     </button>
                   </div>
+                  {storeToggleError && (
+                    <div role="alert" className="mt-4 rounded-xl border-2 border-red-500 bg-red-500/15 p-4">
+                      <p className="text-lg font-black text-red-400">{storeToggleError.title}</p>
+                      <p className="mt-1 text-sm text-red-200">{storeToggleError.description}</p>
+                      <div className="mt-3 flex gap-2">
+                        <Button size="sm" variant="destructive" onClick={async () => { await signOut(); navigate('/auth', { replace: true }); }}>
+                          Sign out and sign back in
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                          Reload
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
