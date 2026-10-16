@@ -314,7 +314,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = state.role === 'admin';
-  const isAuthenticated = !!state.session;
+  // A guest-checkout session is not an account. See src/lib/guestCheckout.ts.
+  const isGuestSession = Boolean(state.user?.is_anonymous);
+  const isAuthenticated = !!state.session && !isGuestSession;
 
   const value: AuthContextValue = {
     ...state,

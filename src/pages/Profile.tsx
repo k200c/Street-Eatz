@@ -13,6 +13,7 @@ import { User, LogOut, Settings, ChevronRight, History, ShieldCheck } from 'luci
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppSettings } from '@/hooks/useAppSettings';
+import { isGuestUser } from '@/lib/guestCheckout';
 import { useLoyalty } from '@/hooks/useLoyalty';
 
 export default function Profile() {
@@ -26,7 +27,8 @@ export default function Profile() {
 
   // Redirect to auth if not logged in
   useEffect(() => {
-    if (!authLoading && !user) {
+    // A guest-checkout session is not an account, so it has no profile page.
+    if (!authLoading && (!user || isGuestUser(user))) {
       navigate('/auth', { replace: true });
     }
   }, [authLoading, user, navigate]);
@@ -43,7 +45,7 @@ export default function Profile() {
   };
 
   // Show loading skeleton
-  if (authLoading || !user) {
+  if (authLoading || !user || isGuestUser(user)) {
     return (
       <CustomerLayout>
         <ProfileSkeleton />
