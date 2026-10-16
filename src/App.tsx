@@ -115,7 +115,10 @@ const [queryClient] = useState(() => new QueryClient({
                 <Route path="/rate" element={<RateOrder />} />
                 
                 {/* Customer routes - require auth */}
-                <Route path="/cart" element={<AuthGuard><Cart /></AuthGuard>} />
+                {/* Guests must reach the basket: since April this guard sent every guest to
+                    the login page before checkout. Guest checkout starts a guest
+                    session at payment instead (src/lib/guestCheckout.ts). */}
+                <Route path="/cart" element={<Cart />} />
                 <Route path="/account" element={<AuthGuard><Navigate to="/profile" replace /></AuthGuard>} />
                 <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
                 <Route path="/details" element={<Details />} />
