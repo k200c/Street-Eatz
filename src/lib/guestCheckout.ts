@@ -6,18 +6,18 @@
  * checkout was told "Session expired. Please log in again." and most left.
  * Guest orders went from 133 in March to zero, every month.
  *
- * The fix does not touch the payment path. A guest gets a Supabase anonymous
- * session at the moment they pay: a real user id with no email or password,
- * which the customer never sees. create-order and payment-session then work
- * exactly as before, including the check that a customer can only pay for
- * their own order. The customer types their name and phone number and that is
- * all.
+ * A guest gets a Supabase anonymous session at the moment they pay: a real
+ * user id with no account signup. The current browser checkout inserts through
+ * ownership-scoped orders/order_items policies, then calls payment-session,
+ * which checks ownership. Card checkout still requires name, phone and email.
  *
  * Requires "Allow anonymous sign-ins" in Supabase Auth settings.
  */
 
+import { withTimeout } from './staffConnection.ts';
+
 export interface CheckoutAuthClient {
-  getSession(): Promise<{ data: { session: unknown | null } }>;
+  getSession(): Promise<{ data: { session: unknown | null }; error?: { message?: string } | null }>;
   signInAnonymously(): Promise<{ data: { session: unknown | null }; error: { message?: string } | null }>;
 }
 
@@ -36,24 +36,42 @@ export const GUEST_CHECKOUT_UNAVAILABLE =
  * Makes sure there is a session to place the order under. A signed-in customer
  * keeps their own; anyone else gets a guest session. Never asks anyone to log in.
  */
-export async function ensureCheckoutSession(auth: CheckoutAuthClient): Promise<CheckoutSessionResult> {
-  try {
-    const { data } = await auth.getSession();
+const pendingSessions = new WeakMap<CheckoutAuthClient, Promise<CheckoutSessionResult>>();
+
+export function ensureCheckoutSession(auth: CheckoutAuthClient, timeoutMs = 10_000): Promise<CheckoutSessionResult> {
+  const pending = pendingSessions.get(auth);
+  if (pending) return pending;
+
+  const establish = async (): Promise<CheckoutSessionResult> => {
+    const { data, error: sessionError } = await auth.getSession();
+    // A failed refresh must not silently replace an account with a new guest.
+    if (sessionError) return { ok: false, message: GUEST_CHECKOUT_UNAVAILABLE };
     if (data.session) return { ok: true, startedGuestSession: false };
 
     const { data: guest, error } = await auth.signInAnonymously();
     if (error || !guest.session) {
-      console.error('[GuestCheckout] anonymous sign-in failed:', error?.message ?? 'no session returned');
       return { ok: false, message: GUEST_CHECKOUT_UNAVAILABLE };
     }
     return { ok: true, startedGuestSession: true };
-  } catch (error) {
-    console.error('[GuestCheckout] could not establish a session:', error);
-    return { ok: false, message: GUEST_CHECKOUT_UNAVAILABLE };
-  }
+  };
+
+  const attempt = withTimeout(establish(), timeoutMs, 'Checkout login did not answer')
+    .catch((): CheckoutSessionResult => ({ ok: false, message: GUEST_CHECKOUT_UNAVAILABLE }))
+    .finally(() => pendingSessions.delete(auth));
+  pendingSessions.set(auth, attempt);
+  return attempt;
 }
 
 /** A guest session is not an account: no profile page, no "signed in" menu. */
 export function isGuestUser(user: { is_anonymous?: boolean | null } | null | undefined): boolean {
   return Boolean(user?.is_anonymous);
+}
+
+export function isAccountUser(user: { is_anonymous?: boolean | null } | null | undefined): boolean {
+  return Boolean(user) && !isGuestUser(user);
+}
+
+/** Guest checkout authentication must not migrate or reload the local basket. */
+export function getAccountCartUserId(user: { id: string; is_anonymous?: boolean | null } | null | undefined): string | null {
+  return isAccountUser(user) ? user!.id : null;
 }

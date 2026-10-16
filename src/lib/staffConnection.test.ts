@@ -6,6 +6,7 @@ import {
   isStatusStale,
   storeToggleFailureMessage,
   withTimeout,
+  confirmStoreToggle,
 } from './staffConnection.ts';
 
 test('withTimeout rejects a request that never settles', async () => {
@@ -45,8 +46,39 @@ test('a lost login tells staff to sign in again and says the store did not chang
   assert.match(message.description, /sign back in/i);
 });
 
-test('a hung request is treated as a lost login', () => {
+test('a timeout warns the write may complete instead of claiming the store is definitely closed', () => {
   const message = storeToggleFailureMessage(new StaffActionError('x', 'timeout'), false);
-  assert.equal(message.title, 'Store NOT closed');
-  assert.match(message.description, /lost its login/i);
+  assert.equal(message.title, 'Store closing NOT confirmed');
+  assert.match(message.description, /may still complete/i);
+});
+
+test('opening and closing succeed only with explicit matching server states', async () => {
+  for (const wanted of [true, false]) {
+    await confirmStoreToggle(async () => ({ data: { is_open: wanted, accepting_orders: wanted }, error: null }), wanted);
+  }
+});
+
+test('an empty or contradictory response cannot confirm closing or opening', async () => {
+  for (const data of [null, {}, { is_open: false }, { is_open: true, accepting_orders: false }]) {
+    for (const wanted of [true, false]) {
+      await assert.rejects(confirmStoreToggle(async () => ({ data, error: null }), wanted),
+        (error: unknown) => error instanceof StaffActionError && error.kind === 'not_confirmed');
+    }
+  }
+});
+
+test('a provider error rejects even with a success-looking payload', async () => {
+  await assert.rejects(confirmStoreToggle(async () => ({
+    data: { is_open: true, accepting_orders: true }, error: new Error('RPC unavailable'),
+  }), true), (error: unknown) => error instanceof StaffActionError && error.kind === 'not_confirmed');
+});
+
+test('a hung confirmation request has a deadline', async () => {
+  await assert.rejects(confirmStoreToggle(() => new Promise(() => {}), true, 20),
+    (error: unknown) => error instanceof StaffActionError && error.kind === 'timeout');
+});
+
+test('a rejected read after a write reports unknown state rather than unsaved state', async () => {
+  await assert.rejects(confirmStoreToggle(async () => { throw new Error('network down'); }, true),
+    (error: unknown) => error instanceof StaffActionError && error.kind === 'not_confirmed');
 });

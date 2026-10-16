@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
+import { isAccountUser } from '@/lib/guestCheckout';
 
 type AppRole = 'admin' | 'customer';
 
@@ -313,7 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const isAdmin = state.role === 'admin';
+  const isAdmin = isAccountUser(state.user) && state.role === 'admin';
   // A guest-checkout session is not an account. See src/lib/guestCheckout.ts.
   const isGuestSession = Boolean(state.user?.is_anonymous);
   const isAuthenticated = !!state.session && !isGuestSession;

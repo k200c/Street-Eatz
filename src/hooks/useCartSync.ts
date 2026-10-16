@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useCartStore } from '@/stores/cartStore';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { getAccountCartUserId } from '@/lib/guestCheckout';
 
 /**
  * Hook to sync cart state with authentication.
@@ -11,11 +12,12 @@ import { useAuthContext } from '@/contexts/AuthContext';
 export const useCartSync = () => {
   const syncWithUser = useCartStore((state) => state.syncWithUser);
   const { user, loading } = useAuthContext();
+  const accountCartUserId = getAccountCartUserId(user);
 
   useEffect(() => {
     if (loading) return;
-    syncWithUser(user?.id ?? null).catch((error) => {
+    syncWithUser(accountCartUserId).catch((error) => {
       console.error('[CartSync] syncWithUser failed:', error);
     });
-  }, [user?.id, loading, syncWithUser]);
+  }, [accountCartUserId, loading, syncWithUser]);
 };

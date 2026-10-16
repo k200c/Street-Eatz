@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAppSettings, useUpdateAppSettings } from '@/hooks/useAppSettings';
 import { useStoreStatus } from '@/hooks/useStoreStatus';
 import { StaffStoreStatusBadge } from '@/components/staff/StaffStoreStatusBadge';
-import { storeToggleFailureMessage, StaffActionError } from '@/lib/staffConnection';
+import { storeToggleFailureMessage, confirmStoreToggle } from '@/lib/staffConnection';
 import { publicSupabase } from '@/integrations/supabase/client';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -59,27 +59,27 @@ export default function CommandCenter() {
   }, [loading, isAdmin, navigate]);
 
   const [storeToggleError, setStoreToggleError] = useState<{ title: string; description: string } | null>(null);
+  const [isTogglingStore, setIsTogglingStore] = useState(false);
 
   // Opening the store is only reported once the server confirms customers can
   // order. Any failure is loud and stays on screen. See src/lib/staffConnection.ts.
   const handleStoreToggle = async (isOpen: boolean) => {
+    if (isTogglingStore) return;
+    setIsTogglingStore(true);
     setStoreToggleError(null);
     try {
       await updateSettings.mutateAsync({ is_store_open: isOpen });
 
-      const { data: confirmed, error: confirmError } = await publicSupabase.rpc('get_store_status' as never);
-      const confirmedOpen = (confirmed as { is_open?: boolean } | null)?.is_open === true;
-      // Closing must read back closed. Opening outside scheduled hours still
-      // reads open (manual override), so open must read back open too.
-      if (confirmError || confirmedOpen !== isOpen) {
-        throw new StaffActionError('Store status did not change', 'not_confirmed');
-      }
-      await refetchStoreStatus();
+      await confirmStoreToggle(() => publicSupabase.rpc('get_store_status' as never), isOpen);
+      // A cache refresh must not block the confirmed result or keep controls busy.
+      void refetchStoreStatus();
       toast.success(isOpen ? 'Store is OPEN — customers can order' : 'Store is CLOSED — online ordering stopped');
     } catch (error) {
       const message = storeToggleFailureMessage(error, isOpen);
       setStoreToggleError(message);
       toast.error(message.title, { description: message.description, duration: 30_000 });
+    } finally {
+      setIsTogglingStore(false);
     }
   };
 
@@ -265,12 +265,12 @@ export default function CommandCenter() {
                     {/* Traffic Light Toggle */}
                     <button
                       onClick={() => handleStoreToggle(!isStoreOpen)}
-                      disabled={updateSettings.isPending}
+                      disabled={updateSettings.isPending || isTogglingStore}
                       className={`relative w-24 h-24 rounded-full transition-all duration-300 ${
                         isStoreOpen 
                           ? 'bg-green-500 shadow-[0_0_40px_rgba(34,197,94,0.5)]' 
                           : 'bg-red-500 shadow-[0_0_40px_rgba(239,68,68,0.5)]'
-                      } ${updateSettings.isPending ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
+                      } ${updateSettings.isPending || isTogglingStore ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
                     >
                       <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm">
                         {isStoreOpen ? 'OPEN' : 'CLOSED'}
