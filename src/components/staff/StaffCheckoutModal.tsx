@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { holdAutoReload } from '@/lib/pwa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,12 @@ export function StaffCheckoutModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingType, setProcessingType] = useState<'cash' | 'card' | 'link' | null>(null);
   const [showCashInput, setShowCashInput] = useState(false);
+
+  // A newer app version must not reload the till mid-payment.
+  useEffect(() => {
+    if (!open) return;
+    return holdAutoReload();
+  }, [open]);
 
   if (!order) return null;
 

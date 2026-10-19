@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { holdAutoReload } from '@/lib/pwa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -42,8 +43,8 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   const [scheduledFor, setScheduledFor] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<number | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const paymentAttemptInFlight = useRef(false);
   const [showRetryButton, setShowRetryButton] = useState(false);
-  const [mountTime] = useState(() => Date.now());
 
   // Auto-fill from profile if logged in
   useEffect(() => {
@@ -69,21 +70,15 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
     }
   }, [open]);
 
-  // Recovery effect: detect stuck loading state after redirect return (5 second timeout)
+  // Do not enable payment again while a slow request is still running.
+  // A five-second visual reset used to allow a second order before the first
+  // payment-session request (which can take twenty seconds) had completed.
+
+  // A newer app version must not reload the page while the customer is checking out.
   useEffect(() => {
-    if (step === 'connecting' || (step === 'payment' && isProcessingPayment)) {
-      const stuckTimeout = setTimeout(() => {
-        const elapsedTime = Date.now() - mountTime;
-        if (elapsedTime > 5000) {
-          console.log('Payment flow appears stuck, resetting state...');
-          setStep('payment');
-          setIsProcessingPayment(false);
-        }
-      }, 5000);
-      
-      return () => clearTimeout(stuckTimeout);
-    }
-  }, [step, mountTime, isProcessingPayment]);
+    if (!open) return;
+    return holdAutoReload();
+  }, [open]);
 
   // Show retry button after 10 seconds of loading
   useEffect(() => {
@@ -114,7 +109,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
 
   const handlePayCard = async () => {
     // Prevent duplicate submissions
-    if (isProcessingPayment) return;
+    if (paymentAttemptInFlight.current) return;
     
     // Clear previous errors
     setPaymentError(null);
@@ -145,18 +140,17 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       return;
     }
 
-    // Guests order without an account: a signed-in customer keeps their
-    // session, anyone else gets a guest session here. See src/lib/guestCheckout.ts.
-    const checkoutSession = await ensureCheckoutSession(supabase.auth);
-    if (!checkoutSession.ok) {
-      setPaymentError(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
-      toast.error(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
-      return;
-    }
-
+    paymentAttemptInFlight.current = true;
     setIsProcessingPayment(true);
 
     try {
+      // Lock before awaiting auth: double taps must not create two orders.
+      const checkoutSession = await ensureCheckoutSession(supabase.auth);
+      if (!checkoutSession.ok) {
+        setPaymentError(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
+        toast.error(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
+        return;
+      }
       // Step 1: Show connecting/redirecting spinner
       setStep('connecting');
 
@@ -258,12 +252,15 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       toast.error('Payment Error: ' + errorMessage);
       setStep('payment');
       setIsProcessingPayment(false);
+    } finally {
+      paymentAttemptInFlight.current = false;
+      setIsProcessingPayment(false);
     }
   };
 
   const handlePayOnCollection = async () => {
     // Prevent duplicate submissions
-    if (isProcessingPayment) return;
+    if (paymentAttemptInFlight.current) return;
 
     // Guard: Pay on Collection must be enabled (blocks manipulated / stale-state submissions).
     // The DB trigger is the hard backstop; this prevents a wasted round-trip and shows a clear message.
@@ -272,15 +269,15 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       return;
     }
 
-    const checkoutSession = await ensureCheckoutSession(supabase.auth);
-    if (!checkoutSession.ok) {
-      toast.error(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
-      return;
-    }
-
+    paymentAttemptInFlight.current = true;
     setIsProcessingPayment(true);
 
     try {
+      const checkoutSession = await ensureCheckoutSession(supabase.auth);
+      if (!checkoutSession.ok) {
+        toast.error(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
+        return;
+      }
       // Show "Sending to Kitchen" spinner
       setStep('sending');
 
@@ -315,6 +312,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       toast.error('Payment Error: Please try again or use cash.');
       setStep('payment');
     } finally {
+      paymentAttemptInFlight.current = false;
       setIsProcessingPayment(false);
     }
   };

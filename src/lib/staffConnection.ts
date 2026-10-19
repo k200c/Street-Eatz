@@ -36,6 +36,26 @@ export function withTimeout<T>(promise: PromiseLike<T>, ms: number, message: str
   });
 }
 
+/** Confirm both the switch and customer ordering state; missing data is unknown. */
+export async function confirmStoreToggle(
+  readStatus: () => PromiseLike<{ data: unknown; error: unknown }>,
+  wanted: boolean,
+  timeoutMs = 10_000,
+): Promise<void> {
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await withTimeout(readStatus(), timeoutMs, 'Store confirmation did not answer');
+  } catch (error) {
+    if (error instanceof StaffActionError && error.kind === 'timeout') throw error;
+    throw new StaffActionError('Store status could not be confirmed', 'not_confirmed');
+  }
+  const { data, error } = result;
+  const status = data as { is_open?: unknown; accepting_orders?: unknown } | null;
+  if (error || !status || status.is_open !== wanted || status.accepting_orders !== wanted) {
+    throw new StaffActionError('Store status could not be confirmed', 'not_confirmed');
+  }
+}
+
 /** Store status older than this on a staff screen is shown as not updating. */
 export const STALE_STATUS_MS = 3 * 60_000;
 
@@ -63,7 +83,13 @@ export function formatCheckedAt(updatedAt: number | null | undefined): string | 
 export function storeToggleFailureMessage(error: unknown, wanted: boolean): { title: string; description: string } {
   const action = wanted ? 'opened' : 'closed';
   const title = `Store NOT ${action}`;
-  if (error instanceof StaffActionError && (error.kind === 'signed_out' || error.kind === 'timeout')) {
+  if (error instanceof StaffActionError && error.kind === 'timeout') {
+    return {
+      title: `Store ${wanted ? 'opening' : 'closing'} NOT confirmed`,
+      description: 'The server did not answer in time. The change may still complete. Reload and check the store status before tapping again. If this continues, sign out and sign back in.',
+    };
+  }
+  if (error instanceof StaffActionError && error.kind === 'signed_out') {
     return {
       title,
       description: 'This screen has lost its login. Sign out, sign back in, then tap again.',
@@ -71,8 +97,8 @@ export function storeToggleFailureMessage(error: unknown, wanted: boolean): { ti
   }
   if (error instanceof StaffActionError && error.kind === 'not_confirmed') {
     return {
-      title,
-      description: 'The change was sent but the store did not change. Reload this page and check before trading.',
+      title: `Store ${wanted ? 'opening' : 'closing'} NOT confirmed`,
+      description: 'The change was sent but the customer ordering status could not be confirmed. Reload this page and check before trading.',
     };
   }
   return {
