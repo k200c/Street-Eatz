@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Settings, ShoppingCart, ChefHat, Volume2, VolumeX, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useStoreStatus } from '@/hooks/useStoreStatus';
+import { StaffStoreStatusBadge } from '@/components/staff/StaffStoreStatusBadge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StaffPOSContent } from '@/components/staff/StaffPOSContent';
@@ -13,7 +13,6 @@ import { useState } from 'react';
 export default function StaffDashboard() {
   const navigate = useNavigate();
   const { isAdmin, loading, signOut } = useAuth();
-  const { isStoreOpen } = useStoreStatus();
   const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
@@ -43,11 +42,7 @@ export default function StaffDashboard() {
       <header className="flex-shrink-0 bg-black/95 backdrop-blur-sm border-b border-border">
         <div className="px-4 py-3 flex items-center justify-between">
           {/* Left: Store Status */}
-          <div className={`px-4 py-2 rounded-full text-sm font-bold ${
-            isStoreOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-          }`}>
-            {isStoreOpen ? '● STORE OPEN' : '○ STORE CLOSED'}
-          </div>
+          <StaffStoreStatusBadge size="md" />
           
           {/* Center: COMMAND CENTER Button */}
           <Button 

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase, publicSupabase } from '@/integrations/supabase/client';
 import { normaliseStoreStatus, type StoreStatusPayload } from '@/lib/storeStatus';
 import { useAppSettings } from './useAppSettings';
+import { createRealtimeChannelName } from '@/lib/realtimeChannel';
 
 const DEV_MODE_KEY = 'dev_mode_bypass';
 
@@ -54,7 +55,7 @@ export function useStoreStatus() {
     window.dispatchEvent(new Event('devModeChanged'));
   }, []);
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['store-status'],
     queryFn: async () => {
       // Public client: this is read logged-out on every customer surface.
@@ -67,6 +68,8 @@ export function useStoreStatus() {
     },
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchIntervalInBackground: true,
     staleTime: 30_000,
     retry: 1,
   });
@@ -74,7 +77,9 @@ export function useStoreStatus() {
   // A staff toggle must show up immediately rather than after the next poll.
   useEffect(() => {
     const channel = supabase
-      .channel('store-status-settings')
+      // Unique per hook instance. A shared fixed name meant the first screen to
+      // unmount removed the channel for every other screen on the page.
+      .channel(createRealtimeChannelName('store-status-settings'))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'app_settings' },
@@ -86,6 +91,24 @@ export function useStoreStatus() {
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  // A laptop waking from sleep or a phone app returning to the front does not
+  // always fire a focus event. Re-check the moment the screen is visible again.
+  useEffect(() => {
+    const recheck = () => {
+      if (document.visibilityState === 'visible') {
+        queryClient.invalidateQueries({ queryKey: ['store-status'] });
+      }
+    };
+    document.addEventListener('visibilitychange', recheck);
+    window.addEventListener('pageshow', recheck);
+    window.addEventListener('online', recheck);
+    return () => {
+      document.removeEventListener('visibilitychange', recheck);
+      window.removeEventListener('pageshow', recheck);
+      window.removeEventListener('online', recheck);
     };
   }, [queryClient]);
 
@@ -107,6 +130,8 @@ export function useStoreStatus() {
     isLoading,
     error,
     refetch,
+    /** Millisecond timestamp of the last successful read; 0 if never. */
+    statusUpdatedAt: error ? 0 : dataUpdatedAt,
     toggleDevMode,
     setDevMode,
     appSettings,

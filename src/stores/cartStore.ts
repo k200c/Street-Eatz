@@ -36,10 +36,18 @@ const getGuestCartKey = () => `street-eats-cart-${getGuestSessionId()}`;
 
 // Helper to load guest cart from localStorage
 const loadGuestCart = (): CartItem[] => {
+  if (typeof window === 'undefined') return [];
   try {
     const stored = localStorage.getItem(getGuestCartKey());
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Old or damaged browser storage must not crash the first render.
+      return Array.isArray(parsed) ? parsed.filter((item: CartItem) =>
+        item?.product && typeof item.product.id === 'string' && typeof item.product.name === 'string' &&
+        Number.isFinite(item.product.price) && Number.isInteger(item.quantity) && item.quantity > 0 &&
+        Number.isFinite(item.totalPrice) && item.totalPrice > 0 &&
+        Array.isArray(item.selectedModifiers) && Array.isArray(item.removedIngredients)
+      ) : [];
     }
   } catch (e) {
     console.error('Failed to load guest cart:', e);
@@ -66,7 +74,7 @@ const clearGuestCart = () => {
 };
 
 export const useCartStore = create<CartStore>()((set, get) => ({
-  items: [],
+  items: loadGuestCart(),
   userId: null,
   isLoading: false,
 

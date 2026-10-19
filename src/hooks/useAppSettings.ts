@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, publicSupabase } from '@/integrations/supabase/client';
 import { useEffect } from 'react';
 import { createRealtimeChannelName } from '@/lib/realtimeChannel';
+import { StaffActionError, withTimeout } from '@/lib/staffConnection';
 
 export interface AppSettings {
   id: number;
@@ -76,18 +77,40 @@ export function useUpdateAppSettings() {
 
   return useMutation({
     mutationFn: async (updates: Partial<Pick<AppSettings, 'is_store_open' | 'current_wait_time' | 'marketing_banner_text' | 'marketing_banner_enabled' | 'card_payment_provider' | 'online_payments_enabled' | 'pay_on_collection_enabled' | 'flatbread_addon_enabled' | 'preorders_enabled' | 'preorder_min_notice_minutes' | 'preorder_max_days' | 'preorder_slot_interval_minutes' | 'preorder_slot_capacity' | 'preorder_kitchen_lead_minutes' | 'preorder_hours' | 'loyalty_enabled' | 'loyalty_points_per_order' | 'loyalty_reward_cost' | 'loyalty_reward_label' | 'google_review_url'>>) => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', 1)
-        .select()
-        .single();
+      // A staff write must be confirmed or fail loudly within seconds — never
+      // hang. On 16 Oct an expired login made every store toggle go nowhere,
+      // silently, for three hours. See src/lib/staffConnection.ts.
+      const { data: sessionData } = await withTimeout(
+        supabase.auth.getSession(),
+        5_000,
+        'Could not check the login on this screen',
+      );
+      if (!sessionData.session) {
+        throw new StaffActionError('This screen is signed out', 'signed_out');
+      }
+
+      const { data, error } = await withTimeout(
+        supabase
+          .from('app_settings')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', 1)
+          .select()
+          .maybeSingle(),
+        10_000,
+        'The server did not answer',
+      );
 
       if (error) throw error;
+      // No row back means the update matched nothing: the account on this
+      // screen is not allowed to change settings. Never report that as saved.
+      if (!data) {
+        throw new StaffActionError('The change was not saved', 'not_saved');
+      }
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['app-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['store-status'] });
     },
   });
 }

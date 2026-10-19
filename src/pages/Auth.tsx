@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { User, Mail, Phone, ArrowRight, Loader2, CheckCircle, Lock } from 'lucide-react';
 import { z } from 'zod';
 import { clientAssets, clientConfig } from '@/config/client';
+import { isAccountUser } from '@/lib/guestCheckout';
 
 // Validation schemas
 const emailSchema = z.string().trim().email('Please enter a valid email').max(255, 'Email too long');
@@ -62,7 +63,7 @@ export default function Auth() {
   useEffect(() => {
     if (loading || profileLoading) return;
     
-    if (user) {
+    if (isAccountUser(user)) {
       // REMOVED: Profile completion check - never block app access
       // Users can complete profile later via Settings or at checkout
       
