@@ -26,6 +26,13 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    // Writes /version.json so open screens can tell a newer build is live.
+    {
+      name: "street-eatz-version-file",
+      generateBundle() {
+        this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version: APP_VERSION }) });
+      },
+    },
     mode === "development" && componentTagger(),
   ].filter(Boolean),
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },

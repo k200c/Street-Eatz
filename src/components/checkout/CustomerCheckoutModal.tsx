@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { holdAutoReload } from '@/lib/pwa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -72,6 +73,12 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   // Do not enable payment again while a slow request is still running.
   // A five-second visual reset used to allow a second order before the first
   // payment-session request (which can take twenty seconds) had completed.
+
+  // A newer app version must not reload the page while the customer is checking out.
+  useEffect(() => {
+    if (!open) return;
+    return holdAutoReload();
+  }, [open]);
 
   // Show retry button after 10 seconds of loading
   useEffect(() => {
