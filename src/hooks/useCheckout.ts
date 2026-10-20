@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
 import { getOrderSource } from "@/lib/orderSource";
+import { reportCheckoutFailure } from "@/lib/checkoutAlerts";
 
 interface CheckoutData {
   paymentMethod: "card" | "cash";
@@ -48,6 +49,7 @@ export function useCheckout() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !session?.user) {
         console.error("Session verification failed:", sessionError);
+        void reportCheckoutFailure(supabase, "guest_session", sessionError?.message || "No session at order time");
         toast.error("Session expired. Please log in again.");
         return null;
       }
@@ -147,6 +149,8 @@ export function useCheckout() {
       };
     } catch (error) {
       console.error("Checkout error:", error);
+      const detail = error && typeof error === "object" && "message" in error ? String((error as { message: unknown }).message) : error;
+      void reportCheckoutFailure(supabase, "order_create", detail);
       toast.error("Failed to place order. Please try again.");
       return null;
     } finally {

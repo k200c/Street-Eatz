@@ -19,7 +19,7 @@
     "ios:add": "cap add ios",
     "ios:sync": "npm run build && cap sync ios",
     "ios:open": "cap open ios",
-    "test": "node --experimental-strip-types --test src/lib/googleReviewUrl.test.ts src/lib/managementAssistant.test.ts src/lib/orderSource.test.ts src/lib/paymentState.test.ts src/lib/preorderSlots.test.ts src/lib/realtimeChannel.test.ts src/lib/guestCheckout.test.ts src/lib/staffConnection.test.ts src/lib/storeStatus.test.ts src/lib/seoPages.test.ts src/lib/assistantClient.test.ts src/lib/insights.test.ts src/lib/moduleLayout.test.ts src/lib/appVersion.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/googleReviewUrl.test.ts src/lib/managementAssistant.test.ts src/lib/orderSource.test.ts src/lib/paymentState.test.ts src/lib/preorderSlots.test.ts src/lib/realtimeChannel.test.ts src/lib/guestCheckout.test.ts src/lib/staffConnection.test.ts src/lib/storeStatus.test.ts src/lib/seoPages.test.ts src/lib/assistantClient.test.ts src/lib/insights.test.ts src/lib/moduleLayout.test.ts src/lib/appVersion.test.ts src/lib/checkoutAlerts.test.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
