@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { holdAutoReload } from '@/lib/pwa';
+import { reportCheckoutFailure } from '@/lib/checkoutAlerts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -142,11 +143,15 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
 
     paymentAttemptInFlight.current = true;
     setIsProcessingPayment(true);
+    // Each failure is reported to Kyle once; the catch-all skips already-reported ones.
+    let failureReported = false;
+    let createdOrderId: string | null = null;
 
     try {
       // Lock before awaiting auth: double taps must not create two orders.
       const checkoutSession = await ensureCheckoutSession(supabase.auth);
       if (!checkoutSession.ok) {
+        void reportCheckoutFailure(supabase, 'guest_session', checkoutSession.message);
         setPaymentError(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
         toast.error(checkoutSession.message ?? GUEST_CHECKOUT_UNAVAILABLE);
         return;
@@ -166,8 +171,11 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       });
 
       if (!orderResult) {
+        // useCheckout has already reported the database error itself.
+        failureReported = true;
         throw new Error('Failed to create order');
       }
+      createdOrderId = orderResult.orderId;
 
       // Step 2.5: Wait 500ms to ensure order is fully committed to Supabase
       console.log('⏳ Waiting for order to commit...');
@@ -198,6 +206,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       if (paymentFnError || !data) {
         const errorMessage = paymentFnError?.message || 'Payment service unavailable';
         console.error('Payment session error:', paymentFnError);
+        void reportCheckoutFailure(supabase, 'payment_session', errorMessage, orderResult.orderId);
         setPaymentError("Payment service is temporarily unavailable. Please try again in a moment.");
         toast.error("Payment Error: " + errorMessage);
         setStep('payment');
@@ -248,6 +257,9 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       const errorMessage = error instanceof Error 
         ? (error.name === 'AbortError' ? 'Payment request timed out' : error.message)
         : 'Payment failed';
+      if (!failureReported) {
+        void reportCheckoutFailure(supabase, createdOrderId ? 'payment_session' : 'unexpected', errorMessage, createdOrderId);
+      }
       setPaymentError(errorMessage);
       toast.error('Payment Error: ' + errorMessage);
       setStep('payment');

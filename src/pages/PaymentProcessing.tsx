@@ -5,6 +5,7 @@ import { UtensilsCrossed } from "lucide-react";
 import { LoadingRecovery } from "@/components/LoadingRecovery";
 import { supabase } from "@/integrations/supabase/client";
 import { getPaymentOutcome } from "@/lib/paymentState";
+import { reportCheckoutFailure } from "@/lib/checkoutAlerts";
 
 const MAX_ATTEMPTS = 20;
 const POLL_INTERVAL = 3000;
@@ -54,6 +55,7 @@ const PaymentProcessing = () => {
           const next = prev + 1;
           if (next >= MAX_ATTEMPTS) {
             if (pollingRef.current) clearInterval(pollingRef.current);
+            void reportCheckoutFailure(supabase, "payment_return", `Payment still unconfirmed after polling (${orderCode})`);
             navigate("/error?reason=timeout", { replace: true });
           }
           return next;
