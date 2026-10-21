@@ -1,6 +1,6 @@
 import React, { useState, DragEvent, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChefHat, Clock, Volume2, VolumeX, GripVertical, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag, Filter, EyeOff } from 'lucide-react';
+import { ChefHat, Clock, Volume2, VolumeX, GripVertical, CheckCircle, PackageCheck, RefreshCw, Bug, ShoppingBag, Filter, EyeOff, CalendarClock } from 'lucide-react';
 import { useKitchenOrders, KitchenOrder } from '@/hooks/useKitchenOrders';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,8 @@ import { StaffPaymentModal } from './StaffPaymentModal';
 import { PaymentStatusBadge } from './PaymentStatusBadge';
 import { StaffCheckoutModal } from './StaffCheckoutModal';
 import { isKitchenEligible, isPaymentSettled } from '@/lib/paymentState';
+import { formatCollectionTime, isScheduled } from '@/lib/preorders';
+import { PreorderCard } from './PreorderCard';
 
 type OrderStatus = 'pending' | 'cooking' | 'ready' | 'completed' | 'pending_payment';
 
@@ -253,6 +255,11 @@ const OrderCard = forwardRef<HTMLDivElement, OrderCardProps>(
                     VOICE
                   </span>
                 )}
+                {isScheduled(order) && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold uppercase">
+                    Pre-order · collect {formatCollectionTime(order.scheduled_for)}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <PaymentStatusBadge 
@@ -461,6 +468,7 @@ function KanbanColumn({ config, orders, onDrop, onDragOver, onStatusChange, onQu
 export function KitchenDisplaySystem() {
   const { 
     ordersByStatus, 
+    upcomingPreorders,
     isLoading, 
     updateOrderStatus, 
     soundEnabled, 
@@ -470,7 +478,7 @@ export function KitchenDisplaySystem() {
   } = useKitchenOrders();
   
   const [showDebug, setShowDebug] = useState(false);
-  const [activeTab, setActiveTab] = useState<'kitchen' | 'pickup'>('kitchen');
+  const [activeTab, setActiveTab] = useState<'kitchen' | 'preorders' | 'pickup'>('kitchen');
   const [selectedPickupOrder, setSelectedPickupOrder] = useState<KitchenOrder | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [checkoutOrder, setCheckoutOrder] = useState<KitchenOrder | null>(null);
@@ -624,6 +632,8 @@ export function KitchenDisplaySystem() {
     .filter(o => !isPaymentSettled(o.payment_status)).length;
 
   const pickupCount = ordersByStatus.pending_payment.length;
+  // Only pre-orders that will actually be cooked: paid, or not card.
+  const visiblePreorders = (upcomingPreorders ?? []).filter(isKitchenEligible);
 
   return (
     <Card className="bg-card border-border">
@@ -661,7 +671,7 @@ export function KitchenDisplaySystem() {
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'kitchen' | 'pickup')}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'kitchen' | 'preorders' | 'pickup')}>
           <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
             <TabsList>
               <TabsTrigger value="kitchen" className="gap-2">
@@ -670,6 +680,15 @@ export function KitchenDisplaySystem() {
                 {totalOrders > 0 && (
                   <span className="bg-primary/20 text-primary px-1.5 py-0.5 rounded-full text-xs">
                     {totalOrders}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="preorders" className="gap-2">
+                <CalendarClock className="w-4 h-4" />
+                Pre-orders
+                {visiblePreorders.length > 0 && (
+                  <span className="bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                    {visiblePreorders.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -753,6 +772,21 @@ export function KitchenDisplaySystem() {
               <div className="text-center py-8 text-muted-foreground">
                 <ChefHat className="w-12 h-12 mx-auto mb-2 opacity-30" />
                 <p>No active orders. New orders will appear here in real-time.</p>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Pre-orders Tab: not due yet. Each moves to Cooking at its release time. */}
+          <TabsContent value="preorders">
+            {visiblePreorders.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visiblePreorders.map((order) => <PreorderCard key={order.id} order={order} />)}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <CalendarClock className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p className="text-lg">No upcoming pre-orders</p>
+                <p className="text-sm mt-1">Paid pre-orders show here and move to Cooking an hour before collection</p>
               </div>
             )}
           </TabsContent>

@@ -50,9 +50,11 @@ const OrderFailed = () => {
         return {
           icon: XCircle,
           iconColor: "text-destructive",
-          title: "Something Went Wrong",
-          message: "We encountered an issue processing your payment.",
-          suggestion: "Please try again or contact us if the problem persists.",
+          // Viva's failure redirect carries no reason; a wrong card number,
+          // expiry or CVV lands here. Say what the customer can act on.
+          title: "Payment didn't go through",
+          message: "Your card wasn't charged. This usually means a card detail (number, expiry date or CVV) didn't match.",
+          suggestion: "Tap Try again: your basket and details are saved, so you only re-enter the card.",
         };
     }
   };

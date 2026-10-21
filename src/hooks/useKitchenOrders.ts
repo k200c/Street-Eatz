@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { createRealtimeChannelName } from '@/lib/realtimeChannel';
+import { splitKitchenOrders } from '@/lib/preorders';
 
 type Order = Tables<'orders'>;
 type OrderItem = Tables<'order_items'>;
@@ -39,7 +40,7 @@ export function useKitchenOrders() {
   }, [soundEnabled]);
 
   // Fetch ALL active orders (Safety First - no date filter, wide status filter)
-  const { data: orders, isLoading, refetch } = useQuery({
+  const { data: allOrders, isLoading, refetch } = useQuery({
     queryKey: ['kitchen-orders'],
     queryFn: async () => {
       console.log('[KDS] Fetching active orders...');
@@ -57,10 +58,9 @@ export function useKitchenOrders() {
         throw ordersError;
       }
 
-      const releasedOrders = (ordersData || []).filter((order) =>
-        order.fulfillment_type !== 'scheduled' || Boolean(order.released_to_kitchen_at)
-      );
-      console.log('[KDS] Kitchen-released orders fetched:', releasedOrders.length);
+      // Pre-orders are kept too: upcoming ones show in the Pre-orders tab and
+      // join Cooking at their release time (see src/lib/preorders.ts).
+      const releasedOrders = ordersData || [];
 
       // Fetch order items for all orders
       const orderIds = releasedOrders.map(o => o.id);
@@ -95,12 +95,31 @@ export function useKitchenOrders() {
     refetchOnReconnect: true,
   });
 
+  // Pre-orders move onto the board at their release time without a refetch.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const { kitchen: orders, upcoming: upcomingPreorders } = useMemo(
+    () => splitKitchenOrders(allOrders ?? [], now),
+    [allOrders, now],
+  );
+
+  // Chime when a pre-order moves from the Pre-orders tab onto the board.
+  const upcomingIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const dueNow = orders.filter((o) => upcomingIdsRef.current.has(o.id));
+    if (dueNow.length) playNotificationSound();
+    upcomingIdsRef.current = new Set(upcomingPreorders.map((o) => o.id));
+  }, [orders, upcomingPreorders, playNotificationSound]);
+
   // Track last refetch time
   useEffect(() => {
     if (!isLoading) {
       setLastRefetch(new Date());
     }
-  }, [orders, isLoading]);
+  }, [allOrders, isLoading]);
 
   // Update order status mutation
   const updateOrderStatus = useMutation({
@@ -165,9 +184,8 @@ export function useKitchenOrders() {
         (payload) => {
           console.log('[KDS] New order received via realtime:', payload);
           const order = payload.new as Partial<Order>;
-          if (order.fulfillment_type !== 'scheduled' || order.released_to_kitchen_at) {
-            playNotificationSound();
-          }
+          // New pre-orders chime too: staff should see one arrive in the Pre-orders tab.
+          playNotificationSound();
           refetch();
         }
       )
@@ -223,6 +241,7 @@ export function useKitchenOrders() {
 
   return {
     orders,
+    upcomingPreorders,
     ordersByStatus,
     isLoading,
     updateOrderStatus,
