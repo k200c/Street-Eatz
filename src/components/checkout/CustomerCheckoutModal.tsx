@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { holdAutoReload } from '@/lib/pwa';
 import { reportCheckoutFailure } from '@/lib/checkoutAlerts';
+import { loadCheckoutDetails, saveCheckoutDetails, isAcceptableEmail } from '@/lib/checkoutDetails';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -47,14 +48,22 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   const paymentAttemptInFlight = useRef(false);
   const [showRetryButton, setShowRetryButton] = useState(false);
 
-  // Auto-fill from profile if logged in
+  // Auto-fill: what this customer typed last time on this device (kept across
+  // going back, a declined card or a cancelled payment), then their account.
   useEffect(() => {
-    if (open) {
-      if (profile?.full_name) setCustomerName(profile.full_name);
-      if (profile?.phone) setCustomerPhone(profile.phone);
-      if (user?.email) setCustomerEmail(user.email);
-    }
+    if (!open) return;
+    const remembered = loadCheckoutDetails(typeof window !== 'undefined' ? window.localStorage : undefined);
+    setCustomerName((current) => current || remembered.name || profile?.full_name || '');
+    setCustomerPhone((current) => current || remembered.phone || profile?.phone || '');
+    setCustomerEmail((current) => current || remembered.email || user?.email || '');
   }, [open, profile, user]);
+
+  useEffect(() => {
+    if (!customerName && !customerPhone && !customerEmail) return;
+    saveCheckoutDetails(typeof window !== 'undefined' ? window.localStorage : undefined, {
+      name: customerName, phone: customerPhone, email: customerEmail,
+    });
+  }, [customerName, customerPhone, customerEmail]);
 
   // Reset when closed
   useEffect(() => {
@@ -102,11 +111,6 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
   const isButtonDisabled = isSubmitting || isProcessingPayment;
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  // Validate email format
-  const isValidEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
 
   const handlePayCard = async () => {
     // Prevent duplicate submissions
@@ -128,12 +132,9 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
       setPaymentError('Please enter your phone number');
       return;
     }
-    if (!trimmedEmail) {
-      setPaymentError('Email is required for card payments');
-      return;
-    }
-    if (!isValidEmail(trimmedEmail)) {
-      setPaymentError('Please enter a valid email address');
+    // Email is optional: Viva asks for one on its own page if it needs it.
+    if (!isAcceptableEmail(trimmedEmail)) {
+      setPaymentError('Please check your email address, or leave it blank');
       return;
     }
     if (total <= 0) {
@@ -358,6 +359,11 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                 <div className="text-center p-4 bg-secondary rounded-lg">
                   <p className="text-muted-foreground text-sm uppercase tracking-wider">Order Total</p>
                   <p className="font-heading text-3xl text-primary mt-1">€{total.toFixed(2)}</p>
+                  {onlinePaymentsEnabled && !payOnCollectionEnabled && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Card payment only: card, Apple Pay or Google Pay. No cash.
+                    </p>
+                  )}
                 </div>
 
                 {/* Name */}
@@ -395,7 +401,7 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
                 <div className="space-y-2">
                   <Label htmlFor="email" className="flex items-center gap-2">
                     <Mail className="w-4 h-4" />
-                    Email <span className="text-muted-foreground text-xs">(optional)</span>
+                    Email <span className="text-muted-foreground text-xs">(optional, for a card receipt)</span>
                   </Label>
                   <Input
                     id="email"
@@ -509,12 +515,6 @@ export function CustomerCheckoutModal({ open, onOpenChange, onSuccess }: Custome
 
                 {onlinePaymentsEnabled && (
                   <>
-                    {/* Email required notice for card payments */}
-                    {!customerEmail.trim() && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        💳 Email is required for card payments
-                      </p>
-                    )}
 
                     {/* Pay Card - Viva Wallet */}
                     <Button

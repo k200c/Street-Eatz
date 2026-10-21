@@ -114,8 +114,10 @@ Deno.serve(async (req) => {
     const total = Number(order.total);
     if (!Number.isFinite(total) || total <= 0) return jsonResponse({ error: "Invalid order total" }, 409);
     const email = String(body.customer_email ?? "").trim().slice(0, 254);
-    if (paymentType === "online" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return jsonResponse({ error: "A valid customer email is required" }, 400);
+    // Email is optional (guest checkout asks for name + phone). If one is
+    // given it must look like an email; Viva only receives it when present.
+    if (paymentType === "online" && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return jsonResponse({ error: "Please check the email address, or leave it blank" }, 400);
     }
 
     const amountTendered = Number(body.amount_tendered ?? 0);

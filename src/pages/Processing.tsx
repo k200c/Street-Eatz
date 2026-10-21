@@ -130,7 +130,8 @@ const Processing = () => {
     // Get all localStorage keys and remove non-auth ones
     const keysToRemove = Object.keys(localStorage).filter(key => 
       !key.startsWith('sb-') && 
-      !key.includes('-auth-token')
+      !key.includes('-auth-token') &&
+      key !== 'street-eatz-checkout-details'
     );
     keysToRemove.forEach(key => localStorage.removeItem(key));
     

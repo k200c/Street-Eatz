@@ -43,6 +43,9 @@ export function ProductCardHorizontal({
   const imageUrl = getOptimizedImageUrl(rawImageUrl, 400);
   const isSoldOut = product.is_sold_out;
   const allergenNumbers = allergensMap?.get(product.id) || [];
+  // Drinks are sealed soft drinks and water with no allergens to declare (Kyle,
+  // 21 Oct): no "ask staff" warning on them.
+  const showAllergenWarning = !/drink/i.test(String(product.category ?? ''));
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -101,7 +104,7 @@ export function ProductCardHorizontal({
           {allergenNumbers.length > 0 && (
             <AllergenBadges allergenNumbers={allergenNumbers} size="sm" showTooltip={false} showNames />
           )}
-          {!allergensLoading && allergenNumbers.length === 0 && (
+          {!allergensLoading && allergenNumbers.length === 0 && showAllergenWarning && (
             <span className="flex items-center gap-1 text-[9px] text-amber-400">
               <AlertTriangle className="h-3 w-3 shrink-0" />Allergens: ask staff
             </span>
@@ -315,7 +318,7 @@ export function ProductCardHorizontal({
             {allergenNumbers.length > 0 && (
               <AllergenBadges allergenNumbers={allergenNumbers} size="sm" showNames />
             )}
-            {!allergensLoading && allergenNumbers.length === 0 && (
+            {!allergensLoading && allergenNumbers.length === 0 && showAllergenWarning && (
               <span className="flex items-center gap-1 text-[10px] text-amber-400">
                 <AlertTriangle className="h-3 w-3 shrink-0" />Allergens: ask staff
               </span>
